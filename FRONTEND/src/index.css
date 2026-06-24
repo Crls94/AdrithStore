@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Variables de color para páginas internas (theme.js → CSS vars) ─── */
+/* Las páginas que aún usan T.gold, T.bgCard etc. leen estas vars      */
+:root {
+  --c-bg:          #FAFAF8;
+  --c-bg-card:     #FFFFFF;
+  --c-bg-muted:    #F1F3F2;
+  --c-bg-input:    #F5F5F3;
+  --c-bg-header:   #0A3D3A;
+  --c-text:        #1F1F1F;
+  --c-text-sec:    #555555;
+  --c-text-muted:  #888888;
+  --c-border:      rgba(13,94,79,0.12);
+  --c-gold:        #E07A2F;
+  --c-gold-bg:     rgba(224,122,47,0.08);
+  --c-gold-border: rgba(224,122,47,0.25);
+  --c-shadow:      0 2px 8px rgba(0,0,0,0.06);
+  --c-shadow-h:    0 6px 20px rgba(13,94,79,0.15);
+  --c-shadow-modal:0 24px 60px rgba(0,0,0,0.3);
+}
+
+/* ── DARK MODE ──────────────────────────────────────────────────────── */
+.dark {
+  --c-bg:          #0D1210;
+  --c-bg-card:     #162018;
+  --c-bg-muted:    #1A2820;
+  --c-bg-input:    #1E2E24;
+  --c-bg-header:   #0A1F18;
+  --c-text:        #E8F0EC;
+  --c-text-sec:    #A8C0B0;
+  --c-text-muted:  #6A8878;
+  --c-border:      rgba(13,94,79,0.25);
+  --c-gold:        #F0924A;
+  --c-gold-bg:     rgba(240,146,74,0.12);
+  --c-gold-border: rgba(240,146,74,0.30);
+  --c-shadow:      0 2px 8px rgba(0,0,0,0.25);
+  --c-shadow-h:    0 6px 20px rgba(0,0,0,0.40);
+  --c-shadow-modal:0 24px 60px rgba(0,0,0,0.60);
+}
+
+/* ── Dark mode en Tailwind — sobreescribir colores custom ─────────────  */
+.dark body {
+  background-color: var(--c-bg);
+  color: var(--c-text);
+}
+
+/* Scrollbar suave */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(13,94,79,0.25); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(13,94,79,0.45); }

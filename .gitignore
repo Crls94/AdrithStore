@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vscode/
+BACKEND/target/
+BACKEND/.vscode/
+BACKEND/uploads/
+FRONTEND/node_modules/
+FRONTEND/dist/
+*.log
