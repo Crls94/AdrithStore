@@ -21,7 +21,7 @@ const colorCat  = (id) => COLORES_CAT[(id ?? 0) % COLORES_CAT.length];
 
 // Resolver URL de imagen: local o externa
 // Configurar aquí la IP/host del backend
-const BACKEND_URL = 'http://192.168.18.28:8080';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
 
 const resolverImagen = (url) => {
   if (!url) return null;
