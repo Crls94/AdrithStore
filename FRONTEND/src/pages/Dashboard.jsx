@@ -44,15 +44,6 @@ function buildChartData(ventas, periodo) {
     .slice(-30);
 }
 
-function useReloj() {
-  const [t,setT] = useState(new Date());
-  useEffect(()=>{
-    const id = setInterval(()=>setT(new Date()),1000);
-    return ()=>clearInterval(id);
-  },[]);
-  return t;
-}
-
 function AnimNum({ to, prefix="", suffix="", dec=0 }) {
   const [v,setV] = useState(0);
   useEffect(()=>{
@@ -63,45 +54,6 @@ function AnimNum({ to, prefix="", suffix="", dec=0 }) {
     return ()=>clearInterval(id);
   },[to]);
   return <>{prefix}{dec>0?v.toFixed(dec):Math.floor(v)}{suffix}</>;
-}
-
-function AvatarMenu({usuario,items,onLogout}) {
-  const navigate=useNavigate();
-  const [open,setOpen]=useState(false);
-  const ref=useRef(null);
-  useEffect(()=>{
-    const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",h);
-    return ()=>document.removeEventListener("mousedown",h);
-  },[]);
-  return (
-    <div className="relative" ref={ref}>
-      <button onClick={()=>setOpen(v=>!v)}
-        className="flex items-center gap-2 bg-transparent border-none cursor-pointer hover:opacity-75 transition-opacity p-1 rounded-xl">
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-          style={{background:"linear-gradient(135deg,#0D5E4F,#E07A2F)"}}>
-          {(usuario?.nombres?.[0]||"?").toUpperCase()}
-        </div>
-        <span className="text-sm font-semibold text-ink leading-tight">
-          {usuario?.nombres?.split(" ")[0]}
-        </span>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-11 w-48 bg-white rounded-2xl shadow-xl border border-brand/10 overflow-hidden z-[100]">
-          {items.map(m=>(
-            <button key={m.ruta} onClick={()=>{setOpen(false);navigate(m.ruta);}}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-ink border-b border-brand/10 bg-transparent hover:bg-surface transition-colors text-left cursor-pointer">
-              {m.icon} {m.label}
-            </button>
-          ))}
-          <button onClick={()=>{setOpen(false);onLogout();}}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-700 bg-transparent hover:bg-red-50 transition-colors text-left cursor-pointer">
-            🚪 Cerrar Sesión
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 const ACCESOS = [
@@ -229,9 +181,8 @@ export default function Dashboard() {
 // DASH ADMIN
 // ═════════════════════════════════════════════════════════════════════════
 function DashAdmin() {
-  const {usuario,esAdmin,logout} = useAuth();
+  const {usuario,esAdmin} = useAuth();
   const navigate = useNavigate();
-  const ahora    = useReloj();
 
   // periodo controla stats + gráfico + consultas
   const [periodo,        setPeriodo]        = useState("hoy");
@@ -241,9 +192,6 @@ function DashAdmin() {
   const [rechartVentas,  setRechartVentas]  = useState([]);
   const [filtroVendedor, setFiltroVendedor] = useState("");
   const [usuarios,       setUsuarios]       = useState([]);
-
-  const horaStr = ahora.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"});
-  const fechaStr = ahora.toLocaleDateString("es-PE",{weekday:"long",day:"numeric",month:"long"});
 
   useEffect(()=>{
     api.get('/usuarios')
@@ -292,51 +240,10 @@ function DashAdmin() {
     return {nombre:fija.nombre, icono:fija.icono, saldo:real?.saldoActual??null};
   });
 
-  const menuItems = [
-    {label:"Mi Perfil",  icon:"👤",ruta:"/perfil"},
-    {label:"Usuarios",   icon:"👥",ruta:"/usuarios",      admin:true},
-    {label:"Sistema",    icon:"⚙️",ruta:"/admin-sistema", admin:true},
-    {label:"Log Eventos",icon:"📝",ruta:"/eventos",       admin:true},
-  ].filter(m=>!m.admin||esAdmin());
-
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-surface font-sans text-ink">
+    <div className="flex flex-col gap-3">
 
-      {/* HEADER */}
-      <header className="flex-shrink-0 h-14 flex items-center justify-between px-4 lg:px-7
-        border-b border-brand/10 bg-canvas sticky top-0 z-[90]">
-        <div className="flex items-center gap-2">
-          <img src="/icons/logo.png" alt=""
-            className="w-8 h-8 object-contain rounded-lg"
-            onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
-          <div className="w-8 h-8 rounded-lg items-center justify-center text-base hidden flex-shrink-0"
-            style={{background:G.kpi}}>🏪</div>
-          <span className="font-black text-sm tracking-tight text-ink">Adrith</span>
-        </div>
-        <div className="text-center flex-1 mx-2">
-          <div className="text-sm font-extrabold text-brand tracking-wide leading-tight">{horaStr}</div>
-          <div className="text-[10px] text-gray-500 capitalize leading-tight">{fechaStr}</div>
-        </div>
-        <AvatarMenu usuario={usuario} items={menuItems}
-          onLogout={()=>{logout();navigate("/login");}}/>
-      </header>
-
-      {/* BODY */}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-3 lg:p-5 lg:gap-4">
-
-        {/* Accesos rápidos */}
-        <div className="flex items-center justify-center gap-1.5 flex-shrink-0">
-          {ACCESOS.map(a=>(
-            <button key={a.ruta} onClick={()=>navigate(a.ruta)} title={a.label}
-              className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer
-                bg-white border border-brand/15 hover:bg-brand hover:border-brand
-                text-brand hover:text-white transition-all duration-150">
-              <i className={`bi ${a.icon} text-sm`}/>
-            </button>
-          ))}
-        </div>
-
-        {/* ══ HERO CARD ═════════════════════════════════════════════════ */}
+      {/* ══ HERO CARD ═════════════════════════════════════════════════ */}
         <div className="flex-shrink-0 rounded-3xl p-5 lg:p-6 relative overflow-hidden shadow-teal-lg"
           style={{background:G.hero}}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full pointer-events-none"
@@ -592,8 +499,6 @@ function DashAdmin() {
             </div>
           </div>
         </div>
-
-      </div>
     </div>
   );
 }
@@ -602,9 +507,8 @@ function DashAdmin() {
 // DASH VENDEDOR
 // ═════════════════════════════════════════════════════════════════════════
 function DashVendedor() {
-  const {usuario,logout} = useAuth();
+  const {usuario} = useAuth();
   const navigate = useNavigate();
-  const ahora    = useReloj();
   const [stats,  setStats]  = useState(null);
   const [ventas, setVentas] = useState([]);
   const [periodo,setPeriodo]= useState("hoy");
@@ -625,28 +529,13 @@ function DashVendedor() {
   },[periodo,usuario?.idUsuario]);
 
   const chartData = useMemo(()=>buildChartData(ventas,periodo),[ventas,periodo]);
-  const h      = ahora.getHours();
+  const h = new Date().getHours();
   const saludo = h<12?"Buenos días":h<18?"Buenas tardes":"Buenas noches";
-  const horaStr= ahora.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"});
-  const menuItems = [{label:"Mi Perfil",icon:"👤",ruta:"/perfil"}];
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-surface font-sans">
-      <header className="flex-shrink-0 h-14 flex items-center justify-between px-4 lg:px-7
-        border-b border-brand/10 bg-canvas sticky top-0 z-[90]">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
-            style={{background:G.kpi}}>🏪</div>
-          <span className="font-black text-sm tracking-tight text-ink">Adrith</span>
-        </div>
-        <span className="font-extrabold text-base text-brand tracking-wide">{horaStr}</span>
-        <AvatarMenu usuario={usuario} items={menuItems}
-          onLogout={()=>{logout();navigate("/login");}}/>
-      </header>
+    <div className="flex flex-col gap-3">
 
-      <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-3 lg:p-5 lg:gap-4">
-
-        {/* Filtro período */}
+      {/* Filtro período */}
         <div className="flex-shrink-0 flex gap-2 justify-center flex-wrap">
           {periodos.map(p=>(
             <button key={p.k} onClick={()=>setPeriodo(p.k)}
@@ -759,9 +648,6 @@ function DashVendedor() {
               ))}
             </div>
           </div>
-        </div>
-
-      </div>
     </div>
   );
 }

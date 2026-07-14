@@ -89,13 +89,9 @@ function AppRoutes() {
         : <SetupWizard />
       } />
 
-      {/* ── Dashboard SIN Layout — página completa propia ── */}
-      <Route path="/dashboard" element={
-        <PrivateRoute><Dashboard /></PrivateRoute>
-      } />
-
-      {/* ── Páginas internas CON Layout mínimo (solo header + back) ── */}
+      {/* ── Páginas internas CON Layout (header unificado Dashboard + páginas) ── */}
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/ventas"          element={<Ventas />} />
         <Route path="/registro-ventas" element={<RegistroVentas />} />
         <Route path="/productos"       element={<Productos />} />
