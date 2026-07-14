@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api/axiosConfig";
 import { useAuth } from "../auth/AuthContext";
-
-const API = "http://192.168.18.28:8080/api";
 
 const C = {
   emerald:   "#0D5E4F",
@@ -24,8 +22,8 @@ export default function AdminSistema() {
 
   useEffect(() => {
     Promise.all([
-      axios.get(`${API}/setup/estado`),
-      axios.get(`${API}/tesoreria/resumen`),
+      api.get('/setup/estado'),
+      api.get('/tesoreria/resumen'),
     ]).then(([c, r]) => {
       setConfig(c.data);
       setResumen(r.data);
@@ -35,7 +33,7 @@ export default function AdminSistema() {
   const handleReset = async () => {
     setCarg(true); setMsg({ tipo:"", texto:"" });
     try {
-      await axios.post(`${API}/setup/reset-operaciones`, { confirmacion:"CONFIRMAR_RESET" });
+      await api.post('/setup/reset-operaciones', { confirmacion:"CONFIRMAR_RESET" });
       await recargarEstado();
       setMsg({ tipo:"exito", texto:"Reset completado. El sistema volvió al estado inicial." });
       setConfirm(false);

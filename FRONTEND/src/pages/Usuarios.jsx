@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api/axiosConfig";
 import { useAuth } from "../auth/AuthContext";
-
-const API = "http://192.168.18.28:8080/api";
 
 const C = {
   emerald:   "#0D5E4F",
@@ -22,7 +20,7 @@ export default function Usuarios() {
   const [exito,        setExito]     = useState("");
 
   const cargar = () =>
-    axios.get(`${API}/usuarios`).then(r => setUsuarios(r.data)).catch(() => {});
+    api.get('/usuarios').then(r => setUsuarios(r.data)).catch(() => {});
 
   useEffect(() => { cargar(); }, []);
 
@@ -46,14 +44,14 @@ export default function Usuarios() {
     try {
       if (modal === "crear") {
         if (form.password !== form.confirmar) return setError("Las contraseñas no coinciden.");
-        await axios.post(`${API}/usuarios`, form, { headers:{ "X-Usuario": yo?.username||"admin" }});
+        await api.post('/usuarios', form, { headers:{ "X-Usuario": yo?.username||"admin" }});
         setExito("Vendedor creado.");
       } else if (modal === "editar") {
-        await axios.put(`${API}/usuarios/${seleccionado.idUsuario}`, form);
+        await api.put(`/usuarios/${seleccionado.idUsuario}`, form);
         setExito("Datos actualizados.");
       } else if (modal === "password") {
         if (form.passwordNueva !== form.confirmar) return setError("Las contraseñas no coinciden.");
-        await axios.patch(`${API}/usuarios/${seleccionado.idUsuario}/reset-password`,
+        await api.patch(`/usuarios/${seleccionado.idUsuario}/reset-password`,
           { passwordNueva: form.passwordNueva });
         setExito("Contraseña restablecida.");
       }
@@ -64,7 +62,7 @@ export default function Usuarios() {
 
   const toggleEstado = async (u) => {
     try {
-      await axios.patch(`${API}/usuarios/${u.idUsuario}/estado`, { activo: !u.activo });
+      await api.patch(`/usuarios/${u.idUsuario}/estado`, { activo: !u.activo });
       cargar();
     } catch {}
   };

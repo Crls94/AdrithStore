@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../api/axiosConfig";
 import { useAuth } from "../auth/AuthContext";
-
-const API = "http://192.168.18.28:8080/api";
 
 export default function SetupWizard() {
   const { recargarEstado, usuario } = useAuth();
@@ -22,7 +20,7 @@ export default function SetupWizard() {
 
   // Cargar cuentas disponibles al montar
   useEffect(() => {
-    axios.get(`${API}/auth/cuentas-setup`)
+    api.get('/auth/cuentas-setup')
       .then(r => setCuentas(r.data))
       .catch(() => setCuentas([]));
   }, []);
@@ -48,7 +46,7 @@ export default function SetupWizard() {
         stocks: [],
       };
 
-      const res = await axios.post(`${API}/setup/configurar`, body);
+      const res = await api.post('/setup/configurar', body);
 
       // Verificar que la respuesta sea exitosa
       if (res.data?.ok) {

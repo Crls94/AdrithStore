@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-
-const API = "http://192.168.18.28:8080/api";
+import api from "../api/axiosConfig";
 
 const C = {
   emerald:"#0D5E4F", teal:"#0A3D3A", tealDark:"#061A18",
@@ -62,8 +60,8 @@ export default function Tesoreria() {
   const cargarDatos = () => {
     setCargando(true);
     Promise.all([
-      axios.get(`${API}/tesoreria/cuentas`),
-      axios.get(`${API}/tesoreria/movimientos?dias=30`),
+      api.get('/tesoreria/cuentas'),
+      api.get('/tesoreria/movimientos?dias=30'),
     ]).then(([c, m]) => {
       setCuentas(Array.isArray(c.data) ? c.data : []);
       setMovimientos(Array.isArray(m.data) ? m.data : []);
@@ -91,7 +89,7 @@ export default function Tesoreria() {
     }
     setGuardando(true);
     try {
-      await axios.post(`${API}/tesoreria/gasto`, {
+      await api.post('/tesoreria/gasto', {
         concepto: formGasto.concepto.trim(),
         tipo:     formGasto.tipo,
         monto:    parseFloat(formGasto.monto),

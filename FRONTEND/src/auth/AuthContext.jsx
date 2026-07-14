@@ -1,8 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api/axiosConfig";
 
 const AuthContext = createContext(null);
-const API = "http://192.168.18.28:8080/api";
 
 export function AuthProvider({ children }) {
   const [usuario,  setUsuario]  = useState(null);
@@ -20,7 +19,7 @@ export function AuthProvider({ children }) {
 
   const verificarEstado = async () => {
     try {
-      const { data } = await axios.get(`${API}/auth/estado`);
+      const { data } = await api.get('/auth/estado');
       setEstado(data);
     } catch {
       setEstado({ hayUsuarios: false, configurado: false, nombreNegocio: "" });
@@ -30,7 +29,7 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (username, password) => {
-    const { data } = await axios.post(`${API}/auth/login`, { username, password });
+    const { data } = await api.post('/auth/login', { username, password });
 
     // Cargar datos completos del usuario (incluyendo dni, telefono)
     let datosCompletos = {
@@ -44,7 +43,7 @@ export function AuthProvider({ children }) {
 
     // Intentar cargar perfil completo con todos los campos
     try {
-      const perfil = await axios.get(`${API}/usuarios/${data.idUsuario}`);
+      const perfil = await api.get(`/usuarios/${data.idUsuario}`);
       datosCompletos = {
         ...datosCompletos,
         dni:      perfil.data.dni      || "",
@@ -68,7 +67,7 @@ export function AuthProvider({ children }) {
   };
 
   const registrarPrimerAdmin = async (datos) => {
-    await axios.post(`${API}/auth/primer-admin`, datos);
+    await api.post('/auth/primer-admin', datos);
     await verificarEstado();
   };
 
@@ -76,7 +75,7 @@ export function AuthProvider({ children }) {
   const recargarPerfil = async () => {
     if (!usuario?.idUsuario) return;
     try {
-      const { data } = await axios.get(`${API}/usuarios/${usuario.idUsuario}`);
+      const { data } = await api.get(`/usuarios/${usuario.idUsuario}`);
       const actualizado = {
         ...usuario,
         nombres:   data.nombres   || usuario.nombres,

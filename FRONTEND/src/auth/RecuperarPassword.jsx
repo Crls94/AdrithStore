@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-
-const API = "http://192.168.18.28:8080/api";
+import api from "../api/axiosConfig";
 
 const C = {
   emerald: "#0D5E4F", teal: "#0A3D3A", tealDark: "#061A18",
@@ -39,7 +37,7 @@ export default function RecuperarPassword() {
       return setError("Todos los campos son obligatorios.");
     setCargando(true);
     try {
-      const { data } = await axios.post(`${API}/auth/recuperar/verificar`, {
+      const { data } = await api.post('/auth/recuperar/verificar', {
         username: username.trim().toLowerCase(),
         dni: dni.trim(),
         telefono: telefono.trim(),
@@ -59,7 +57,7 @@ export default function RecuperarPassword() {
     if (nueva !== confirmar)         return setError("Las contraseñas no coinciden.");
     setCargando(true);
     try {
-      await axios.post(`${API}/auth/recuperar/cambiar`, { idUsuario, nuevaPassword: nueva });
+      await api.post('/auth/recuperar/cambiar', { idUsuario, nuevaPassword: nueva });
       setExito(true);
     } catch (e) {
       setError("Error al cambiar la contraseña. Intenta de nuevo.");

@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import clsx from "clsx";
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine, XAxis, LabelList } from "recharts";
 import { useAuth } from "../auth/AuthContext";
-
-const API = "http://192.168.18.28:8080/api/dashboard";
+import api from "../api/axiosConfig";
 
 const G = {
   hero:       "linear-gradient(135deg, #061A18 0%, #0A3D3A 45%, #0D5E4F 100%)",
@@ -248,7 +246,7 @@ function DashAdmin() {
   const fechaStr = ahora.toLocaleDateString("es-PE",{weekday:"long",day:"numeric",month:"long"});
 
   useEffect(()=>{
-    axios.get(`${API.replace("/api/dashboard","")}/api/usuarios`)
+    api.get('/usuarios')
       .then(r=>setUsuarios(Array.isArray(r.data)?r.data.filter(u=>u.activo):[]))
       .catch(()=>{});
   },[]);
@@ -257,9 +255,9 @@ function DashAdmin() {
     const params = new URLSearchParams({periodo});
     if (filtroVendedor) params.append("idUsuario",filtroVendedor);
     Promise.all([
-      axios.get(`${API}/stats?${params.toString()}`),
-      axios.get(`${API}/resumen-tesoreria`),
-      axios.get(`${API.replace("/api/dashboard","")}/api/ventas${filtroVendedor?"/por-usuario/"+filtroVendedor:"/todas"}`),
+      api.get(`/dashboard/stats?${params.toString()}`),
+      api.get('/dashboard/resumen-tesoreria'),
+      api.get(`/ventas${filtroVendedor?"/por-usuario/"+filtroVendedor:"/todas"}`),
     ]).then(([s,t,v])=>{
       setStats(s.data);
       setTes(t.data);
@@ -619,9 +617,9 @@ function DashVendedor() {
 
   useEffect(()=>{
     if(!usuario?.idUsuario) return;
-    axios.get(`${API}/stats?periodo=${periodo}&idUsuario=${usuario.idUsuario}`)
+    api.get(`/dashboard/stats?periodo=${periodo}&idUsuario=${usuario.idUsuario}`)
       .then(r=>setStats(r.data)).catch(()=>setStats({}));
-    axios.get(`${API.replace("/api/dashboard","")}/api/ventas/por-usuario/${usuario.idUsuario}`)
+    api.get(`/ventas/por-usuario/${usuario.idUsuario}`)
       .then(r=>setVentas(Array.isArray(r.data)?r.data.slice(0,20):[]))
       .catch(()=>setVentas([]));
   },[periodo,usuario?.idUsuario]);
