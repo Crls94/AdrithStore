@@ -4,13 +4,14 @@ import { useAuth } from '../../auth/AuthContext';
 import { useDarkMode } from '../../hooks/useDarkMode';
 
 const ACCESOS = [
-  {label:"Nueva Venta",  ruta:"/ventas",          icon:"bi-cart-plus"},
-  {label:"Reg. Ventas",  ruta:"/registro-ventas", icon:"bi-list-ul"},
-  {label:"Productos",    ruta:"/productos",        icon:"bi-box-seam"},
-  {label:"Categorías",   ruta:"/categorias",       icon:"bi-tags"},
-  {label:"Compras",      ruta:"/compras",          icon:"bi-truck"},
-  {label:"Proveedores",  ruta:"/proveedores",      icon:"bi-people"},
-  {label:"Clientes",     ruta:"/clientes",         icon:"bi-person-vcard"},
+  {label:"Dashboard",   ruta:"/dashboard",         icon:"bi-speedometer2"},
+  {label:"Nueva Venta", ruta:"/ventas",            icon:"bi-cart-plus"},
+  {label:"Reg. Ventas", ruta:"/registro-ventas",   icon:"bi-list-ul"},
+  {label:"Productos",   ruta:"/productos",          icon:"bi-box-seam"},
+  {label:"Categorías",  ruta:"/categorias",         icon:"bi-tags"},
+  {label:"Compras",     ruta:"/compras",            icon:"bi-truck"},
+  {label:"Proveedores", ruta:"/proveedores",        icon:"bi-people"},
+  {label:"Clientes",    ruta:"/clientes",           icon:"bi-person-vcard"},
 ];
 
 const G = { kpi: "linear-gradient(135deg, #0A3D3A, #0D5E4F)" };
@@ -68,6 +69,13 @@ export default function Layout() {
   const navigate  = useNavigate();
   const { dark, toggle } = useDarkMode();
   const ahora = useReloj();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const horaStr = ahora.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"});
   const fechaStr = ahora.toLocaleDateString("es-PE",{weekday:"long",day:"numeric",month:"long"});
@@ -84,41 +92,59 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-surface dark:bg-[#0D1210] font-sans flex flex-col transition-colors duration-200">
-      <header className="flex-shrink-0 h-14 flex items-center justify-between px-4 lg:px-7
-        border-b border-brand/10 bg-canvas dark:bg-[#0A1A14]/95 sticky top-0 z-[90]">
-        <div className="flex items-center gap-2">
-          <img src="/icons/logo.png" alt=""
-            className="w-8 h-8 object-contain rounded-lg"
-            onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
-          <div className="w-8 h-8 rounded-lg items-center justify-center text-base hidden flex-shrink-0"
-            style={{background:G.kpi}}>🏪</div>
-          <span className="font-black text-sm tracking-tight text-ink dark:text-[#E8F0EC]">Adrith</span>
+      <header className="flex-shrink-0 border-b border-brand/10 bg-canvas dark:bg-[#0A1A14]/95 sticky top-0 z-[90]">
+
+        {/* Fila 1: logo + dark toggle + avatar — siempre visible */}
+        <div className="h-14 flex items-center justify-between px-4 lg:px-7">
+          <div className="flex items-center gap-2">
+            <img src="/icons/logo.png" alt=""
+              className="w-8 h-8 object-contain rounded-lg"
+              onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
+            <div className="w-8 h-8 rounded-lg items-center justify-center text-base hidden flex-shrink-0"
+              style={{background:G.kpi}}>🏪</div>
+            <span className="font-black text-sm tracking-tight text-ink dark:text-[#E8F0EC]">Adrith</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={toggle} title={dark ? 'Modo claro' : 'Modo oscuro'}
+              className="flex items-center gap-2 bg-transparent border-none cursor-pointer hover:opacity-75 transition-opacity p-1 rounded-xl">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                style={{background:"linear-gradient(135deg,#0D5E4F,#E07A2F)"}}>
+                {dark ? '☀️' : '🌙'}
+              </div>
+              <span className="hidden sm:block text-sm font-semibold text-ink dark:text-[#E8F0EC] leading-tight">
+                {dark ? 'Claro' : 'Oscuro'}
+              </span>
+            </button>
+            <AvatarMenu usuario={usuario} items={menuItems}
+              onLogout={handleLogout}/>
+          </div>
         </div>
-        <div className="text-center flex-1 mx-2">
-          <div className="text-sm font-extrabold text-brand tracking-wide leading-tight">{horaStr}</div>
-          <div className="text-[10px] text-gray-500 dark:text-gray-400 capitalize leading-tight">{fechaStr}</div>
+
+        {/* Fila 2: reloj + fecha — se oculta al scrollear */}
+        <div style={{
+          transition: 'all 0.3s ease',
+          maxHeight: scrolled ? '0' : '48px',
+          opacity: scrolled ? 0 : 1,
+          overflow: 'hidden',
+        }}>
+          <div className="pb-2 text-center">
+            <div className="text-sm font-extrabold text-brand tracking-wide leading-tight">{horaStr}</div>
+            <div className="text-[10px] text-gray-500 dark:text-gray-400 capitalize leading-tight">{fechaStr}</div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={toggle} title={dark ? 'Modo claro' : 'Modo oscuro'}
-            className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer
-              border border-brand/20 dark:border-brand/30
-              bg-transparent hover:bg-surface dark:hover:bg-[#1A2820] transition-colors">
-            <span className="text-sm">{dark ? '☀️' : '🌙'}</span>
-          </button>
-          <AvatarMenu usuario={usuario} items={menuItems}
-            onLogout={handleLogout}/>
+
+        {/* Fila 3: iconos de acceso rápido — siempre visible */}
+        <div className="flex items-center justify-center gap-1.5 px-4 lg:px-7 pb-2 flex-shrink-0">
+          {ACCESOS.map(a=>(
+            <button key={a.ruta} onClick={()=>navigate(a.ruta)} title={a.label}
+              className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer
+                bg-white dark:bg-[#162018] border border-brand/15 dark:border-brand/25 hover:bg-brand hover:border-brand
+                text-brand dark:text-[#A8C0B0] hover:text-white transition-all duration-150">
+              <i className={`bi ${a.icon} text-sm`}/>
+            </button>
+          ))}
         </div>
       </header>
-      <div className="flex items-center justify-center gap-1.5 px-4 lg:px-7 py-2 flex-shrink-0 bg-surface dark:bg-[#0D1210]">
-        {ACCESOS.map(a=>(
-          <button key={a.ruta} onClick={()=>navigate(a.ruta)} title={a.label}
-            className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer
-              bg-white dark:bg-[#162018] border border-brand/15 dark:border-brand/25 hover:bg-brand hover:border-brand
-              text-brand dark:text-[#A8C0B0] hover:text-white transition-all duration-150">
-            <i className={`bi ${a.icon} text-sm`}/>
-          </button>
-        ))}
-      </div>
       <main className="flex-1 overflow-auto p-4 lg:p-6
         bg-surface dark:bg-[#0D1210] transition-colors duration-200">
         <Outlet />
