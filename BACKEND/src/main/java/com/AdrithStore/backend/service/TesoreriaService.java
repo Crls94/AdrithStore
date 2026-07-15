@@ -8,9 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +23,7 @@ public class TesoreriaService {
     private final CuentaFinancieraRepository          cuentaRepo;
     private final TransaccionFinancieraRepository     txRepo;
     private final PeriodoContableRepository           periodoRepo;
+    private final CierreDiarioRepository              cierreRepo;
 
     private static final DateTimeFormatter PERIODO_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
 
@@ -127,6 +132,94 @@ public class TesoreriaService {
         return pc;
     }
 
+    // ── Preview cierre de caja para una fecha ─────────────────────────────
+    public List<Map<String, Object>> obtenerPreviewCierre(LocalDate fecha) {
+        List<CuentaFinanciera> cuentas = cuentaRepo.findByActivaTrue();
+        List<Map<String, Object>> preview = new ArrayList<>();
+        for (CuentaFinanciera c : cuentas) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("idCuenta", c.getIdCuenta());
+            item.put("nombre", c.getNombre());
+            item.put("saldoSistema", c.getSaldoActual());
+            item.put("fondoCaja", c.getFondoCaja() != null ? c.getFondoCaja() : BigDecimal.ZERO);
+            item.put("retiroSugerido",
+                c.getSaldoActual().subtract(c.getFondoCaja() != null ? c.getFondoCaja() : BigDecimal.ZERO));
+
+            boolean yaCerrado = cierreRepo
+                .findByFechaCierreAndCuenta_IdCuenta(fecha, c.getIdCuenta()).isPresent();
+            item.put("yaCerrado", yaCerrado);
+
+            if (yaCerrado) {
+                CierreDiario cd = cierreRepo
+                    .findByFechaCierreAndCuenta_IdCuenta(fecha, c.getIdCuenta()).get();
+                item.put("saldoContado", cd.getSaldoContado());
+                item.put("diferencia", cd.getDiferencia());
+                item.put("cerradoEn", cd.getCerradoEn());
+            }
+
+            preview.add(item);
+        }
+        return preview;
+    }
+
+    // ── Ejecutar cierre de caja ────────────────────────────────────────────
+    @Transactional
+    public void ejecutarCierre(LocalDate fecha, List<ItemCierre> items, String usuario) {
+        for (ItemCierre item : items) {
+            CuentaFinanciera cuenta = cuentaRepo.findById(item.getIdCuenta())
+                .orElseThrow(() -> new IllegalArgumentException(
+                    "Cuenta no encontrada: " + item.getIdCuenta()));
+
+            // Validar que no esté ya cerrada
+            if (cierreRepo.findByFechaCierreAndCuenta_IdCuenta(fecha, cuenta.getIdCuenta()).isPresent())
+                throw new IllegalStateException(
+                    "La cuenta " + cuenta.getNombre() + " ya fue cerrada para el día " + fecha);
+
+            BigDecimal saldoSistema = cuenta.getSaldoActual();
+            BigDecimal saldoContado = item.getSaldoContado();
+            BigDecimal diferencia = saldoContado.subtract(saldoSistema);
+            BigDecimal fondo = cuenta.getFondoCaja() != null ? cuenta.getFondoCaja() : BigDecimal.ZERO;
+            BigDecimal retiro = saldoContado.subtract(fondo);
+            boolean ajusteRegistrado = false;
+
+            // Paso 1: AJUSTE si hay diferencia (sincroniza el sistema con lo contado)
+            if (diferencia.compareTo(BigDecimal.ZERO) != 0) {
+                int signo = diferencia.compareTo(BigDecimal.ZERO) > 0 ? 1 : -1;
+                registrar("AJUSTE", cuenta.getNombre(), diferencia.abs(), signo,
+                    "AJUSTE cierre " + fecha + " (contado=" + saldoContado + ", sistema=" + saldoSistema + ")",
+                    null, null, usuario);
+                ajusteRegistrado = true;
+                cuenta.setSaldoActual(saldoContado);
+            }
+
+            // Paso 2: RETIRO (sacar ganancia del día, dejar solo el fondo)
+            if (retiro.compareTo(BigDecimal.ZERO) > 0) {
+                registrar("RETIRO", cuenta.getNombre(), retiro, -1,
+                    "RETIRO cierre " + fecha + " (contado=" + saldoContado + ", fondo=" + fondo + ")",
+                    null, null, usuario);
+                cuenta.setSaldoActual(fondo);
+            }
+
+            cuentaRepo.save(cuenta);
+
+            // Paso 3: Insertar registro de cierre
+            CierreDiario cd = new CierreDiario();
+            cd.setFechaCierre(fecha);
+            cd.setCuenta(cuenta);
+            cd.setSaldoSistema(saldoSistema);
+            cd.setSaldoContado(saldoContado);
+            cd.setDiferencia(diferencia);
+            cd.setFondoDejado(fondo);
+            cd.setRetiro(retiro);
+            cd.setAjusteRegistrado(ajusteRegistrado);
+            cd.setObservacion(item.getObservacion());
+            cd.setCerradoPor(usuario);
+            cd.setCerradoEn(LocalDateTime.now());
+            cd.setEstado("cerrado");
+            cierreRepo.save(cd);
+        }
+    }
+
     // ── Recalcular saldos (SELECT FOR UPDATE para evitar race condition) ──
     @Transactional
     public void recalcularSaldos() {
@@ -152,6 +245,23 @@ public class TesoreriaService {
             case "transferencia":  return "Transferencia";
             default:               return "Caja Fisica";
         }
+    }
+
+    // ── DTO: item de cierre de caja ────────────────────────────────────────
+    public static class ItemCierre {
+        private final Integer    idCuenta;
+        private final BigDecimal saldoContado;
+        private final String     observacion;
+
+        public ItemCierre(Integer idCuenta, BigDecimal saldoContado, String observacion) {
+            this.idCuenta    = idCuenta;
+            this.saldoContado = saldoContado;
+            this.observacion  = observacion;
+        }
+
+        public Integer    getIdCuenta()    { return idCuenta; }
+        public BigDecimal getSaldoContado() { return saldoContado; }
+        public String     getObservacion()  { return observacion; }
     }
 
     // ── DTO: saldo de apertura ────────────────────────────────────────────
