@@ -125,8 +125,8 @@ function SparkLine({ data, gradId }) {
       <div className="h-20 flex items-center justify-center text-white/25 text-xs">
         Sin datos para graficar
       </div>
-    );
-  }
+  );
+}
   return (
     <ResponsiveContainer width="100%" height={180}>
       <AreaChart data={data} margin={{top:22,right:25,left:25,bottom:0}}>
@@ -648,6 +648,7 @@ function DashVendedor() {
               ))}
             </div>
           </div>
+        </div>
     </div>
   );
 }
