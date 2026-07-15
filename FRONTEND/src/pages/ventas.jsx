@@ -8,7 +8,7 @@ import api from '../api/axiosConfig';
 let jsPDF = null;
 import('jspdf').then(m => { jsPDF = m.jsPDF || m.default; }).catch(() => {});
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 const resolverImagen = (url) => {
   if (!url) return null;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
