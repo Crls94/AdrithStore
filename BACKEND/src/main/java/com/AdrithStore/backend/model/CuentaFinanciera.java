@@ -27,6 +27,9 @@ public class CuentaFinanciera {
     @Column(name = "saldo_actual", precision = 12, scale = 2)
     private BigDecimal saldoActual = BigDecimal.ZERO;
 
+    @Column(name = "fondo_caja", precision = 12, scale = 2)
+    private BigDecimal fondoCaja = BigDecimal.ZERO;
+
     @Column(name = "activa")
     private Boolean activa = true;
 }

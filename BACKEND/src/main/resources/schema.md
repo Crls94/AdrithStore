@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS Cuenta_Financiera (
                    CHECK (Tipo IN ('EFECTIVO','DIGITAL','BANCO')),
     Descripcion    TEXT,
     Saldo_Actual   DECIMAL(12,2) DEFAULT 0,  -- calculado por TesoreriaService.recalcular()
+    Fondo_Caja     DECIMAL(12,2) DEFAULT 0,  -- monto a dejar al cerrar el día (cierre de caja)
     Activa         BOOLEAN DEFAULT TRUE
 );
 
@@ -184,14 +185,17 @@ CREATE TABLE IF NOT EXISTS Periodo_Contable (
 --   CAMBIO_DIGITAL   → flujo de cambio Plin/Yape (par de TX por transacción)
 --   AJUSTE           → corrección manual por el administrador
 --   TRANSFERENCIA    → movimiento entre cuentas propias
+--   RETIRO           → retiro de ganancia del día al cerrar caja (deja fondo)
 CREATE TABLE IF NOT EXISTS Transaccion_Financiera (
     id_Transaccion  SERIAL PRIMARY KEY,
     Fecha           TIMESTAMP DEFAULT NOW(),
     Tipo_Mov        VARCHAR(30) NOT NULL
-                    CHECK (Tipo_Mov IN (
-                        'APERTURA','VENTA','COMPRA','GASTO',
-                        'CAMBIO_DIGITAL','AJUSTE','TRANSFERENCIA'
-                    )),
+                    CONSTRAINT ck_transaccion_tipo_mov CHECK (
+                        Tipo_Mov IN (
+                            'APERTURA','VENTA','COMPRA','GASTO',
+                            'CAMBIO_DIGITAL','AJUSTE','TRANSFERENCIA','RETIRO'
+                        )
+                    ),
     id_Cuenta       INTEGER NOT NULL REFERENCES Cuenta_Financiera(id_Cuenta),
     Monto           DECIMAL(10,2) NOT NULL CHECK (Monto >= 0),
     Signo           SMALLINT NOT NULL CHECK (Signo IN (1,-1)),
@@ -203,7 +207,26 @@ CREATE TABLE IF NOT EXISTS Transaccion_Financiera (
     Creada_Por      VARCHAR(50)
 );
 
--- ── 15. EVENTO_LOG ────────────────────────────────────────────────────────
+-- ── 15. CIERRE_DIARIO ─────────────────────────────────────────────────────
+-- Registro de cierre diario por cuenta: captura arqueo, diferencia y retiro
+CREATE TABLE IF NOT EXISTS Cierre_Diario (
+    id_Cierre      SERIAL PRIMARY KEY,
+    Fecha_Cierre   DATE NOT NULL,
+    id_Cuenta      INTEGER NOT NULL REFERENCES Cuenta_Financiera(id_Cuenta),
+    Saldo_Sistema  DECIMAL(12,2) NOT NULL,     -- lo que dice el sistema
+    Saldo_Contado  DECIMAL(12,2) NOT NULL,     -- lo que contó el cajero
+    Diferencia     DECIMAL(12,2) NOT NULL,     -- Contado - Sistema (negativo = faltante)
+    Fondo_Dejado   DECIMAL(12,2) NOT NULL,     -- Fondo_Caja configurado
+    Retiro         DECIMAL(12,2) NOT NULL,     -- Contado - Fondo_Dejado
+    Ajuste_Registrado BOOLEAN DEFAULT FALSE,   -- si se generó AJUSTE por diferencia
+    Observacion    TEXT,
+    Cerrado_Por    VARCHAR(50),
+    Cerrado_En     TIMESTAMP DEFAULT NOW(),
+    Estado         VARCHAR(20) DEFAULT 'cerrado',
+    UNIQUE (Fecha_Cierre, id_Cuenta)
+);
+
+-- ── 16. EVENTO_LOG ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS Evento_Log (
     id_Evento       SERIAL PRIMARY KEY,
     Fecha           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
