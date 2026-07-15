@@ -57,6 +57,14 @@ export default function Tesoreria() {
   const [exito,      setExito]      = useState("");
   const [errorGasto, setErrorGasto] = useState("");
 
+  const [fechaCierre, setFechaCierre] = useState(() => new Date().toISOString().split('T')[0]);
+  const [previewCierre, setPreviewCierre] = useState([]);
+  const [cierreCargando, setCierreCargando] = useState(false);
+  const [ejecutandoCierre, setEjecutandoCierre] = useState(false);
+  const [cierreExito, setCierreExito] = useState("");
+  const [cierreError, setCierreError] = useState("");
+  const [saldoContadoInput, setSaldoContadoInput] = useState({});
+
   const cargarDatos = () => {
     setCargando(true);
     Promise.all([
@@ -103,6 +111,42 @@ export default function Tesoreria() {
       const msg = e.response?.data;
       setErrorGasto(typeof msg === "string" ? msg : "Error al registrar el gasto.");
     } finally { setGuardando(false); }
+  };
+
+  const cargarPreview = async (fecha) => {
+    setCierreCargando(true);
+    setCierreError("");
+    try {
+      const res = await api.get(`/tesoreria/cierre/preview?fecha=${fecha}`);
+      const data = Array.isArray(res.data) ? res.data : [];
+      setPreviewCierre(data);
+      const inputs = {};
+      data.forEach(c => { inputs[c.idCuenta] = c.yaCerrado ? c.saldoContado : c.saldoSistema; });
+      setSaldoContadoInput(inputs);
+    } catch (e) {}
+    finally { setCierreCargando(false); }
+  };
+
+  const handleEjecutarCierre = async () => {
+    setCierreError("");
+    const items = previewCierre.filter(c => !c.yaCerrado).map(c => ({
+      idCuenta: c.idCuenta,
+      saldoContado: parseFloat(saldoContadoInput[c.idCuenta] ?? c.saldoSistema),
+      observacion: "",
+    }));
+    if (items.length === 0) return;
+    setEjecutandoCierre(true);
+    try {
+      const res = await api.post('/tesoreria/cierre/ejecutar', {
+        fecha: fechaCierre, items, usuario: "admin",
+      });
+      setCierreExito(res.data.mensaje || "✅ Cierre ejecutado");
+      setTimeout(() => setCierreExito(""), 4000);
+      cargarPreview(fechaCierre);
+      cargarDatos();
+    } catch (e) {
+      setCierreError(e.response?.data?.error || "Error al ejecutar cierre");
+    } finally { setEjecutandoCierre(false); }
   };
 
   const inp = {
@@ -184,7 +228,7 @@ export default function Tesoreria() {
             { k:"movimientos",l:"📋 Movimientos" },
             { k:"registrar",  l:"➕ Registrar gasto" },
             // Solo diseño — sin funcionalidad aún
-            { k:"cierre",     l:"🔒 Cierre de caja", disabled:true },
+            { k:"cierre",     l:"🔒 Cierre de caja" },
             { k:"reportes",   l:"📄 Reportes",        disabled:true },
           ].map(t => (
             <button key={t.k}
@@ -432,35 +476,118 @@ export default function Tesoreria() {
               </p>
             </div>
 
-            {/* Tarjetas de diseño — sin funcionalidad todavía */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:16 }}>
-              <div style={{ background:"#fff", borderRadius:16, padding:20,
-                border:`1px solid ${C.border}`, opacity:0.6 }}>
-                <div style={{ fontSize:20, marginBottom:8 }}>🔒</div>
-                <div style={{ fontSize:14, fontWeight:700, color: C.charcoal, marginBottom:4 }}>
-                  Cierre de caja
-                </div>
-                <div style={{ fontSize:12, color:"#888" }}>
-                  Arqueo y cierre del turno diario
-                </div>
-                <div style={{ marginTop:10, fontSize:11, color: C.tangerine, fontWeight:700 }}>
-                  🔜 Próximamente
-                </div>
+          </div>
+        )}
+
+        {/* ══ TAB: CIERRE DE CAJA ═══════════════════════════ */}
+        {tab === "cierre" && (
+          <div>
+            {cierreCargando ? (
+              <div style={{ textAlign:"center", padding:40, color:C.emerald, fontSize:15 }}>
+                Cargando cierre...
               </div>
-              <div style={{ background:"#fff", borderRadius:16, padding:20,
-                border:`1px solid ${C.border}`, opacity:0.6 }}>
-                <div style={{ fontSize:20, marginBottom:8 }}>📄</div>
-                <div style={{ fontSize:14, fontWeight:700, color: C.charcoal, marginBottom:4 }}>
-                  Reportes
+            ) : (
+              <>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                  <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:C.charcoal }}>
+                    🔒 Cierre de caja
+                  </h3>
+                  <input type="date" value={fechaCierre}
+                    onChange={e => { setFechaCierre(e.target.value); cargarPreview(e.target.value); }}
+                    style={{ padding:"8px 12px", borderRadius:10, border:`1.5px solid ${C.border}`,
+                      fontSize:13, outline:"none", fontFamily:"inherit" }} />
                 </div>
-                <div style={{ fontSize:12, color:"#888" }}>
-                  PDF y Excel de ingresos y egresos
-                </div>
-                <div style={{ marginTop:10, fontSize:11, color: C.tangerine, fontWeight:700 }}>
-                  🔜 Próximamente
-                </div>
-              </div>
-            </div>
+
+                {cierreExito && (
+                  <div style={{ background:"#E8F5E9", border:"1px solid rgba(46,125,50,0.2)",
+                    borderRadius:10, padding:"12px 16px", fontSize:14, color:"#2E7D32", marginBottom:16 }}>
+                    {cierreExito}
+                  </div>
+                )}
+                {cierreError && (
+                  <div style={{ background:"#FFEBEE", border:"1px solid rgba(198,40,40,0.2)",
+                    borderRadius:10, padding:"10px 14px", fontSize:13, color:"#C62828", marginBottom:16 }}>
+                    ⚠️ {cierreError}
+                  </div>
+                )}
+
+                {previewCierre.length === 0 && (
+                  <div style={{ textAlign:"center", padding:32, color:"#bbb" }}>
+                    No hay cuentas activas para este día
+                  </div>
+                )}
+
+                {previewCierre.length > 0 && (
+                  <div style={{ background:"#fff", borderRadius:16,
+                    border:`1px solid ${C.border}`, overflow:"hidden", marginBottom:16 }}>
+                    <div style={{ display:"grid",
+                      gridTemplateColumns:"1fr 100px 120px 90px 80px 100px",
+                      padding:"10px 16px", background:C.softGray,
+                      fontSize:11, fontWeight:700, color:"#888",
+                      textTransform:"uppercase", letterSpacing:"0.8px" }}>
+                      <span>Cuenta</span>
+                      <span style={{ textAlign:"right" }}>Sistema</span>
+                      <span style={{ textAlign:"right" }}>Contado</span>
+                      <span style={{ textAlign:"right" }}>Diff</span>
+                      <span style={{ textAlign:"right" }}>Fondo</span>
+                      <span style={{ textAlign:"right" }}>Retiro</span>
+                    </div>
+                    {previewCierre.map((c, i) => {
+                      const contado = parseFloat(saldoContadoInput[c.idCuenta] ?? c.saldoSistema);
+                      const diff = contado - c.saldoSistema;
+                      const retiro = contado - (c.fondoCaja || 0);
+                      const diffColor = diff === 0 ? "#888" : diff > 0 ? "#2E7D32" : "#C62828";
+                      return (
+                        <div key={c.idCuenta} style={{ display:"grid",
+                          gridTemplateColumns:"1fr 100px 120px 90px 80px 100px",
+                          padding:"11px 16px", alignItems:"center",
+                          borderBottom: i < previewCierre.length-1 ? `1px solid ${C.border}` : "none",
+                          background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                          <span style={{ fontSize:13, fontWeight:600, color:C.charcoal }}>
+                            {c.nombre}
+                          </span>
+                          <span style={{ fontSize:13, textAlign:"right", color:C.charcoal }}>
+                            {money(c.saldoSistema)}
+                          </span>
+                          <span style={{ textAlign:"right" }}>
+                            {c.yaCerrado ? (
+                              <span style={{ fontSize:13, color:C.charcoal }}>{money(c.saldoContado)}</span>
+                            ) : (
+                              <input type="number" step="0.01"
+                                value={saldoContadoInput[c.idCuenta] ?? ""}
+                                onChange={e => setSaldoContadoInput(i => ({...i, [c.idCuenta]: e.target.value}))}
+                                style={{ width:"90%", padding:"6px 8px", borderRadius:8,
+                                  border:`1px solid ${C.border}`, fontSize:13, textAlign:"right",
+                                  outline:"none", fontFamily:"inherit" }} />
+                            )}
+                          </span>
+                          <span style={{ fontSize:13, textAlign:"right", fontWeight:700, color:diffColor }}>
+                            {diff >= 0 ? "+" : ""}{money(diff)}
+                          </span>
+                          <span style={{ fontSize:13, textAlign:"right", color:C.charcoal }}>
+                            {money(c.fondoCaja || 0)}
+                          </span>
+                          <span style={{ fontSize:13, textAlign:"right", fontWeight:700, color:C.tangerine }}>
+                            {money(retiro)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {previewCierre.some(c => !c.yaCerrado) && (
+                  <button onClick={handleEjecutarCierre} disabled={ejecutandoCierre}
+                    style={{ padding:"13px 28px", borderRadius:10, border:"none",
+                      background: ejecutandoCierre ? "#ccc"
+                        : `linear-gradient(135deg, ${C.emerald}, ${C.teal})`,
+                      color:"#fff", cursor: ejecutandoCierre ? "not-allowed" : "pointer",
+                      fontSize:14, fontWeight:700, fontFamily:"inherit" }}>
+                    {ejecutandoCierre ? "Ejecutando..." : "🔒 Ejecutar cierre del día"}
+                  </button>
+                )}
+              </>
+            )}
           </div>
         )}
 
