@@ -78,6 +78,7 @@ export default function Tesoreria() {
   };
 
   useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => { if (tab === "cierre") cargarPreview(fechaCierre); }, [tab]);
 
   const totalSaldo = cuentas.reduce((s, c) => s + parseFloat(c.saldoActual || 0), 0);
 
