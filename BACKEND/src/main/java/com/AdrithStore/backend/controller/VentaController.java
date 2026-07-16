@@ -22,13 +22,14 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class VentaController {
 
-    private final VentaRepository     ventaRepo;
-    private final VentaPagoRepository pagoRepo;
-    private final ProductoRepository  productoRepo;
-    private final ClienteRepository   clienteRepo;
-    private final UsuarioRepository   usuarioRepo;
-    private final TesoreriaService    tesoreriaService;
-    private final LogService          logService;
+    private final VentaRepository                ventaRepo;
+    private final VentaPagoRepository            pagoRepo;
+    private final VentaDetalleServicioRepository detalleServicioRepo;
+    private final ProductoRepository             productoRepo;
+    private final ClienteRepository              clienteRepo;
+    private final UsuarioRepository              usuarioRepo;
+    private final TesoreriaService               tesoreriaService;
+    private final LogService                     logService;
 
     @GetMapping
     @Transactional(readOnly = true)
@@ -160,6 +161,28 @@ public class VentaController {
             "descuentoGlobal", dscGlobal,
             "mensaje", "Venta registrada exitosamente."
         ));
+    }
+
+    // ── ENDPOINTS DETALLE-SERVICIO ───────────────────────────────────────
+    @PostMapping("/{id}/detalle-servicio")
+    @Transactional
+    public ResponseEntity<?> agregarDetalleServicio(@PathVariable Integer id,
+                                                     @RequestBody VentaDetalleServicio item) {
+        return ventaRepo.findById(id).map(v -> {
+            item.setVenta(v);
+            item.setIdVentaDetalleServicio(null);
+            if (item.getMonto() == null) item.setMonto(BigDecimal.ZERO);
+            if (item.getSubtotal() == null)
+                item.setSubtotal(item.getMonto().add(item.getComision() != null ? item.getComision() : BigDecimal.ZERO));
+            VentaDetalleServicio guardado = detalleServicioRepo.save(item);
+            return ResponseEntity.ok(guardado);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/detalle-servicio")
+    @Transactional(readOnly = true)
+    public List<VentaDetalleServicio> listarDetalleServicio(@PathVariable Integer id) {
+        return detalleServicioRepo.findByVenta_IdVenta(id);
     }
 
     // ── ANULAR VENTA ─────────────────────────────────────────────────────

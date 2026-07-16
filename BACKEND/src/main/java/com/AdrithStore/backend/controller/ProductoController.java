@@ -62,6 +62,7 @@ public class ProductoController {
 
     @PostMapping
     public ResponseEntity<?> crear(@RequestBody Producto producto) {
+        forzarTipoPorCategoria(producto);
         String error = validarProducto(producto);
         if (error != null) return ResponseEntity.badRequest().body(error);
 
@@ -79,16 +80,18 @@ public class ProductoController {
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizar(@PathVariable Integer id,
                                         @RequestBody Producto datos) {
+        forzarTipoPorCategoria(datos);
         String error = validarProducto(datos);
         if (error != null) return ResponseEntity.badRequest().body(error);
 
         return productoRepo.findById(id).map(p -> {
             p.setNombre(datos.getNombre());
             p.setSku(datos.getSku());
-            p.setTipo(datos.getTipo() != null ? datos.getTipo() : "BIEN_FISICO");
+            p.setTipo(datos.getTipo());
             p.setVisibleEnPos("CONSUMIBLE".equals(datos.getTipo()) ? false : datos.getVisibleEnPos());
             p.setStock(datos.getStock());
             p.setPrecioCosto(datos.getPrecioCosto());
+            p.setPorcentajeCosto(datos.getPorcentajeCosto());
             p.setPrecioVenta(datos.getPrecioVenta());
             p.setStockAlert(datos.getStockAlert());
             p.setDescripcion(datos.getDescripcion());
@@ -176,5 +179,18 @@ public class ProductoController {
                     + ". Use: BIEN_FISICO, SERVICIO_PURO, SERVICIO_COMIS, CONSUMIBLE";
         }
         return null; // sin error
+    }
+
+    // ── Forzar tipo según categoría (servicios) ──────────────────────────
+    private void forzarTipoPorCategoria(Producto p) {
+        if (p.getCategoria() == null || p.getCategoria().getIdCategoria() == null) return;
+        categoriaRepo.findById(p.getCategoria().getIdCategoria()).ifPresent(cat -> {
+            String nombre = cat.getNombre();
+            if ("SERVICIOS".equals(nombre) || "IMPRESIONES".equals(nombre)) {
+                p.setTipo("SERVICIO_PURO");
+            } else if ("TRANSFERENCIA".equals(nombre)) {
+                p.setTipo("SERVICIO_COMIS");
+            }
+        });
     }
 }

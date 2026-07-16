@@ -50,4 +50,9 @@ public class Venta {
                fetch = FetchType.LAZY, orphanRemoval = true)
     @JsonIgnoreProperties({"venta","hibernateLazyInitializer"})
     private List<VentaPago> pagos = new ArrayList<>();
+
+    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL,
+               fetch = FetchType.LAZY, orphanRemoval = true)
+    @JsonIgnoreProperties({"venta","hibernateLazyInitializer"})
+    private List<VentaDetalleServicio> detallesServicio = new ArrayList<>();
 }

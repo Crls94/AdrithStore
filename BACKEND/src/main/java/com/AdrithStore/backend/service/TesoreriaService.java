@@ -101,6 +101,32 @@ public class TesoreriaService {
             venta.getIdVenta(), null, usuario);
     }
 
+    /**
+     * Flujo Cambio Digital dinámico (VentaDetalleServicio).
+     *   TX1: Origen  -Monto       (signo = -1)
+     *   TX2: Destino +(Monto+Comision) (signo = +1)
+     */
+    @Transactional
+    public void procesarCambioDigital(Venta venta, VentaDetalleServicio det, String usuario) {
+        BigDecimal montoOp   = det.getMonto() != null ? det.getMonto() : BigDecimal.ZERO;
+        BigDecimal comision  = det.getComision() != null ? det.getComision() : BigDecimal.ZERO;
+        BigDecimal total     = montoOp.add(comision);
+        String     concepto  = "Cambio: " + det.getProducto().getNombre()
+                            + (det.getDescripcion() != null ? " - " + det.getDescripcion() : "");
+
+        // TX1: salida de origen
+        if (det.getOrigen() != null && !det.getOrigen().isBlank()) {
+            registrar("CAMBIO_DIGITAL", det.getOrigen(), montoOp, -1,
+                concepto + " (origen)", venta.getIdVenta(), null, usuario);
+        }
+
+        // TX2: entrada a destino
+        if (det.getDestino() != null && !det.getDestino().isBlank()) {
+            registrar("CAMBIO_DIGITAL", det.getDestino(), total, 1,
+                concepto + " (destino)", venta.getIdVenta(), null, usuario);
+        }
+    }
+
     // ── Registrar gasto operativo (luz, tóner, etc.) ──────────────────────
     @Transactional
     public TransaccionFinanciera registrarGasto(String nombreCuenta, BigDecimal monto,

@@ -47,6 +47,10 @@ public class Producto {
     @Column(name = "precio_venta", precision = 10, scale = 2)
     private BigDecimal precioVenta = BigDecimal.ZERO;
 
+    // % costo sobre monto para IMPRESIONES
+    @Column(name = "porcentaje_costo", precision = 5, scale = 2)
+    private BigDecimal porcentajeCosto;
+
     // Solo para SERVICIO_COMIS: S/1 por cada S/100
     @Column(name = "comision_base", precision = 10, scale = 2)
     private BigDecimal comisionBase;
