@@ -9,6 +9,8 @@ import java.util.List;
 @Repository
 public interface ProductoRepository extends JpaRepository<Producto, Integer> {
 
+    boolean existsByCategoriaNombre(String nombre);
+
     // ── Métodos que ProductoController ya usa (NO QUITAR) ──────────────────
 
     List<Producto> findByVisibleEnPosTrue();
@@ -44,4 +46,8 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
           AND p.stock <= p.stockAlert
     """)
     long countProductosStockBajo();
+
+    // ── Reportes ───────────────────────────────────────────────────────────
+
+    List<Producto> findByCategoria_IdCategoria(Integer idCategoria);
 }

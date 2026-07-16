@@ -1,11 +1,14 @@
 package com.AdrithStore.backend.repository;
 
 import com.AdrithStore.backend.model.Venta;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -36,7 +39,7 @@ public interface VentaRepository extends JpaRepository<Venta, Integer> {
 
     // Suma de costos del período (para margen)
     @Query("SELECT COALESCE(SUM(d.costoHistorico * d.cantidad), 0) FROM VentaDetalle d WHERE d.venta.fecha BETWEEN :desde AND :hasta AND d.venta.estado = 'confirmado'")
-    java.math.BigDecimal sumCostosEntreFechas(
+    BigDecimal sumCostosEntreFechas(
         @Param("desde") LocalDateTime desde,
         @Param("hasta") LocalDateTime hasta);
 
@@ -46,4 +49,34 @@ public interface VentaRepository extends JpaRepository<Venta, Integer> {
         @Param("idUsuario") Integer idUsuario,
         @Param("desde") LocalDateTime desde,
         @Param("hasta") LocalDateTime hasta);
+
+    // ── Reportes ───────────────────────────────────────────────────────────
+
+    // Paginado con filtros opcionales — sin JOIN FETCH de colecciones (evita Cartesian product con Pageable)
+    @Query("""
+        SELECT v FROM Venta v
+        WHERE v.fecha BETWEEN :desde AND :hasta
+          AND (:idCliente  IS NULL OR v.cliente.idCliente  = :idCliente)
+          AND (:idVendedor IS NULL OR v.usuario.idUsuario   = :idVendedor)
+          AND (:estado     IS NULL OR v.estado              = :estado)
+    """)
+    Page<Venta> buscarPaginado(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
+                               @Param("idCliente") Integer idCliente, @Param("idVendedor") Integer idVendedor,
+                               @Param("estado") String estado, Pageable pageable);
+
+    // Agregación de totales sobre el mismo filtro (sin paginar)
+    @Query("""
+        SELECT COALESCE(SUM(v.subtotal), 0),
+               COALESCE(SUM(v.igv), 0),
+               COALESCE(SUM(v.descuentoGlobal), 0),
+               COALESCE(SUM(v.total), 0)
+        FROM Venta v
+        WHERE v.fecha BETWEEN :desde AND :hasta
+          AND (:idCliente  IS NULL OR v.cliente.idCliente  = :idCliente)
+          AND (:idVendedor IS NULL OR v.usuario.idUsuario   = :idVendedor)
+          AND (:estado     IS NULL OR v.estado              = :estado)
+    """)
+    Object[] sumTotales(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
+                        @Param("idCliente") Integer idCliente, @Param("idVendedor") Integer idVendedor,
+                        @Param("estado") String estado);
 }
