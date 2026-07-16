@@ -150,6 +150,10 @@ export default function Tesoreria() {
     } finally { setEjecutandoCierre(false); }
   };
 
+  const cuentaSeleccionada = cuentas.find(c => c.nombre === formGasto.cuenta);
+  const saldoDisponible = cuentaSeleccionada?.saldoActual ?? 0;
+  const montoSuperaSaldo = parseFloat(formGasto.monto || 0) > parseFloat(saldoDisponible);
+
   const inp = {
     width:"100%", padding:"10px 14px", borderRadius:10,
     border:`1.5px solid ${C.border}`, background:"#fff",
@@ -450,8 +454,18 @@ export default function Tesoreria() {
                       <option key={n}>{n}</option>
                     ))}
                   </select>
+                  <div style={{ fontSize:12, color:"#666", marginTop:4 }}>
+                    Saldo disponible: <strong>{money(saldoDisponible)}</strong>
+                  </div>
                 </div>
               </div>
+
+              {montoSuperaSaldo && formGasto.monto && (
+                <div style={{ background:"#FFF3E0", border:"1px solid rgba(224,122,47,0.3)",
+                  borderRadius:10, padding:"10px 14px", fontSize:13, color:"#B84D00", marginBottom:16 }}>
+                  ⚠️ El monto supera el saldo disponible en {formGasto.cuenta}.
+                </div>
+              )}
 
               {errorGasto && (
                 <div style={{ background:"#FFEBEE", border:"1px solid rgba(198,40,40,0.2)",

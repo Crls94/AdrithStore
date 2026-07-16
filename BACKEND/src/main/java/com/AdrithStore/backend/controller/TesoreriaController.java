@@ -109,6 +109,15 @@ public class TesoreriaController {
         // Descontar de la cuenta
         BigDecimal nuevoSaldo = (cuenta.getSaldoActual() != null ? cuenta.getSaldoActual() : BigDecimal.ZERO)
             .subtract(req.getMonto());
+
+        if (nuevoSaldo.compareTo(BigDecimal.ZERO) < 0) {
+            return ResponseEntity.badRequest().body(
+                "Saldo insuficiente en " + cuenta.getNombre()
+                + " (disponible: S/ " + cuenta.getSaldoActual()
+                + "). No se puede registrar un gasto de S/ " + req.getMonto() + "."
+            );
+        }
+
         cuenta.setSaldoActual(nuevoSaldo);
         cuentaRepo.save(cuenta);
 
