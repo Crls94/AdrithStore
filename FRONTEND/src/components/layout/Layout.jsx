@@ -12,6 +12,7 @@ const ACCESOS = [
   {label:"Compras",     ruta:"/compras",            icon:"bi-truck"},
   {label:"Proveedores", ruta:"/proveedores",        icon:"bi-people"},
   {label:"Clientes",    ruta:"/clientes",           icon:"bi-person-vcard"},
+  {label:"Reportes",    ruta:"/reportes",           icon:"bi-graph-up"},
 ];
 
 const G = { kpi: "linear-gradient(135deg, #0A3D3A, #0D5E4F)" };
