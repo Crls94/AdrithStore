@@ -121,7 +121,15 @@ public class VentaController {
         BigDecimal totalServicios = BigDecimal.ZERO;
         if (req.getDetallesServicio() != null) {
             for (VentaRequest.DetalleServicioItem dsi : req.getDetallesServicio()) {
-                BigDecimal sub = dsi.getMonto() != null ? dsi.getMonto() : BigDecimal.ZERO;
+                if (dsi.getMonto() == null || dsi.getMonto().compareTo(BigDecimal.ZERO) <= 0)
+                    return ResponseEntity.badRequest().body("El monto del servicio debe ser mayor a 0.");
+                if (dsi.getComision() != null && dsi.getComision().compareTo(BigDecimal.ZERO) > 0) {
+                    if (dsi.getOrigen() == null || dsi.getOrigen().isBlank())
+                        return ResponseEntity.badRequest().body("Origen requerido para transferencia.");
+                    if (dsi.getDestino() == null || dsi.getDestino().isBlank())
+                        return ResponseEntity.badRequest().body("Destino requerido para transferencia.");
+                }
+                BigDecimal sub = dsi.getMonto();
                 if (dsi.getComision() != null) sub = sub.add(dsi.getComision());
                 totalServicios = totalServicios.add(sub);
             }
@@ -151,17 +159,6 @@ public class VentaController {
         // Guardar detalles de servicio
         if (req.getDetallesServicio() != null) {
             for (VentaRequest.DetalleServicioItem dsi : req.getDetallesServicio()) {
-                if (dsi.getMonto() == null || dsi.getMonto().compareTo(BigDecimal.ZERO) <= 0)
-                    return ResponseEntity.badRequest().body("El monto del servicio debe ser mayor a 0.");
-
-                // Validar origen/destino si tiene comisión (TRANSFERENCIA)
-                if (dsi.getComision() != null && dsi.getComision().compareTo(BigDecimal.ZERO) > 0) {
-                    if (dsi.getOrigen() == null || dsi.getOrigen().isBlank())
-                        return ResponseEntity.badRequest().body("Origen requerido para transferencia.");
-                    if (dsi.getDestino() == null || dsi.getDestino().isBlank())
-                        return ResponseEntity.badRequest().body("Destino requerido para transferencia.");
-                }
-
                 VentaDetalleServicio vds = new VentaDetalleServicio();
                 vds.setVenta(guardada);
                 productoRepo.findById(dsi.getIdProducto()).ifPresent(vds::setProducto);
