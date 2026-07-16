@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS Producto (
     Visible_En_Pos          BOOLEAN DEFAULT TRUE,  -- CONSUMIBLE lo tiene en FALSE
     Stock                   INTEGER DEFAULT 0,
     Precio_Costo            DECIMAL(10,4) DEFAULT 0,  -- costo estándar / CPP
+    Porcentaje_Costo        DECIMAL(5,2)  DEFAULT NULL,  -- % costo sobre monto (SERVICIO_PURO tipo IMPRESIONES)
     Precio_Venta            DECIMAL(10,2) DEFAULT 0,
     -- Para SERVICIO_COMIS: comisión base y cada cuánto (ej: 1.00 por cada 100)
     Comision_Base           DECIMAL(10,2),
@@ -143,7 +144,23 @@ CREATE TABLE IF NOT EXISTS Venta_Detalle (
     Subtotal            DECIMAL(10,2) NOT NULL    -- precio final con descuento
 );
 
--- ── 11. VENTA_PAGO ────────────────────────────────────────────────────────
+-- ── 11. VENTA_DETALLE_SERVICIO ─────────────────────────────────────────────
+-- Items de servicio (SERVICIO_PURO y SERVICIO_COMIS) directamente ligados a Venta
+-- Cada fila es un item individual (no se agrupan por cantidad)
+CREATE TABLE IF NOT EXISTS Venta_Detalle_Servicio (
+    id_Venta_Detalle_Servicio  SERIAL PRIMARY KEY,
+    id_Venta                   INTEGER NOT NULL REFERENCES Venta(id_Venta),
+    id_Producto                INTEGER NOT NULL REFERENCES Producto(id_Producto),
+    Descripcion                TEXT,
+    Monto                      DECIMAL(10,2) NOT NULL DEFAULT 0,  -- monto cobrado / operación
+    Costo                      DECIMAL(10,4) DEFAULT 0,           -- costo del servicio
+    Comision                   DECIMAL(10,2) DEFAULT 0,           -- solo SERVICIO_COMIS
+    Origen                     VARCHAR(100),                      -- cuenta origen (solo TRANSFERENCIA)
+    Destino                    VARCHAR(100),                      -- cuenta destino (solo TRANSFERENCIA)
+    Subtotal                   DECIMAL(10,2) NOT NULL DEFAULT 0   -- Monto + Comision (o solo Monto)
+);
+
+-- ── 12. VENTA_PAGO ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS Venta_Pago (
     id_Pago     SERIAL PRIMARY KEY,
     id_Venta    INTEGER NOT NULL REFERENCES Venta(id_Venta) ON DELETE CASCADE,
@@ -151,7 +168,7 @@ CREATE TABLE IF NOT EXISTS Venta_Pago (
     Monto       DECIMAL(10,2) NOT NULL
 );
 
--- ── 12. CUENTA_FINANCIERA ─────────────────────────────────────────────────
+-- ── 13. CUENTA_FINANCIERA ─────────────────────────────────────────────────
 -- Registro de cajas, billeteras digitales y cuentas bancarias
 CREATE TABLE IF NOT EXISTS Cuenta_Financiera (
     id_Cuenta      SERIAL PRIMARY KEY,
@@ -164,7 +181,7 @@ CREATE TABLE IF NOT EXISTS Cuenta_Financiera (
     Activa         BOOLEAN DEFAULT TRUE
 );
 
--- ── 13. PERIODO_CONTABLE ──────────────────────────────────────────────────
+-- ── 14. PERIODO_CONTABLE ──────────────────────────────────────────────────
 -- Apertura mensual: establece el saldo inicial de cada cuenta para el mes
 CREATE TABLE IF NOT EXISTS Periodo_Contable (
     id_Periodo     SERIAL PRIMARY KEY,
@@ -175,7 +192,7 @@ CREATE TABLE IF NOT EXISTS Periodo_Contable (
     Notas          TEXT
 );
 
--- ── 14. TRANSACCION_FINANCIERA ────────────────────────────────────────────
+-- ── 15. TRANSACCION_FINANCIERA ────────────────────────────────────────────
 -- El libro mayor: cada movimiento de dinero en cualquier cuenta
 -- tipo_mov:
 --   APERTURA         → saldo inicial del período
@@ -207,7 +224,7 @@ CREATE TABLE IF NOT EXISTS Transaccion_Financiera (
     Creada_Por      VARCHAR(50)
 );
 
--- ── 15. CIERRE_DIARIO ─────────────────────────────────────────────────────
+-- ── 16. CIERRE_DIARIO ─────────────────────────────────────────────────────
 -- Registro de cierre diario por cuenta: captura arqueo, diferencia y retiro
 CREATE TABLE IF NOT EXISTS Cierre_Diario (
     id_Cierre      SERIAL PRIMARY KEY,
@@ -226,7 +243,7 @@ CREATE TABLE IF NOT EXISTS Cierre_Diario (
     UNIQUE (Fecha_Cierre, id_Cuenta)
 );
 
--- ── 16. EVENTO_LOG ────────────────────────────────────────────────────────
+-- ── 17. EVENTO_LOG ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS Evento_Log (
     id_Evento       SERIAL PRIMARY KEY,
     Fecha           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
