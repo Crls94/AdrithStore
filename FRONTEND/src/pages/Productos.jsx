@@ -6,6 +6,7 @@ import { getProductos, buscarProductos, crearProducto, actualizarProducto, elimi
 const FORM_VACIO = {
   nombre: '', sku: '', stock: 0, precioCosto: '', precioVenta: '',
   stockAlert: 5, descripcion: '', imagenUrl: '', categoria: { idCategoria: '' },
+  porcentajeCosto: '', comisionBase: '', comisionCada: '',
 };
 
 const ICONOS_CAT = {
@@ -13,7 +14,7 @@ const ICONOS_CAT = {
   'Conservas':'bi-archive','Snacks':'bi-cookie','Higiene y limpieza':'bi-bucket',
   'Papel higienico':'bi-roll','Bazar':'bi-bag','Descartables':'bi-trash',
   'Farmacia':'bi-heart-pulse','Frescos':'bi-egg','Ferreteria y pinturas':'bi-tools',
-  'Utiles de oficina':'bi-pen','Servicios':'bi-phone','Varios':'bi-box',
+  'Utiles de oficina':'bi-pen','Servicios':'bi-phone','SERVICIOS':'bi-gear','IMPRESIONES':'bi-printer','TRANSFERENCIA':'bi-phone','Varios':'bi-box',
 };
 const COLORES_CAT = ['#0d8c6e','#6aad7e','#6a9ac4','#9a7ec4','#4aadad','#b06060','#ad8c4a','#4a7cad','#7aad6a','#c47a6a','#6aadc4','#ad6a9a'];
 const iconoCat  = (n) => ICONOS_CAT[n] ?? 'bi-box-seam';
@@ -66,7 +67,8 @@ export default function Productos() {
     setForm({ nombre: p.nombre ?? '', sku: p.sku ?? '', stock: p.stock ?? 0,
       precioCosto: p.precioCosto ?? '', precioVenta: p.precioVenta ?? '',
       stockAlert: p.stockAlert ?? 5, descripcion: p.descripcion ?? '',
-      imagenUrl: p.imagenUrl ?? '', categoria: { idCategoria: p.categoria?.idCategoria ?? '' } });
+      imagenUrl: p.imagenUrl ?? '', categoria: { idCategoria: p.categoria?.idCategoria ?? '' },
+      porcentajeCosto: p.porcentajeCosto ?? '', comisionBase: p.comisionBase ?? '', comisionCada: p.comisionCada ?? '' });
     setError(''); setModalAbierto(true);
   };
   const cerrarModal = () => { setModalAbierto(false); setEditando(null); setForm(FORM_VACIO); setError(''); };
@@ -117,6 +119,9 @@ export default function Productos() {
       const payload = { ...form, stock: parseInt(form.stock)||0,
         stockAlert: parseInt(form.stockAlert)||0,
         precioCosto: parseFloat(form.precioCosto)||0, precioVenta: parseFloat(form.precioVenta),
+        porcentajeCosto: form.porcentajeCosto ? parseFloat(form.porcentajeCosto) : null,
+        comisionBase: form.comisionBase ? parseFloat(form.comisionBase) : null,
+        comisionCada: form.comisionCada ? parseFloat(form.comisionCada) : null,
         imagenUrl: form.imagenUrl || null };
       if (editando) await actualizarProducto(editando, payload);
       else          await crearProducto(payload);
@@ -414,58 +419,89 @@ export default function Productos() {
                 </div>
               </div>
 
-              <div className="row g-3">
-                <div className="col-8">
-                  <label style={labelStyle}>Nombre *</label>
-                  <input name="nombre" value={form.nombre} onChange={handleChange}
-                    placeholder="Ej: Arroz Costeno 5kg" style={inputStyle} autoFocus />
-                </div>
-                <div className="col-4">
-                  <label style={labelStyle}>SKU</label>
-                  <input name="sku" value={form.sku} onChange={handleChange} placeholder="ABR-001" style={inputStyle} />
-                </div>
-                <div className="col-12">
-                  <label style={labelStyle}>Categoria *</label>
-                  <select name="idCategoria" value={form.categoria.idCategoria} onChange={handleChange} style={inputStyle}>
-                    <option value="">Seleccionar...</option>
-                    {categorias.map(c => <option key={c.idCategoria} value={c.idCategoria}>{c.nombre}</option>)}
-                  </select>
-                </div>
-                <div className="col-4">
-                  <label style={labelStyle}>Stock actual</label>
-                  <input name="stock" type="number" min="0" value={form.stock} onChange={handleChange} style={inputStyle} />
-                </div>
-                <div className="col-4">
-                  <label style={labelStyle}>Costo (S/)</label>
-                  <input name="precioCosto" type="number" step="0.01" min="0" value={form.precioCosto} onChange={handleChange} placeholder="0.00" style={inputStyle} />
-                </div>
-                <div className="col-4">
-                  <label style={labelStyle}>Precio venta (S/) *</label>
-                  <input name="precioVenta" type="number" step="0.01" min="0" value={form.precioVenta} onChange={handleChange} placeholder="0.00" style={inputStyle} />
-                </div>
-                {form.precioCosto && form.precioVenta && parseFloat(form.precioCosto) > 0 && (
-                  <div className="col-12">
-                    <div style={{ background:T.bgMuted, borderRadius:'10px', padding:'10px 14px',
-                      border:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <span style={{ fontSize:'12px', color:T.textMuted }}>Margen estimado:</span>
-                      <span style={{ fontWeight:700, fontSize:'14px',
-                        color: (((parseFloat(form.precioVenta)-parseFloat(form.precioCosto))/parseFloat(form.precioVenta))*100) >= 20 ? T.gold : '#d68c0d' }}>
-                        {((( parseFloat(form.precioVenta)-parseFloat(form.precioCosto))/parseFloat(form.precioVenta))*100).toFixed(1)}%
-                        · S/ {(parseFloat(form.precioVenta)-parseFloat(form.precioCosto)).toFixed(2)}
-                      </span>
+              {(() => {
+                const catSel = categorias.find(c => c.idCategoria == form.categoria.idCategoria)?.nombre;
+                const esServicio = catSel === 'SERVICIOS' || catSel === 'IMPRESIONES' || catSel === 'TRANSFERENCIA';
+                const esBienFisico = !esServicio && catSel;
+                return (
+                  <div className="row g-3">
+                    <div className="col-8">
+                      <label style={labelStyle}>Nombre *</label>
+                      <input name="nombre" value={form.nombre} onChange={handleChange}
+                        placeholder="Ej: Arroz Costeno 5kg" style={inputStyle} autoFocus />
                     </div>
+                    <div className="col-4">
+                      <label style={labelStyle}>SKU</label>
+                      <input name="sku" value={form.sku} onChange={handleChange} placeholder="ABR-001" style={inputStyle} />
+                    </div>
+                    <div className="col-12">
+                      <label style={labelStyle}>Categoria *</label>
+                      <select name="idCategoria" value={form.categoria.idCategoria} onChange={handleChange} style={inputStyle}>
+                        <option value="">Seleccionar...</option>
+                        {categorias.map(c => <option key={c.idCategoria} value={c.idCategoria}>{c.nombre}</option>)}
+                      </select>
+                    </div>
+                    {esBienFisico && (
+                      <div className="col-4">
+                        <label style={labelStyle}>Stock actual</label>
+                        <input name="stock" type="number" min="0" value={form.stock} onChange={handleChange} style={inputStyle} />
+                      </div>
+                    )}
+                    {catSel === 'SERVICIOS' || esBienFisico ? (
+                      <div className="col-4">
+                        <label style={labelStyle}>Costo (S/)</label>
+                        <input name="precioCosto" type="number" step="0.01" min="0" value={form.precioCosto} onChange={handleChange} placeholder="0.00" style={inputStyle} />
+                      </div>
+                    ) : null}
+                    <div className={esBienFisico ? 'col-4' : catSel === 'TRANSFERENCIA' ? 'col-4' : 'col-4'}>
+                      <label style={labelStyle}>Precio venta (S/) *</label>
+                      <input name="precioVenta" type="number" step="0.01" min="0" value={form.precioVenta} onChange={handleChange} placeholder="0.00" style={inputStyle} />
+                    </div>
+                    {catSel === 'IMPRESIONES' && (
+                      <div className="col-4">
+                        <label style={labelStyle}>% Costo sobre monto</label>
+                        <input name="porcentajeCosto" type="number" step="0.01" min="0" max="100" value={form.porcentajeCosto} onChange={handleChange} placeholder="75.00" style={inputStyle} />
+                      </div>
+                    )}
+                    {catSel === 'TRANSFERENCIA' && (
+                      <>
+                        <div className="col-4">
+                          <label style={labelStyle}>Comision base (S/)</label>
+                          <input name="comisionBase" type="number" step="0.01" min="0" value={form.comisionBase} onChange={handleChange} placeholder="1.00" style={inputStyle} />
+                        </div>
+                        <div className="col-4">
+                          <label style={labelStyle}>Cada S/</label>
+                          <input name="comisionCada" type="number" step="0.01" min="0" value={form.comisionCada} onChange={handleChange} placeholder="100.00" style={inputStyle} />
+                        </div>
+                      </>
+                    )}
+                    {form.precioCosto && form.precioVenta && parseFloat(form.precioCosto) > 0 && !esServicio && (
+                      <div className="col-12">
+                        <div style={{ background:T.bgMuted, borderRadius:'10px', padding:'10px 14px',
+                          border:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <span style={{ fontSize:'12px', color:T.textMuted }}>Margen estimado:</span>
+                          <span style={{ fontWeight:700, fontSize:'14px',
+                            color: (((parseFloat(form.precioVenta)-parseFloat(form.precioCosto))/parseFloat(form.precioVenta))*100) >= 20 ? T.gold : '#d68c0d' }}>
+                            {((( parseFloat(form.precioVenta)-parseFloat(form.precioCosto))/parseFloat(form.precioVenta))*100).toFixed(1)}%
+                            · S/ {(parseFloat(form.precioVenta)-parseFloat(form.precioCosto)).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {esBienFisico && (
+                      <div className="col-12">
+                        <label style={labelStyle}>Stock minimo (alerta)</label>
+                        <input name="stockAlert" type="number" min="0" value={form.stockAlert} onChange={handleChange} style={inputStyle} />
+                      </div>
+                    )}
+                    <div className="col-12">
+                      <label style={labelStyle}>Descripcion</label>
+                      <textarea name="descripcion" value={form.descripcion} onChange={handleChange} rows={2}
+                        placeholder="Descripcion opcional..." style={{ ...inputStyle, resize:'none' }} />
                   </div>
-                )}
-                <div className="col-12">
-                  <label style={labelStyle}>Stock minimo (alerta)</label>
-                  <input name="stockAlert" type="number" min="0" value={form.stockAlert} onChange={handleChange} style={inputStyle} />
                 </div>
-                <div className="col-12">
-                  <label style={labelStyle}>Descripcion</label>
-                  <textarea name="descripcion" value={form.descripcion} onChange={handleChange} rows={2}
-                    placeholder="Descripcion opcional..." style={{ ...inputStyle, resize:'none' }} />
-                </div>
-              </div>
+              );
+            })()}
             </div>
             <div style={{ padding:'14px 24px', borderTop:`1px solid ${T.border}`,
               display:'flex', justifyContent:'flex-end', gap:'10px', background:T.bgMuted }}>
