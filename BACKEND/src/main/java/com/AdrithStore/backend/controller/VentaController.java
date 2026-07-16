@@ -154,6 +154,14 @@ public class VentaController {
                 if (dsi.getMonto() == null || dsi.getMonto().compareTo(BigDecimal.ZERO) <= 0)
                     return ResponseEntity.badRequest().body("El monto del servicio debe ser mayor a 0.");
 
+                // Validar origen/destino si tiene comisión (TRANSFERENCIA)
+                if (dsi.getComision() != null && dsi.getComision().compareTo(BigDecimal.ZERO) > 0) {
+                    if (dsi.getOrigen() == null || dsi.getOrigen().isBlank())
+                        return ResponseEntity.badRequest().body("Origen requerido para transferencia.");
+                    if (dsi.getDestino() == null || dsi.getDestino().isBlank())
+                        return ResponseEntity.badRequest().body("Destino requerido para transferencia.");
+                }
+
                 VentaDetalleServicio vds = new VentaDetalleServicio();
                 vds.setVenta(guardada);
                 productoRepo.findById(dsi.getIdProducto()).ifPresent(vds::setProducto);
