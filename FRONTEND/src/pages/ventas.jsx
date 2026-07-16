@@ -46,10 +46,22 @@ function generarPDF(ventaData, carrito, cabecera, totalFinal, descGlobal, pagos)
   hrule();
 
   carrito.forEach(item => {
-    const dsc = parseFloat(item.descuento || 0);
-    const sub = (item.precio * item.cantidad) - dsc;
-    line(`${item.nombre}`, 7, true);
-    line(`  ${item.cantidad} x S/${item.precio.toFixed(2)}${dsc > 0 ? ` - S/${dsc.toFixed(2)}` : ''} = S/${sub.toFixed(2)}`, 7);
+    if (item.tipoItem === 'normal') {
+      const dsc = parseFloat(item.descuento || 0);
+      const sub = (item.precio * item.cantidad) - dsc;
+      line(`${item.nombre}`, 7, true);
+      line(`  ${item.cantidad} x S/${item.precio.toFixed(2)}${dsc > 0 ? ` - S/${dsc.toFixed(2)}` : ''} = S/${sub.toFixed(2)}`, 7);
+    } else {
+      const mon = parseFloat(item.monto) || 0;
+      line(`${item.nombre}`, 7, true);
+      if (item.tipoItem === 'transferencia') {
+        const com2 = parseFloat(item.comision) || 0;
+        line(`  ${item.origen || '?'} → ${item.destino || '?'}`, 7);
+        line(`  S/${mon.toFixed(2)} + S/${com2.toFixed(2)} = S/${(mon+com2).toFixed(2)}`, 7);
+      } else {
+        line(`  S/${mon.toFixed(2)}`, 7);
+      }
+    }
   });
 
   hrule();
@@ -91,6 +103,9 @@ export default function Ventas() {
   const [exito,      setExito]      = useState('');
   const [ultimaVenta,setUltimaVenta]= useState(null); // datos para PDF
   const busqRef = useRef(null);
+  const uidRef  = useRef(0);
+
+  const [cuentas, setCuentas] = useState([]);
 
   // Multi-pago
   const [pagos, setPagos] = useState([{ medioPago: 'Efectivo', monto: '' }]);
@@ -109,10 +124,12 @@ export default function Ventas() {
       api.get('/productos'),
       api.get('/categorias'),
       api.get('/clientes'),
-    ]).then(([pr, ca, cl]) => {
+      api.get('/tesoreria/cuentas'),
+    ]).then(([pr, ca, cl, ct]) => {
       setProductos(pr.data);
       setCategorias(ca.data);
       setClientes(cl.data);
+      setCuentas(ct.data);
       const general = cl.data.find(c =>
         c.nombre?.toLowerCase().includes('general') || c.dni === '00000001'
       );
@@ -122,24 +139,79 @@ export default function Ventas() {
   }, []);
 
   // Helpers carrito 
-  const cantidadEnCarrito = (id) =>
-    carrito.find(i => i.idProducto === id)?.cantidad || 0;
+  const cantidadEnCarrito = (id) => {
+    const items = carrito.filter(i => i.idProducto === id);
+    if (items.length === 0) return 0;
+    const normQty = items.reduce((a, i) => a + (i.cantidad || 0), 0);
+    return normQty || items.length;
+  };
 
   const agregarAlCarrito = (prod) => {
+    const tipo = prod.tipo;
+    const catNombre = prod.categoria?.nombre;
+    const _uid = ++uidRef.current;
+
+    setError('');
+
+    // SERVICIOS / IMPRESIONES — 1 item sin cantidad
+    if (tipo === 'SERVICIO_PURO') {
+      setCarrito(c => {
+        const existe = c.find(i => i.idProducto === prod.idProducto);
+        if (existe) return c;
+        if (catNombre === 'SERVICIOS') {
+          return [...c, {
+            _uid, tipoItem: 'servicio',
+            idProducto: prod.idProducto,
+            nombre: prod.nombre,
+            descripcion: '',
+            monto: parseFloat(prod.precioVenta) || 0,
+            costo: parseFloat(prod.precioCosto) || 0,
+          }];
+        }
+        if (catNombre === 'IMPRESIONES') {
+          return [...c, {
+            _uid, tipoItem: 'impresion',
+            idProducto: prod.idProducto,
+            nombre: prod.nombre,
+            descripcion: '',
+            monto: parseFloat(prod.precioVenta) || 0,
+            porcentajeCosto: parseFloat(prod.porcentajeCosto) || 0,
+          }];
+        }
+        return c;
+      });
+      return;
+    }
+
+    // TRANSFERENCIA — cada clic agrega un item
+    if (tipo === 'SERVICIO_COMIS') {
+      setCarrito(c => [...c, {
+        _uid, tipoItem: 'transferencia',
+        idProducto: prod.idProducto,
+        nombre: prod.nombre,
+        origen: '',
+        destino: '',
+        monto: 0,
+        comision: parseFloat(prod.precioVenta) || 0,
+      }]);
+      return;
+    }
+
+    // BIEN_FISICO / CONSUMIBLE — comportamiento normal
     if (prod.stock <= 0 && !prod.permiteStockNegativo) {
       setError('Sin stock: ' + prod.nombre); return;
     }
-    setError('');
     setCarrito(c => {
-      const existe = c.find(i => i.idProducto === prod.idProducto);
+      const existe = c.find(i => i.idProducto === prod.idProducto && i.tipoItem === 'normal');
       if (existe) {
         if (!prod.permiteStockNegativo && existe.cantidad >= prod.stock) {
           setError('Stock máximo: ' + prod.stock); return c;
         }
-        return c.map(i => i.idProducto === prod.idProducto
+        return c.map(i => i._uid === existe._uid
           ? { ...i, cantidad: i.cantidad + 1 } : i);
       }
       return [...c, {
+        _uid, tipoItem: 'normal',
         idProducto: prod.idProducto,
         nombre:     prod.nombre,
         sku:        prod.sku,
@@ -147,15 +219,15 @@ export default function Ventas() {
         stockDisp:  prod.stock,
         permiteNeg: prod.permiteStockNegativo,
         cantidad:   1,
-        descuento:  0, // descuento por ítem en S/
+        descuento:  0,
       }];
     });
   };
 
-  const cambiarCantidad = (id, val) => {
+  const cambiarCantidad = (uid, val) => {
     const n = Math.max(1, parseInt(val) || 1);
     setCarrito(c => c.map(i => {
-      if (i.idProducto !== id) return i;
+      if (i._uid !== uid || i.tipoItem !== 'normal') return i;
       if (!i.permiteNeg && n > i.stockDisp) {
         setError('Máx ' + i.stockDisp + ' und.'); return i;
       }
@@ -164,26 +236,37 @@ export default function Ventas() {
   };
 
   // Descuento por ítem — no puede superar precio × cantidad
-  const cambiarDescuento = (id, val) => {
+  const cambiarDescuento = (uid, val) => {
     setCarrito(c => c.map(i => {
-      if (i.idProducto !== id) return i;
+      if (i._uid !== uid || i.tipoItem !== 'normal') return i;
       const max = i.precio * i.cantidad;
       const dsc = Math.min(Math.max(0, parseFloat(val) || 0), max);
       return { ...i, descuento: dsc };
     }));
   };
 
-  const quitarItem     = (id) => setCarrito(c => c.filter(i => i.idProducto !== id));
+  const quitarItem     = (uid) => setCarrito(c => c.filter(i => i._uid !== uid));
+
+  const actualizarServicioField = (uid, campo, valor) => {
+    setCarrito(c => c.map(i => i._uid === uid ? { ...i, [campo]: valor } : i));
+  };
   const limpiarCarrito = ()   => {
     setCarrito([]); setError(''); setDescGlobalInput('');
     setPagos([{ medioPago: 'Efectivo', monto: '' }]);
   };
 
   // ── Cálculos ──────────────────────────────────────────────────────────
-  // Total bruto = suma (precio × cantidad - descuento_item)
-  const totalItemsBruto = carrito.reduce(
-    (a, i) => a + i.precio * i.cantidad - (parseFloat(i.descuento) || 0), 0
-  );
+  // Total bruto = suma (precio × cantidad - descuento_item + servicios)
+  const totalItemsBruto = carrito.reduce((a, i) => {
+    if (i.tipoItem === 'servicio' || i.tipoItem === 'impresion')
+      return a + (parseFloat(i.monto) || 0);
+    if (i.tipoItem === 'transferencia') {
+      const mon = parseFloat(i.monto) || 0;
+      const com = parseFloat(i.comision) || 0;
+      return a + mon + com;
+    }
+    return a + i.precio * i.cantidad - (parseFloat(i.descuento) || 0);
+  }, 0);
 
   // Descuento global: el usuario ingresa el monto final que quiere cobrar
   // Si ingresa 20 y el total es 20.10 → descuento = 0.10
@@ -251,11 +334,29 @@ export default function Ventas() {
         serieComprobante: cabecera.serieComprobante,
         descuentoGlobal:  parseFloat(descGlobal.toFixed(2)),
         pagos:            pagosValidos,
-        detalles: carrito.map(i => ({
-          idProducto:    i.idProducto,
-          cantidad:      i.cantidad,
-          descuentoItem: parseFloat((i.descuento || 0).toFixed(2)),
-        })),
+        detalles: carrito
+          .filter(i => i.tipoItem === 'normal')
+          .map(i => ({
+            idProducto:    i.idProducto,
+            cantidad:      i.cantidad,
+            descuentoItem: parseFloat((i.descuento || 0).toFixed(2)),
+          })),
+        detallesServicio: carrito
+          .filter(i => i.tipoItem !== 'normal')
+          .map(i => {
+            const base = {
+              idProducto: i.idProducto,
+              descripcion: i.descripcion || '',
+              monto: parseFloat(i.monto) || 0,
+            };
+            if (i.tipoItem === 'servicio')
+              return { ...base, costo: parseFloat(i.costo) || 0 };
+            if (i.tipoItem === 'impresion')
+              return { ...base, costo: (parseFloat(i.monto) || 0) * (parseFloat(i.porcentajeCosto) || 0) / 100 };
+            if (i.tipoItem === 'transferencia')
+              return { ...base, comision: parseFloat(i.comision) || 0, origen: i.origen || '', destino: i.destino || '' };
+            return base;
+          }),
       });
 
       setUltimaVenta(res.data);
@@ -591,88 +692,236 @@ export default function Ventas() {
                   marginBottom:'10px', opacity:0.3 }} />
                 <div style={{ fontSize:'13px' }}>Haz clic en un producto para agregarlo</div>
               </div>
-            ) : carrito.map(item => (
-              <div key={item.idProducto} style={{ background: T.bgMuted,
+            ) : carrito.map(item => {
+              const normal     = item.tipoItem === 'normal';
+              const servicio   = item.tipoItem === 'servicio';
+              const impresion  = item.tipoItem === 'impresion';
+              const transfer   = item.tipoItem === 'transferencia';
+
+              const costCalc = impresion
+                ? (parseFloat(item.monto) || 0) * (parseFloat(item.porcentajeCosto) || 0) / 100 : 0;
+              const com      = transfer ? (parseFloat(item.comision) || 0) : 0;
+
+              return (
+              <div key={item._uid} style={{ background: T.bgMuted,
                 border:`1px solid ${T.border}`, borderRadius:'10px',
                 padding:'9px 11px', marginBottom:'7px' }}>
-                {/* Nombre + quitar */}
-                <div style={{ display:'flex', justifyContent:'space-between',
-                  alignItems:'flex-start', marginBottom:'6px' }}>
-                  <div style={{ fontSize:'12px', fontWeight:600, color: T.textPrimary,
-                    flex:1, paddingRight:'6px', lineHeight:'1.3' }}>
-                    {item.nombre}
-                    {item.sku && (
-                      <span style={{ fontSize:'9px', color: T.textMuted,
-                        display:'block', fontWeight:400 }}>
-                        {item.sku}
-                      </span>
+
+                {/* ── Normal (BIEN_FISICO/CONSUMIBLE) ── */}
+                {normal && <>
+                  <div style={{ display:'flex', justifyContent:'space-between',
+                    alignItems:'flex-start', marginBottom:'6px' }}>
+                    <div style={{ fontSize:'12px', fontWeight:600, color: T.textPrimary,
+                      flex:1, paddingRight:'6px', lineHeight:'1.3' }}>
+                      {item.nombre}
+                      {item.sku && (
+                        <span style={{ fontSize:'9px', color: T.textMuted,
+                          display:'block', fontWeight:400 }}>{item.sku}</span>
+                      )}
+                    </div>
+                    <button onClick={() => quitarItem(item._uid)}
+                      style={{ background:'none', border:'none', color:'#b06060',
+                        cursor:'pointer', fontSize:'15px', padding:0, lineHeight:1 }}>
+                      <i className="bi bi-x" />
+                    </button>
+                  </div>
+
+                  <div style={{ display:'flex', alignItems:'center',
+                    justifyContent:'space-between', marginBottom:'6px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
+                      {['-', '+'].map((btn, idx) => (
+                        <button key={btn}
+                          onClick={() => cambiarCantidad(item._uid,
+                            idx === 0 ? item.cantidad - 1 : item.cantidad + 1)}
+                          style={{ width:'24px', height:'24px', border:`1px solid ${T.border}`,
+                            borderRadius:'6px', background: T.bgCard, cursor:'pointer',
+                            fontSize:'14px', color: T.textPrimary,
+                            display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          {btn}
+                        </button>
+                      ))}
+                      <input type="number" value={item.cantidad} min="1"
+                        onChange={e => cambiarCantidad(item._uid, e.target.value)}
+                        style={{ width:'38px', textAlign:'center', border:`1px solid ${T.border}`,
+                          borderRadius:'6px', padding:'2px', fontSize:'12px', outline:'none',
+                          background: T.bgCard, color: T.textPrimary }} />
+                    </div>
+                    <div style={{ textAlign:'right' }}>
+                      <div style={{ fontSize:'10px', color: T.textMuted }}>
+                        S/ {item.precio.toFixed(2)} c/u
+                      </div>
+                      <div style={{ fontSize:'13px', fontWeight:700, color: T.gold }}>
+                        S/ {(item.precio * item.cantidad).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                    <label style={{ fontSize:'10px', color: T.textMuted, whiteSpace:'nowrap' }}>
+                      Desc. S/:
+                    </label>
+                    <input type="number" min="0" step="0.01"
+                      value={item.descuento || ''} placeholder="0.00"
+                      onChange={e => cambiarDescuento(item._uid, e.target.value)}
+                      style={{ flex:1, padding:'3px 6px', border:`1px solid ${T.border}`,
+                        borderRadius:'6px', fontSize:'11px', outline:'none',
+                        background: T.bgCard, color: T.textPrimary }} />
+                    {item.descuento > 0 && (
+                      <div style={{ fontSize:'10px', color:'#6aad7e', whiteSpace:'nowrap' }}>
+                        = {((item.descuento / (item.precio * item.cantidad)) * 100).toFixed(1)}%
+                      </div>
                     )}
                   </div>
-                  <button onClick={() => quitarItem(item.idProducto)}
-                    style={{ background:'none', border:'none', color:'#b06060',
-                      cursor:'pointer', fontSize:'15px', padding:0, lineHeight:1 }}>
-                    <i className="bi bi-x" />
-                  </button>
-                </div>
-
-                {/* Cantidad + precio */}
-                <div style={{ display:'flex', alignItems:'center',
-                  justifyContent:'space-between', marginBottom:'6px' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
-                    {['-', '+'].map((btn, idx) => (
-                      <button key={btn}
-                        onClick={() => cambiarCantidad(item.idProducto,
-                          idx === 0 ? item.cantidad - 1 : item.cantidad + 1)}
-                        style={{ width:'24px', height:'24px', border:`1px solid ${T.border}`,
-                          borderRadius:'6px', background: T.bgCard, cursor:'pointer',
-                          fontSize:'14px', color: T.textPrimary,
-                          display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        {btn}
-                      </button>
-                    ))}
-                    <input type="number" value={item.cantidad} min="1"
-                      onChange={e => cambiarCantidad(item.idProducto, e.target.value)}
-                      style={{ width:'38px', textAlign:'center', border:`1px solid ${T.border}`,
-                        borderRadius:'6px', padding:'2px', fontSize:'12px', outline:'none',
-                        background: T.bgCard, color: T.textPrimary }} />
-                  </div>
-                  <div style={{ textAlign:'right' }}>
-                    <div style={{ fontSize:'10px', color: T.textMuted }}>
-                      S/ {item.precio.toFixed(2)} c/u
-                    </div>
-                    <div style={{ fontSize:'13px', fontWeight:700, color: T.gold }}>
-                      S/ {(item.precio * item.cantidad).toFixed(2)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Descuento por ítem */}
-                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                  <label style={{ fontSize:'10px', color: T.textMuted, whiteSpace:'nowrap' }}>
-                    Desc. S/:
-                  </label>
-                  <input type="number" min="0" step="0.01"
-                    value={item.descuento || ''}
-                    placeholder="0.00"
-                    onChange={e => cambiarDescuento(item.idProducto, e.target.value)}
-                    style={{ flex:1, padding:'3px 6px', border:`1px solid ${T.border}`,
-                      borderRadius:'6px', fontSize:'11px', outline:'none',
-                      background: T.bgCard, color: T.textPrimary }} />
                   {item.descuento > 0 && (
-                    <div style={{ fontSize:'10px', color:'#6aad7e', whiteSpace:'nowrap' }}>
-                      = {((item.descuento / (item.precio * item.cantidad)) * 100).toFixed(1)}%
+                    <div style={{ fontSize:'11px', color: T.gold, textAlign:'right',
+                      marginTop:3, fontWeight:700 }}>
+                      Neto: S/ {(item.precio * item.cantidad - item.descuento).toFixed(2)}
                     </div>
                   )}
-                </div>
-                {/* Subtotal ítem con descuento */}
-                {item.descuento > 0 && (
-                  <div style={{ fontSize:'11px', color: T.gold, textAlign:'right',
-                    marginTop:3, fontWeight:700 }}>
-                    Neto: S/ {(item.precio * item.cantidad - item.descuento).toFixed(2)}
+                </>}
+
+                {/* ── SERVICIOS ── */}
+                {servicio && <>
+                  <div style={{ display:'flex', justifyContent:'space-between',
+                    alignItems:'flex-start', marginBottom:'6px' }}>
+                    <div style={{ fontSize:'12px', fontWeight:600, color: T.textPrimary,
+                      flex:1, paddingRight:'6px', lineHeight:'1.3' }}>
+                      🔧 {item.nombre}
+                    </div>
+                    <button onClick={() => quitarItem(item._uid)}
+                      style={{ background:'none', border:'none', color:'#b06060',
+                        cursor:'pointer', fontSize:'15px', padding:0, lineHeight:1 }}>
+                      <i className="bi bi-x" />
+                    </button>
                   </div>
-                )}
+                  <div style={{ marginBottom:'5px' }}>
+                    <input type="text" placeholder="Descripción (opcional)"
+                      value={item.descripcion}
+                      onChange={e => actualizarServicioField(item._uid, 'descripcion', e.target.value)}
+                      style={{ width:'100%', padding:'5px 8px', border:`1px solid ${T.border}`,
+                        borderRadius:'6px', fontSize:'11px', outline:'none',
+                        background: T.bgCard, color: T.textPrimary }} />
+                  </div>
+                  <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                    <label style={{ fontSize:'10px', color: T.textMuted, whiteSpace:'nowrap' }}>
+                      Monto S/:
+                    </label>
+                    <input type="number" min="0" step="0.10"
+                      value={item.monto}
+                      onChange={e => actualizarServicioField(item._uid, 'monto', parseFloat(e.target.value) || 0)}
+                      style={{ flex:1, padding:'4px 6px', border:`1px solid ${T.border}`,
+                        borderRadius:'6px', fontSize:'11px', outline:'none',
+                        background: T.bgCard, color: T.textPrimary }} />
+                  </div>
+                  <div style={{ fontSize:'10px', color: T.textMuted, marginTop:3 }}>
+                    Costo: S/ {(item.costo || 0).toFixed(2)}
+                  </div>
+                </>}
+
+                {/* ── IMPRESIONES ── */}
+                {impresion && <>
+                  <div style={{ display:'flex', justifyContent:'space-between',
+                    alignItems:'flex-start', marginBottom:'6px' }}>
+                    <div style={{ fontSize:'12px', fontWeight:600, color: T.textPrimary,
+                      flex:1, paddingRight:'6px', lineHeight:'1.3' }}>
+                      🔧 {item.nombre}
+                    </div>
+                    <button onClick={() => quitarItem(item._uid)}
+                      style={{ background:'none', border:'none', color:'#b06060',
+                        cursor:'pointer', fontSize:'15px', padding:0, lineHeight:1 }}>
+                      <i className="bi bi-x" />
+                    </button>
+                  </div>
+                  <div style={{ marginBottom:'5px' }}>
+                    <input type="text" placeholder="Descripción"
+                      value={item.descripcion}
+                      onChange={e => actualizarServicioField(item._uid, 'descripcion', e.target.value)}
+                      style={{ width:'100%', padding:'5px 8px', border:`1px solid ${T.border}`,
+                        borderRadius:'6px', fontSize:'11px', outline:'none',
+                        background: T.bgCard, color: T.textPrimary }} />
+                  </div>
+                  <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                    <label style={{ fontSize:'10px', color: T.textMuted, whiteSpace:'nowrap' }}>
+                      Monto S/:
+                    </label>
+                    <input type="number" min="0" step="0.10"
+                      value={item.monto}
+                      onChange={e => actualizarServicioField(item._uid, 'monto', parseFloat(e.target.value) || 0)}
+                      style={{ flex:1, padding:'4px 6px', border:`1px solid ${T.border}`,
+                        borderRadius:'6px', fontSize:'11px', outline:'none',
+                        background: T.bgCard, color: T.textPrimary }} />
+                  </div>
+                  <div style={{ fontSize:'10px', color: T.textMuted, marginTop:3 }}>
+                    Costo: S/ {costCalc.toFixed(2)} ({(item.porcentajeCosto || 0).toFixed(0)}%)
+                  </div>
+                </>}
+
+                {/* ── TRANSFERENCIA ── */}
+                {transfer && <>
+                  <div style={{ display:'flex', justifyContent:'space-between',
+                    alignItems:'flex-start', marginBottom:'6px' }}>
+                    <div style={{ fontSize:'12px', fontWeight:600, color: T.textPrimary,
+                      flex:1, paddingRight:'6px', lineHeight:'1.3' }}>
+                      💱 {item.nombre}
+                    </div>
+                    <button onClick={() => quitarItem(item._uid)}
+                      style={{ background:'none', border:'none', color:'#b06060',
+                        cursor:'pointer', fontSize:'15px', padding:0, lineHeight:1 }}>
+                      <i className="bi bi-x" />
+                    </button>
+                  </div>
+                  <div style={{ display:'flex', gap:'5px', marginBottom:'4px' }}>
+                    <div style={{ flex:1 }}>
+                      <label style={{ fontSize:'9px', color: T.textMuted, display:'block' }}>
+                        Origen
+                      </label>
+                      <select value={item.origen}
+                        onChange={e => actualizarServicioField(item._uid, 'origen', e.target.value)}
+                        style={{ width:'100%', padding:'4px', border:`1px solid ${T.border}`,
+                          borderRadius:'6px', fontSize:'11px', outline:'none',
+                          background: T.bgCard, color: T.textPrimary }}>
+                        <option value="">Seleccionar</option>
+                        {cuentas.map(c => (
+                          <option key={c.idCuenta} value={c.nombre}>{c.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <label style={{ fontSize:'9px', color: T.textMuted, display:'block' }}>
+                        Destino
+                      </label>
+                      <select value={item.destino}
+                        onChange={e => actualizarServicioField(item._uid, 'destino', e.target.value)}
+                        style={{ width:'100%', padding:'4px', border:`1px solid ${T.border}`,
+                          borderRadius:'6px', fontSize:'11px', outline:'none',
+                          background: T.bgCard, color: T.textPrimary }}>
+                        <option value="">Seleccionar</option>
+                        {cuentas.map(c => (
+                          <option key={c.idCuenta} value={c.nombre}>{c.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:'6px', alignItems:'center', marginBottom:'3px' }}>
+                    <label style={{ fontSize:'10px', color: T.textMuted, whiteSpace:'nowrap' }}>
+                      Monto S/:
+                    </label>
+                    <input type="number" min="0" step="0.10"
+                      value={item.monto}
+                      onChange={e => actualizarServicioField(item._uid, 'monto', parseFloat(e.target.value) || 0)}
+                      style={{ flex:1, padding:'4px 6px', border:`1px solid ${T.border}`,
+                        borderRadius:'6px', fontSize:'11px', outline:'none',
+                        background: T.bgCard, color: T.textPrimary }} />
+                  </div>
+                  <div style={{ fontSize:'10px', color: T.textMuted }}>
+                    Comisión: S/ {com.toFixed(2)}
+                  </div>
+                  <div style={{ fontSize:'11px', fontWeight:700, color: T.gold, marginTop:'2px' }}>
+                    Total: S/ {((parseFloat(item.monto) || 0) + com).toFixed(2)}
+                  </div>
+                </>}
               </div>
-            ))}
+            )})}
           </div>
 
           {/* Totales y pago */}
@@ -680,12 +929,12 @@ export default function Ventas() {
             {carrito.length > 0 && (
               <>
                 {/* Desglose */}
-                {carrito.some(i => i.descuento > 0) && (
+                {carrito.some(i => i.tipoItem === 'normal' && i.descuento > 0) && (
                   <div style={{ fontSize:'11px', color: T.textMuted,
                     display:'flex', justifyContent:'space-between', marginBottom:'2px' }}>
                     <span>Desc. en ítems</span>
                     <span style={{ color:'#6aad7e' }}>
-                      -S/ {carrito.reduce((a,i) => a+(i.descuento||0), 0).toFixed(2)}
+                      -S/ {carrito.reduce((a,i) => a+((i.tipoItem==='normal'?i.descuento:0)||0), 0).toFixed(2)}
                     </span>
                   </div>
                 )}

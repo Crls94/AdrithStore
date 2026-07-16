@@ -56,8 +56,10 @@ public class VentaController {
 
         if (req.getIdCliente()  == null) return ResponseEntity.badRequest().body("idCliente requerido.");
         if (req.getIdUsuario()  == null) return ResponseEntity.badRequest().body("idUsuario requerido.");
-        if (req.getDetalles()   == null || req.getDetalles().isEmpty())
-            return ResponseEntity.badRequest().body("Agrega al menos un producto.");
+        boolean sinDetalles    = req.getDetalles()   == null || req.getDetalles().isEmpty();
+        boolean sinServicios   = req.getDetallesServicio() == null || req.getDetallesServicio().isEmpty();
+        if (sinDetalles && sinServicios)
+            return ResponseEntity.badRequest().body("Agrega al menos un producto o servicio.");
         if (req.getPagos()      == null || req.getPagos().isEmpty())
             return ResponseEntity.badRequest().body("Agrega al menos una forma de pago.");
 
@@ -112,12 +114,24 @@ public class VentaController {
             venta.getDetalles().add(det);
         }
 
-        if (venta.getDetalles().isEmpty()) return ResponseEntity.badRequest().body("Ningún producto fue encontrado.");
+        if (venta.getDetalles().isEmpty() && sinServicios)
+            return ResponseEntity.badRequest().body("Ningún producto fue encontrado.");
+
+        // Calcular total de servicios
+        BigDecimal totalServicios = BigDecimal.ZERO;
+        if (req.getDetallesServicio() != null) {
+            for (VentaRequest.DetalleServicioItem dsi : req.getDetallesServicio()) {
+                BigDecimal sub = dsi.getMonto() != null ? dsi.getMonto() : BigDecimal.ZERO;
+                if (dsi.getComision() != null) sub = sub.add(dsi.getComision());
+                totalServicios = totalServicios.add(sub);
+            }
+        }
 
         // Descuento global — monto fijo (ej: redondeo 20.10 → 20.00 = descuento 0.10)
         BigDecimal dscGlobal = req.getDescuentoGlobal() != null ? req.getDescuentoGlobal() : BigDecimal.ZERO;
-        if (dscGlobal.compareTo(totalBruto) > 0) dscGlobal = totalBruto; // no puede ser mayor al total
-        BigDecimal totalFinal = totalBruto.subtract(dscGlobal).max(BigDecimal.ZERO);
+        if (dscGlobal.compareTo(totalBruto.add(totalServicios)) > 0)
+            dscGlobal = totalBruto.add(totalServicios);
+        BigDecimal totalFinal = totalBruto.add(totalServicios).subtract(dscGlobal).max(BigDecimal.ZERO);
 
         venta.setDescuentoGlobal(dscGlobal);
         venta.setTotal(totalFinal);
@@ -133,6 +147,25 @@ public class VentaController {
                 .body("Pago insuficiente: pagado S/ " + totalPagado + ", total S/ " + totalFinal);
 
         Venta guardada = ventaRepo.save(venta);
+
+        // Guardar detalles de servicio
+        if (req.getDetallesServicio() != null) {
+            for (VentaRequest.DetalleServicioItem dsi : req.getDetallesServicio()) {
+                VentaDetalleServicio vds = new VentaDetalleServicio();
+                vds.setVenta(guardada);
+                productoRepo.findById(dsi.getIdProducto()).ifPresent(vds::setProducto);
+                vds.setDescripcion(dsi.getDescripcion());
+                vds.setMonto(dsi.getMonto() != null ? dsi.getMonto() : BigDecimal.ZERO);
+                vds.setCosto(dsi.getCosto());
+                vds.setComision(dsi.getComision());
+                vds.setOrigen(dsi.getOrigen());
+                vds.setDestino(dsi.getDestino());
+                BigDecimal sub = dsi.getMonto() != null ? dsi.getMonto() : BigDecimal.ZERO;
+                if (dsi.getComision() != null) sub = sub.add(dsi.getComision());
+                vds.setSubtotal(sub);
+                detalleServicioRepo.save(vds);
+            }
+        }
 
         for (VentaRequest.PagoItem pi : req.getPagos()) {
             if (pi.getMonto() == null || pi.getMonto().compareTo(BigDecimal.ZERO) <= 0) continue;
@@ -236,8 +269,9 @@ public class VentaController {
         private String     tipoComprobante;
         private String     serieComprobante;
         private BigDecimal descuentoGlobal;
-        private List<PagoItem>    pagos;
-        private List<DetalleItem> detalles;
+        private List<PagoItem>           pagos;
+        private List<DetalleItem>        detalles;
+        private List<DetalleServicioItem> detallesServicio;
 
         @Data public static class PagoItem {
             private String     medioPago;
@@ -247,6 +281,16 @@ public class VentaController {
             private Integer    idProducto;
             private Integer    cantidad;
             private BigDecimal descuentoItem; // monto fijo descontado del ítem
+        }
+        @Data public static class DetalleServicioItem {
+            private Integer    idProducto;
+            private String     descripcion;
+            private BigDecimal monto;
+            private BigDecimal costo;
+            private BigDecimal comision;
+            private String     origen;
+            private String     destino;
+            private BigDecimal subtotal;
         }
     }
 }
