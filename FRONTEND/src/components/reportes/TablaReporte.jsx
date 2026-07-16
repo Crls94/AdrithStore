@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const C = {
   emerald:"#0D5E4F", teal:"#0A3D3A",
@@ -13,10 +13,11 @@ export default function TablaReporte({
   columnas, data, totales, loading,
   onSort, sortBy, sortDir,
   pagina, totalPaginas, onCambiarPagina,
-  renderExpandible, mensajeVacio,
+  renderExpandible, mensajeVacio, pageSize = 20,
 }) {
   const [expandida, setExpandida] = useState(null);
   const toggleExpandir = (idx) => setExpandida(prev => prev === idx ? null : idx);
+  useEffect(() => { setExpandida(null); }, [pagina]);
 
   const gridTemplate = columnas.map(c => c.width || "1fr").join(" ");
 
@@ -63,7 +64,7 @@ export default function TablaReporte({
 
       {/* Filas */}
       {data.map((row, i) => {
-        const idx = pagina != null ? pagina * (totalPaginas ? 1 : 1) + i : i;
+        const idx = pagina != null ? pagina * pageSize + i : i;
         const abierta = expandida === idx;
         return (
           <div key={i}
@@ -77,13 +78,14 @@ export default function TablaReporte({
               onClick={() => renderExpandible && toggleExpandir(idx)}>
 
               {columnas.map(col => {
-                let valor = row[col.key];
-                if (col.render) valor = col.render(valor, row);
-                if (col.numeric && typeof valor === "number") valor = money(valor);
+                const raw = row[col.key];
+                let valor = raw;
+                if (col.render) valor = col.render(raw, row);
+                if (col.numeric && typeof raw === "number" && col.isMoney !== false) valor = money(raw);
                 return (
                   <span key={col.key} style={{
                     fontSize:13, fontWeight: col.numeric ? 700 : 600,
-                    color: col.color ? col.color(valor, row) : C.charcoal,
+                    color: col.color ? col.color(raw, row) : C.charcoal,
                     textAlign: col.numeric ? "right" : "left",
                     whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
                   }}>
@@ -116,7 +118,7 @@ export default function TablaReporte({
                 textAlign: col.numeric ? "right" : "left",
                 fontSize: col.numeric ? 14 : 13,
               }}>
-                {col.numeric && val != null ? money(val) : col.key === columnas[0]?.key ? "Totales" : ""}
+                {col.numeric && val != null ? (col.isMoney !== false ? money(val) : val) : col.key === columnas[0]?.key ? "Totales" : ""}
               </span>
             );
           })}

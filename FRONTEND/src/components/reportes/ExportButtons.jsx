@@ -13,7 +13,8 @@ function extraerFilas(data, columnas) {
     const fila = {};
     columnas.forEach(col => {
       let val = row[col.key];
-      if (col.render) val = col.render(val, row);
+      if (col.textRender) val = col.textRender(val, row);
+      else if (col.render) val = `${col.render(val, row) ?? ""}`;
       fila[col.label] = val ?? "";
     });
     return fila;
@@ -35,7 +36,8 @@ function exportarCSV(data, columnas, titulo) {
   data.forEach(row => {
     const vals = columnas.map(col => {
       let val = row[col.key];
-      if (col.render) val = col.render(val, row);
+      if (col.textRender) val = col.textRender(val, row);
+      else if (col.render) val = `${col.render(val, row) ?? ""}`;
       const s = String(val ?? "");
       return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
     });
@@ -56,7 +58,8 @@ function exportarPDF(data, columnas, titulo) {
   const body = data.map(row =>
     columnas.map(col => {
       let val = row[col.key];
-      if (col.render) val = col.render(val, row);
+      if (col.textRender) val = col.textRender(val, row);
+      else if (col.render) val = `${col.render(val, row) ?? ""}`;
       return val != null ? String(val) : "";
     })
   );

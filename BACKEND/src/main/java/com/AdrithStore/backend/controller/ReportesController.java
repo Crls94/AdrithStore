@@ -73,8 +73,8 @@ public class ReportesController {
     @Transactional(readOnly = true)
     @GetMapping("/ventas")
     public Map<String, Object> ventas(
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String desde,
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String hasta,
+            @RequestParam(required = false) String desde,
+            @RequestParam(required = false) String hasta,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false)    String sort,
@@ -96,12 +96,11 @@ public class ReportesController {
         Page<Venta> pagina = ventaRepo.buscarPaginado(d, h, idCliente, idVendedor, estado,
                 PageRequest.of(page, size, buildSort(sort, dir)));
 
-        Object[] totalesArr = ventaRepo.sumTotales(d, h, idCliente, idVendedor, estado);
         Map<String, Object> totales = new LinkedHashMap<>();
-        totales.put("subtotal", totalesArr[0]);
-        totales.put("igv", totalesArr[1]);
-        totales.put("descuentoGlobal", totalesArr[2]);
-        totales.put("total", totalesArr[3]);
+        totales.put("subtotal", ventaRepo.sumSubtotal(d, h, idCliente, idVendedor, estado));
+        totales.put("igv", ventaRepo.sumIgv(d, h, idCliente, idVendedor, estado));
+        totales.put("descuentoGlobal", ventaRepo.sumDescuento(d, h, idCliente, idVendedor, estado));
+        totales.put("total", ventaRepo.sumTotal(d, h, idCliente, idVendedor, estado));
 
         return paginaAMapa(pagina, totales);
     }
@@ -113,8 +112,8 @@ public class ReportesController {
     @Transactional(readOnly = true)
     @GetMapping("/compras")
     public Map<String, Object> compras(
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String desde,
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String hasta,
+            @RequestParam(required = false) String desde,
+            @RequestParam(required = false) String hasta,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false)    String sort,
@@ -128,12 +127,11 @@ public class ReportesController {
         Page<Compra> pagina = compraRepo.buscarPaginado(d, h, idProveedor, estado,
                 PageRequest.of(page, size, buildSort(sort, dir)));
 
-        Object[] totalesArr = compraRepo.sumTotales(d, h, idProveedor, estado);
         Map<String, Object> totales = new LinkedHashMap<>();
-        totales.put("subtotal",        totalesArr[0]);
-        totales.put("descuentoGlobal", totalesArr[1]);
-        totales.put("percepcion",      totalesArr[2]);
-        totales.put("total",           totalesArr[3]);
+        totales.put("subtotal",        compraRepo.sumSubtotal(d, h, idProveedor, estado));
+        totales.put("descuentoGlobal", compraRepo.sumDescuento(d, h, idProveedor, estado));
+        totales.put("percepcion",      compraRepo.sumPercepcion(d, h, idProveedor, estado));
+        totales.put("total",           compraRepo.sumTotal(d, h, idProveedor, estado));
 
         return paginaAMapa(pagina, totales);
     }
@@ -144,8 +142,8 @@ public class ReportesController {
 
     @GetMapping("/ajustes-compra")
     public Map<String, Object> ajustesCompra(
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String desde,
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String hasta,
+            @RequestParam(required = false) String desde,
+            @RequestParam(required = false) String hasta,
             @RequestParam(required = false) String tipo) {
 
         LocalDateTime d = inicioDelDia(desde);
@@ -161,8 +159,8 @@ public class ReportesController {
 
     @GetMapping("/movimientos")
     public Map<String, Object> movimientos(
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String desde,
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String hasta,
+            @RequestParam(required = false) String desde,
+            @RequestParam(required = false) String hasta,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false)    String sort,
@@ -189,12 +187,12 @@ public class ReportesController {
 
     @GetMapping("/cierres")
     public Map<String, Object> cierres(
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String desde,
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String hasta,
+            @RequestParam(required = false) String desde,
+            @RequestParam(required = false) String hasta,
             @RequestParam(required = false) Integer idCuenta) {
 
-        LocalDate d = LocalDate.parse(desde);
-        LocalDate h = LocalDate.parse(hasta);
+        LocalDate d = desde != null ? LocalDate.parse(desde) : LocalDate.now();
+        LocalDate h = hasta != null ? LocalDate.parse(hasta) : LocalDate.now();
 
         List<CierreDiario> lista;
         if (idCuenta != null) {
@@ -249,8 +247,8 @@ public class ReportesController {
 
     @GetMapping("/clientes")
     public Map<String, Object> clientes(
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String desde,
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String hasta) {
+            @RequestParam(required = false) String desde,
+            @RequestParam(required = false) String hasta) {
 
         LocalDateTime d = inicioDelDia(desde);
         LocalDateTime h = finDelDia(hasta);
@@ -281,8 +279,8 @@ public class ReportesController {
 
     @GetMapping("/proveedores")
     public Map<String, Object> proveedores(
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String desde,
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String hasta) {
+            @RequestParam(required = false) String desde,
+            @RequestParam(required = false) String hasta) {
 
         LocalDateTime d = inicioDelDia(desde);
         LocalDateTime h = finDelDia(hasta);
@@ -325,8 +323,8 @@ public class ReportesController {
 
     @GetMapping("/usuarios")
     public Map<String, Object> usuarios(
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String desde,
-            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().toString()}") String hasta) {
+            @RequestParam(required = false) String desde,
+            @RequestParam(required = false) String hasta) {
 
         LocalDateTime d = inicioDelDia(desde);
         LocalDateTime h = finDelDia(hasta);

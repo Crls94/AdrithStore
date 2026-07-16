@@ -46,7 +46,8 @@ const COL = {
     { key:"descuentoGlobal",  label:"Desc.",       numeric:true,  sortable:true },
     { key:"total",            label:"Total",       numeric:true,  sortable:true,  width:"100px" },
     { key:"estado",           label:"Estado",      numeric:false, sortable:false,
-      render:(v)=>v==="confirmado"?badge("Confirmado","#E8F5E9","#2E7D32"):badge("Anulado","#FFEBEE","#C62828") },
+      render:(v)=>v==="confirmado"?badge("Confirmado","#E8F5E9","#2E7D32"):badge("Anulado","#FFEBEE","#C62828"),
+      textRender:(v)=>v==="confirmado"?"Confirmado":"Anulado" },
   ],
   compras: [
     { key:"fecha",            label:"Fecha",       numeric:false, sortable:true,  render:(v)=>fmtFecha(v) },
@@ -57,30 +58,35 @@ const COL = {
     { key:"percepcion",       label:"Percepción",  numeric:true,  sortable:true },
     { key:"total",            label:"Total",       numeric:true,  sortable:true,  width:"100px" },
     { key:"estado",           label:"Estado",      numeric:false, sortable:false,
-      render:(v)=>v==="confirmado"?badge("Confirmado","#E8F5E9","#2E7D32"):badge("Anulado","#FFEBEE","#C62828") },
+      render:(v)=>v==="confirmado"?badge("Confirmado","#E8F5E9","#2E7D32"):badge("Anulado","#FFEBEE","#C62828"),
+      textRender:(v)=>v==="confirmado"?"Confirmado":"Anulado" },
   ],
   ajustes: [
     { key:"fecha",            label:"Fecha",       numeric:false, sortable:false, render:(v)=>fmtFecha(v) },
     { key:"tipo",             label:"Tipo",        numeric:false, sortable:false,
       render:(v)=>badge(v, v==="COSTO"?"#E8F5E9":v==="CANTIDAD"?"#FFF3E0":"#FFEBEE",
-        v==="COSTO"?"#2E7D32":v==="CANTIDAD"?"#B84D00":"#C62828") },
+        v==="COSTO"?"#2E7D32":v==="CANTIDAD"?"#B84D00":"#C62828"),
+      textRender:(v)=>v||"" },
     { key:"producto",         label:"Producto",    numeric:false, sortable:false, render:(_,r)=>r.producto?.nombre||"—" },
     { key:"motivo",           label:"Motivo",      numeric:false, sortable:false },
-    { key:"deltaCantidad",    label:"Δ Cant.",     numeric:true,  sortable:false },
+    { key:"deltaCantidad",    label:"Δ Cant.",     numeric:true,  sortable:false, isMoney:false },
     { key:"costoAnterior",    label:"Costo ant.",  numeric:true,  sortable:false },
     { key:"costoNuevo",       label:"Costo nuevo", numeric:true,  sortable:false },
     { key:"cppResultante",    label:"CPP",         numeric:true,  sortable:false },
     { key:"impactoStock",     label:"Impacto stk", numeric:true,  sortable:false,
-      render:(v)=>v>0?badge(`+${v}`,"#E8F5E9","#2E7D32"):v<0?badge(v,"#FFEBEE","#C62828"):"0" },
+      render:(v)=>v>0?badge(`+${v}`,"#E8F5E9","#2E7D32"):v<0?badge(v,"#FFEBEE","#C62828"):"0",
+      textRender:(v)=>v>0?`+${v}`:String(v||"0") },
   ],
   movimientos: [
     { key:"fecha",            label:"Fecha",       numeric:false, sortable:true,  render:(v)=>fmtFecha(v) },
     { key:"tipoMov",          label:"Tipo",        numeric:false, sortable:false,
-      render:(v)=>badge(v||"—","#F1F3F2","#555") },
+      render:(v)=>badge(v||"—","#F1F3F2","#555"),
+      textRender:(v)=>v||"—" },
     { key:"cuenta",           label:"Cuenta",      numeric:false, sortable:false, render:(_,r)=>r.cuenta?.nombre||"—" },
     { key:"monto",            label:"Monto",       numeric:true,  sortable:true,
       render:(v,row)=>(<span style={{color:row.signo===1?"#2E7D32":"#C62828",fontWeight:800}}>
-        {row.signo===1?"+":"-"} {money(v)}</span>) },
+        {row.signo===1?"+":"-"} {money(v)}</span>),
+      textRender:(v,row)=>`${row.signo===1?"+":"-"} ${money(v)}` },
     { key:"concepto",         label:"Concepto",    numeric:false, sortable:false },
     { key:"creadaPor",        label:"Registrado",  numeric:false, sortable:false },
   ],
@@ -92,7 +98,7 @@ const COL = {
     { key:"diferencia",       label:"Diferencia",  numeric:true,  sortable:false,
       color:(v)=>v!==0?"#C62828":"#888" },
     { key:"retiro",           label:"Retiro",      numeric:true,  sortable:false },
-    { key:"ajusteRegistrado", label:"Ajuste",      numeric:false, sortable:false, render:(v)=>siNo(v) },
+    { key:"ajusteRegistrado", label:"Ajuste",      numeric:false, sortable:false, render:(v)=>siNo(v), textRender:(v)=>v?"Sí":"No" },
     { key:"cerradoPor",       label:"Cerrado por", numeric:false, sortable:false },
   ],
   productos: [
@@ -100,21 +106,23 @@ const COL = {
     { key:"nombre",           label:"Nombre",      numeric:false, sortable:false },
     { key:"categoria",        label:"Categoría",   numeric:false, sortable:false, render:(_,r)=>r.categoria?.nombre||"—" },
     { key:"tipo",             label:"Tipo",        numeric:false, sortable:false,
-      render:(v)=>badge(v,"#F1F3F2","#555") },
-    { key:"stock",            label:"Stock",       numeric:true,  sortable:false,
+      render:(v)=>badge(v,"#F1F3F2","#555"),
+      textRender:(v)=>v||"" },
+    { key:"stock",            label:"Stock",       numeric:true,  sortable:false, isMoney:false,
       color:(v,row)=>row.stockAlert && v<=row.stockAlert?"#C62828":"#1F1F1F",
       render:(v,row)=>(row.stockAlert && v<=row.stockAlert
-        ? <span style={{color:"#C62828",fontWeight:800}}>{v} ⚠️</span> : v) },
+        ? <span style={{color:"#C62828",fontWeight:800}}>{v} ⚠️</span> : v),
+      textRender:(v)=>String(v) },
     { key:"cpp",              label:"CPP",         numeric:true,  sortable:false },
     { key:"precioVenta",      label:"Precio venta",numeric:true,  sortable:false },
-    { key:"visibleEnPos",     label:"POS",         numeric:false, sortable:false, render:(v)=>siNo(v) },
+    { key:"visibleEnPos",     label:"POS",         numeric:false, sortable:false, render:(v)=>siNo(v), textRender:(v)=>v?"Sí":"No" },
   ],
   clientes: [
     { key:"nombre",           label:"Nombre",      numeric:false, sortable:false },
     { key:"apellido",         label:"Apellido",    numeric:false, sortable:false },
     { key:"dni",              label:"DNI",         numeric:false, sortable:false },
     { key:"telefono",         label:"Teléfono",    numeric:false, sortable:false },
-    { key:"numCompras",       label:"N° Compras",  numeric:true,  sortable:false },
+    { key:"numCompras",       label:"N° Compras",  numeric:true,  sortable:false, isMoney:false },
     { key:"totalComprado",    label:"Total comp.", numeric:true,  sortable:false },
     { key:"ultimaCompra",     label:"Última compra",numeric:false, sortable:false, render:(v)=>v?fmtFecha(v):"—" },
   ],
@@ -123,7 +131,7 @@ const COL = {
     { key:"ruc",              label:"RUC",         numeric:false, sortable:false },
     { key:"contacto",         label:"Contacto",    numeric:false, sortable:false },
     { key:"telefono",         label:"Teléfono",    numeric:false, sortable:false },
-    { key:"numCompras",       label:"N° Compras",  numeric:true,  sortable:false },
+    { key:"numCompras",       label:"N° Compras",  numeric:true,  sortable:false, isMoney:false },
     { key:"totalComprado",    label:"Total comp.", numeric:true,  sortable:false },
     { key:"ultimaCompra",     label:"Última compra",numeric:false, sortable:false, render:(v)=>v?fmtFecha(v):"—" },
   ],
@@ -131,24 +139,27 @@ const COL = {
     { key:"nombre",           label:"Nombre",      numeric:false, sortable:false },
     { key:"tipo",             label:"Tipo",        numeric:false, sortable:false,
       render:(v)=>badge(v,v==="EFECTIVO"?"#E8F5E9":v==="DIGITAL"?"#E8F0FE":"#FFF3E0",
-        v==="EFECTIVO"?"#2E7D32":v==="DIGITAL"?"#1A73E8":"#B84D00") },
+        v==="EFECTIVO"?"#2E7D32":v==="DIGITAL"?"#1A73E8":"#B84D00"),
+      textRender:(v)=>v||"" },
     { key:"saldoActual",      label:"Saldo",       numeric:true,  sortable:false },
     { key:"fondoCaja",        label:"Fondo caja",  numeric:true,  sortable:false },
-    { key:"activa",           label:"Activa",      numeric:false, sortable:false, render:(v)=>siNo(v) },
+    { key:"activa",           label:"Activa",      numeric:false, sortable:false, render:(v)=>siNo(v), textRender:(v)=>v?"Sí":"No" },
   ],
   usuarios: [
     { key:"nombreCompleto",   label:"Nombre",      numeric:false, sortable:false },
     { key:"username",         label:"Usuario",     numeric:false, sortable:false },
     { key:"rol",              label:"Rol",         numeric:false, sortable:false,
-      render:(v)=>badge(v,v==="ADMIN"?"#FFEBEE":"#E8F5E9",v==="ADMIN"?"#C62828":"#2E7D32") },
-    { key:"activo",           label:"Activo",      numeric:false, sortable:false, render:(v)=>siNo(v) },
-    { key:"numVentas",        label:"N° Ventas",   numeric:true,  sortable:false },
+      render:(v)=>badge(v,v==="ADMIN"?"#FFEBEE":"#E8F5E9",v==="ADMIN"?"#C62828":"#2E7D32"),
+      textRender:(v)=>v||"" },
+    { key:"activo",           label:"Activo",      numeric:false, sortable:false, render:(v)=>siNo(v), textRender:(v)=>v?"Sí":"No" },
+    { key:"numVentas",        label:"N° Ventas",   numeric:true,  sortable:false, isMoney:false },
     { key:"totalVendido",     label:"Total vend.", numeric:true,  sortable:false },
   ],
   eventos: [
     { key:"fecha",            label:"Fecha",       numeric:false, sortable:true,  render:(v)=>fmtFecha(v) },
     { key:"tipoEvento",       label:"Tipo evento", numeric:false, sortable:false,
-      render:(v)=>badge(v||"—","#F1F3F2","#555") },
+      render:(v)=>badge(v||"—","#F1F3F2","#555"),
+      textRender:(v)=>v||"—" },
     { key:"entidad",          label:"Entidad",     numeric:false, sortable:false, render:(_,r)=>r.entidad?`${r.entidad} #${r.idEntidad||""}`:"—" },
     { key:"descripcion",      label:"Descripción", numeric:false, sortable:false },
   ],
@@ -200,6 +211,7 @@ function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
             <div>
               <span style={{ fontWeight:600, color:C.charcoal }}>{d.producto?.nombre||`Prod #${d.producto?.idProducto}`}</span>
               <span style={{ color:"#888", marginLeft:8, fontSize:12 }}>× {d.cantidad}</span>
+              {esAdmin && d.costoHistorico > 0 && <span style={{ color:"#aaa", marginLeft:8, fontSize:11 }}>CPP: {money(d.costoHistorico)}</span>}
               {d.descuentoItem > 0 && <span style={{ color:"#6aad7e", marginLeft:6, fontSize:11 }}>(desc: {money(d.descuentoItem)})</span>}
             </div>
             <span style={{ fontWeight:700, color:C.emerald }}>{money(d.subtotal)}</span>
@@ -249,10 +261,12 @@ function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
     </div>
   );
 
+  const columnasVisibles = esAdmin ? COL.ventas : COL.ventas.filter(c => c.key !== "vendedor");
+
   return (
     <div>
       <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
-        <ExportButtons data={data} columnas={COL.ventas} titulo="Ventas" />
+        <ExportButtons data={data} columnas={columnasVisibles} titulo="Ventas" />
       </div>
       <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
         <input placeholder="ID Cliente" value={filtros.idCliente} onChange={e => onActualizarFiltro("ventas","idCliente",e.target.value)}
@@ -268,7 +282,7 @@ function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
           <option value="anulado">Anulado</option>
         </select>
       </div>
-      <TablaReporte columnas={COL.ventas} data={data} totales={totales} loading={loading}
+      <TablaReporte columnas={columnasVisibles} data={data} totales={totales} loading={loading}
         onSort={handleSort} sortBy={sortBy} sortDir={sortDir}
         pagina={pagina} totalPaginas={totalPag} onCambiarPagina={setPagina}
         renderExpandible={renderExpandible} mensajeVacio="Sin ventas en el rango" />

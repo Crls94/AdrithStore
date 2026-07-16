@@ -64,19 +64,51 @@ public interface VentaRepository extends JpaRepository<Venta, Integer> {
                                @Param("idCliente") Integer idCliente, @Param("idVendedor") Integer idVendedor,
                                @Param("estado") String estado, Pageable pageable);
 
-    // Agregación de totales sobre el mismo filtro (sin paginar)
     @Query("""
-        SELECT COALESCE(SUM(v.subtotal), 0),
-               COALESCE(SUM(v.igv), 0),
-               COALESCE(SUM(v.descuentoGlobal), 0),
-               COALESCE(SUM(v.total), 0)
+        SELECT COALESCE(SUM(v.subtotal), 0)
         FROM Venta v
         WHERE v.fecha BETWEEN :desde AND :hasta
           AND (:idCliente  IS NULL OR v.cliente.idCliente  = :idCliente)
           AND (:idVendedor IS NULL OR v.usuario.idUsuario   = :idVendedor)
           AND (:estado     IS NULL OR v.estado              = :estado)
     """)
-    Object[] sumTotales(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
+    BigDecimal sumSubtotal(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
+                           @Param("idCliente") Integer idCliente, @Param("idVendedor") Integer idVendedor,
+                           @Param("estado") String estado);
+
+    @Query("""
+        SELECT COALESCE(SUM(v.igv), 0)
+        FROM Venta v
+        WHERE v.fecha BETWEEN :desde AND :hasta
+          AND (:idCliente  IS NULL OR v.cliente.idCliente  = :idCliente)
+          AND (:idVendedor IS NULL OR v.usuario.idUsuario   = :idVendedor)
+          AND (:estado     IS NULL OR v.estado              = :estado)
+    """)
+    BigDecimal sumIgv(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
+                      @Param("idCliente") Integer idCliente, @Param("idVendedor") Integer idVendedor,
+                      @Param("estado") String estado);
+
+    @Query("""
+        SELECT COALESCE(SUM(v.descuentoGlobal), 0)
+        FROM Venta v
+        WHERE v.fecha BETWEEN :desde AND :hasta
+          AND (:idCliente  IS NULL OR v.cliente.idCliente  = :idCliente)
+          AND (:idVendedor IS NULL OR v.usuario.idUsuario   = :idVendedor)
+          AND (:estado     IS NULL OR v.estado              = :estado)
+    """)
+    BigDecimal sumDescuento(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
+                            @Param("idCliente") Integer idCliente, @Param("idVendedor") Integer idVendedor,
+                            @Param("estado") String estado);
+
+    @Query("""
+        SELECT COALESCE(SUM(v.total), 0)
+        FROM Venta v
+        WHERE v.fecha BETWEEN :desde AND :hasta
+          AND (:idCliente  IS NULL OR v.cliente.idCliente  = :idCliente)
+          AND (:idVendedor IS NULL OR v.usuario.idUsuario   = :idVendedor)
+          AND (:estado     IS NULL OR v.estado              = :estado)
+    """)
+    BigDecimal sumTotal(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
                         @Param("idCliente") Integer idCliente, @Param("idVendedor") Integer idVendedor,
                         @Param("estado") String estado);
 }
