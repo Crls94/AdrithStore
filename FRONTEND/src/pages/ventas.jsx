@@ -280,12 +280,16 @@ export default function Ventas() {
   };
 
   const colorCat = (id) => COLORES_CAT[(id ?? 0) % COLORES_CAT.length];
+  const CATS_SERVICIO = ['SERVICIOS', 'IMPRESIONES', 'TRANSFERENCIA'];
 
   const prodFiltrados = productos.filter(p => {
     const matchB = busqueda.trim() === '' ||
       p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       (p.sku ?? '').toLowerCase().includes(busqueda.toLowerCase());
-    const matchC = catActiva === null || p.categoria?.idCategoria === catActiva;
+    const matchC = catActiva === null ||
+      (catActiva === 'servicios'
+        ? CATS_SERVICIO.includes(p.categoria?.nombre)
+        : p.categoria?.idCategoria === catActiva);
     return matchB && matchC && p.visibleEnPos !== false;
   });
 
@@ -418,21 +422,42 @@ export default function Ventas() {
                 color:       catActiva === null ? '#0f0f0f' : T.textMuted }}>
               Todos ({productos.filter(p => p.visibleEnPos !== false).length})
             </button>
-            {categorias.map(cat => {
-              const conteo = productos.filter(p =>
-                p.categoria?.idCategoria === cat.idCategoria && p.visibleEnPos !== false
-              ).length;
-              if (conteo === 0) return null;
+            {(() => {
+              const catsServicio = categorias.filter(c => CATS_SERVICIO.includes(c.nombre));
+              const conteoServicio = catsServicio.reduce((acc, cat) => acc +
+                productos.filter(p =>
+                  p.categoria?.idCategoria === cat.idCategoria && p.visibleEnPos !== false
+                ).length, 0);
+              const catsNormales = categorias.filter(c => !CATS_SERVICIO.includes(c.nombre));
               return (
-                <button key={cat.idCategoria} onClick={() => setCatActiva(cat.idCategoria)}
-                  style={{ padding:'5px 14px', borderRadius:'20px', border:'none',
-                    cursor:'pointer', fontSize:'12px', fontWeight:600, whiteSpace:'nowrap',
-                    background: catActiva === cat.idCategoria ? colorCat(cat.idCategoria) : T.bgMuted,
-                    color:       catActiva === cat.idCategoria ? '#fff' : T.textMuted }}>
-                  {cat.nombre} ({conteo})
-                </button>
+                <>
+                  {conteoServicio > 0 && (
+                    <button onClick={() => setCatActiva('servicios')}
+                      style={{ padding:'5px 14px', borderRadius:'20px', border:'none',
+                        cursor:'pointer', fontSize:'12px', fontWeight:600, whiteSpace:'nowrap',
+                        background: catActiva === 'servicios' ? T.gold : T.bgMuted,
+                        color:       catActiva === 'servicios' ? '#0f0f0f' : T.textMuted }}>
+                      Servicios ({conteoServicio})
+                    </button>
+                  )}
+                  {catsNormales.map(cat => {
+                    const conteo = productos.filter(p =>
+                      p.categoria?.idCategoria === cat.idCategoria && p.visibleEnPos !== false
+                    ).length;
+                    if (conteo === 0) return null;
+                    return (
+                      <button key={cat.idCategoria} onClick={() => setCatActiva(cat.idCategoria)}
+                        style={{ padding:'5px 14px', borderRadius:'20px', border:'none',
+                          cursor:'pointer', fontSize:'12px', fontWeight:600, whiteSpace:'nowrap',
+                          background: catActiva === cat.idCategoria ? colorCat(cat.idCategoria) : T.bgMuted,
+                          color:       catActiva === cat.idCategoria ? '#fff' : T.textMuted }}>
+                        {cat.nombre} ({conteo})
+                      </button>
+                    );
+                  })}
+                </>
               );
-            })}
+            })()}
           </div>
 
           {/* ── Grid de productos ── */}
@@ -507,7 +532,7 @@ export default function Ventas() {
                         </div>
                       )}
                       {prod.tipo !== 'BIEN_FISICO' && (
-                        <div style={{ fontSize:'10px', color: T.textMuted }}>Servicio</div>
+                        <div style={{ fontSize:'14px', fontWeight:700, color: T.gold, lineHeight:1.4 }}>∞</div>
                       )}
                     </button>
                   );
