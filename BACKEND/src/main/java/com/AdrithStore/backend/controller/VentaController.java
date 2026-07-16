@@ -151,19 +151,26 @@ public class VentaController {
         // Guardar detalles de servicio
         if (req.getDetallesServicio() != null) {
             for (VentaRequest.DetalleServicioItem dsi : req.getDetallesServicio()) {
+                if (dsi.getMonto() == null || dsi.getMonto().compareTo(BigDecimal.ZERO) <= 0)
+                    return ResponseEntity.badRequest().body("El monto del servicio debe ser mayor a 0.");
+
                 VentaDetalleServicio vds = new VentaDetalleServicio();
                 vds.setVenta(guardada);
                 productoRepo.findById(dsi.getIdProducto()).ifPresent(vds::setProducto);
                 vds.setDescripcion(dsi.getDescripcion());
-                vds.setMonto(dsi.getMonto() != null ? dsi.getMonto() : BigDecimal.ZERO);
+                vds.setMonto(dsi.getMonto());
                 vds.setCosto(dsi.getCosto());
                 vds.setComision(dsi.getComision());
                 vds.setOrigen(dsi.getOrigen());
                 vds.setDestino(dsi.getDestino());
-                BigDecimal sub = dsi.getMonto() != null ? dsi.getMonto() : BigDecimal.ZERO;
+                BigDecimal sub = dsi.getMonto();
                 if (dsi.getComision() != null) sub = sub.add(dsi.getComision());
                 vds.setSubtotal(sub);
                 detalleServicioRepo.save(vds);
+
+                String nombreUsuario = guardada.getUsuario() != null
+                    ? guardada.getUsuario().getNombres() : "pos";
+                tesoreriaService.procesarCambioDigital(guardada, vds, nombreUsuario);
             }
         }
 

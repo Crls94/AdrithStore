@@ -321,6 +321,16 @@ export default function Ventas() {
     }
     if (!usuario?.idUsuario) { setError('Error de sesión. Vuelve a iniciar sesión.'); return; }
 
+    // Validar campos requeridos en servicios
+    const errServicio = carrito.some(i => {
+      if (i.tipoItem === 'transferencia')
+        return !i.origen || !i.destino || (parseFloat(i.monto) || 0) <= 0;
+      if (i.tipoItem === 'servicio' || i.tipoItem === 'impresion')
+        return (parseFloat(i.monto) || 0) <= 0;
+      return false;
+    });
+    if (errServicio) { setError('Completa todos los campos requeridos en servicios.'); return; }
+
     setGuardando(true); setError('');
     try {
       const pagosValidos = pagos

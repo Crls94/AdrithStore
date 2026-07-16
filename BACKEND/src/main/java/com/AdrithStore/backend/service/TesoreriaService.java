@@ -111,8 +111,9 @@ public class TesoreriaService {
         BigDecimal montoOp   = det.getMonto() != null ? det.getMonto() : BigDecimal.ZERO;
         BigDecimal comision  = det.getComision() != null ? det.getComision() : BigDecimal.ZERO;
         BigDecimal total     = montoOp.add(comision);
-        String     concepto  = "Cambio: " + det.getProducto().getNombre()
-                            + (det.getDescripcion() != null ? " - " + det.getDescripcion() : "");
+        String nombreProd = det.getProducto() != null ? det.getProducto().getNombre() : "Producto";
+        String concepto   = "Cambio: " + nombreProd
+                           + (det.getDescripcion() != null ? " - " + det.getDescripcion() : "");
 
         // TX1: salida de origen
         if (det.getOrigen() != null && !det.getOrigen().isBlank()) {
