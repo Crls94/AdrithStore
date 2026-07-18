@@ -45,11 +45,11 @@ export default function Tesoreria() {
   const [cuentas,     setCuentas]     = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [cargando,    setCargando]    = useState(true);
-  const [tab,         setTab]         = useState("resumen"); // resumen | movimientos | registrar
+  const [tab,         setTab]         = useState("resumen"); 
   const [filtroTipo,  setFiltroTipo]  = useState("");
   const [filtroCuenta,setFiltroCuenta]= useState("");
 
-  // Form de gasto manual
+  
   const [formGasto, setFormGasto] = useState({
     concepto:"", tipo:"Servicios (luz, agua, internet)", monto:"", cuenta:"Caja Fisica",
   });
@@ -82,14 +82,14 @@ export default function Tesoreria() {
 
   const totalSaldo = cuentas.reduce((s, c) => s + parseFloat(c.saldoActual || 0), 0);
 
-  // Movimientos filtrados
+  
   const movFiltrados = movimientos.filter(m => {
     const okTipo   = !filtroTipo    || m.tipoMov === filtroTipo;
     const okCuenta = !filtroCuenta  || m.cuenta?.nombre?.toLowerCase().includes(filtroCuenta.toLowerCase());
     return okTipo && okCuenta;
   });
 
-  // ── Registrar gasto manual ──────────────────────────────────────────────
+  
   const handleRegistrarGasto = async () => {
     setErrorGasto("");
     if (!formGasto.concepto.trim()) { setErrorGasto("El concepto es obligatorio."); return; }
@@ -173,7 +173,7 @@ export default function Tesoreria() {
       fontFamily:"'Inter','DM Sans','Segoe UI',sans-serif" }}>
       <div style={{ maxWidth:1100, margin:"0 auto" }}>
 
-        {/* ── HEADER ────────────────────────────────────────────────── */}
+        { }
         <div style={{ display:"flex", justifyContent:"space-between",
           alignItems:"flex-start", marginBottom:24 }}>
           <div>
@@ -192,7 +192,7 @@ export default function Tesoreria() {
             </p>
           </div>
 
-          {/* Saldo total */}
+          { }
           <div style={{ textAlign:"right" }}>
             <div style={{ fontSize:12, color:"#888", marginBottom:4 }}>Saldo total</div>
             <div style={{ fontSize:32, fontWeight:900, color: C.tangerine }}>
@@ -201,7 +201,7 @@ export default function Tesoreria() {
           </div>
         </div>
 
-        {/* ── TARJETAS DE CUENTAS ───────────────────────────────────── */}
+        { }
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",
           gap:12, marginBottom:24 }}>
           {cuentas.map(c => (
@@ -225,14 +225,14 @@ export default function Tesoreria() {
           ))}
         </div>
 
-        {/* ── TABS ──────────────────────────────────────────────────── */}
+        { }
         <div style={{ display:"flex", gap:4, marginBottom:20,
           borderBottom:`2px solid ${C.border}`, paddingBottom:0 }}>
           {[
             { k:"resumen",    l:"📊 Resumen" },
             { k:"movimientos",l:"📋 Movimientos" },
             { k:"registrar",  l:"➕ Registrar gasto" },
-            // Solo diseño — sin funcionalidad aún
+            
             { k:"cierre",     l:"🔒 Cierre de caja" },
             { k:"reportes",   l:"📄 Reportes",        disabled:true },
           ].map(t => (
@@ -253,10 +253,10 @@ export default function Tesoreria() {
           ))}
         </div>
 
-        {/* ══ TAB: RESUMEN ═══════════════════════════════════════════ */}
+        { }
         {tab === "resumen" && (
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-            {/* Últimos movimientos */}
+            { }
             <div style={{ background:"#fff", borderRadius:16, padding:20,
               border:`1px solid ${C.border}`, gridColumn:"1 / -1" }}>
               <h3 style={{ margin:"0 0 16px", fontSize:15, fontWeight:800, color: C.charcoal }}>
@@ -305,10 +305,10 @@ export default function Tesoreria() {
           </div>
         )}
 
-        {/* ══ TAB: MOVIMIENTOS ═══════════════════════════════════════ */}
+        { }
         {tab === "movimientos" && (
           <div>
-            {/* Filtros */}
+            { }
             <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
               <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
                 style={{ ...inp, width:"auto", padding:"8px 12px" }}>
@@ -338,7 +338,7 @@ export default function Tesoreria() {
 
             <div style={{ background:"#fff", borderRadius:16,
               border:`1px solid ${C.border}`, overflow:"hidden" }}>
-              {/* Header tabla */}
+              { }
               <div style={{ display:"grid",
                 gridTemplateColumns:"44px 1fr 140px 120px 100px",
                 padding:"10px 16px", background: C.softGray,
@@ -389,7 +389,7 @@ export default function Tesoreria() {
           </div>
         )}
 
-        {/* ══ TAB: REGISTRAR GASTO ══════════════════════════════════ */}
+        { }
         {tab === "registrar" && (
           <div style={{ maxWidth:520 }}>
             <div style={{ background:"#fff", borderRadius:16, padding:28,
@@ -494,7 +494,7 @@ export default function Tesoreria() {
           </div>
         )}
 
-        {/* ══ TAB: CIERRE DE CAJA ═══════════════════════════ */}
+        { }
         {tab === "cierre" && (
           <div>
             {cierreCargando ? (

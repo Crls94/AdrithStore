@@ -14,7 +14,7 @@ public interface ClienteRepository extends JpaRepository<Cliente, Integer> {
     List<Cliente> findByNombreContainingOrApellidoContainingOrDniContaining(
         String nombre, String apellido, String dni);
 
-    // ── Reportes ───────────────────────────────────────────────────────────
+    
 
     @Query("""
         SELECT c, COUNT(v.idVenta), COALESCE(SUM(v.total), 0), MAX(v.fecha)

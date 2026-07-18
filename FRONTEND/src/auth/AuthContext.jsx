@@ -9,7 +9,7 @@ export function AuthProvider({ children }) {
   const [estado,   setEstado]   = useState(null);
 
   useEffect(() => {
-    // Restaurar sesión guardada
+    
     const sesion = localStorage.getItem("adrith_usuario");
     if (sesion) {
       try { setUsuario(JSON.parse(sesion)); } catch {}
@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     const { data } = await api.post('/auth/login', { username, password });
 
-    // Cargar datos completos del usuario (incluyendo dni, telefono)
+    
     let datosCompletos = {
       idUsuario:      data.idUsuario,
       username:       data.username,
@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
       nombreCompleto: data.nombreCompleto,
     };
 
-    // Intentar cargar perfil completo con todos los campos
+    
     try {
       const perfil = await api.get(`/usuarios/${data.idUsuario}`);
       datosCompletos = {
@@ -54,16 +54,16 @@ export function AuthProvider({ children }) {
     setUsuario(datosCompletos);
     localStorage.setItem("adrith_usuario", JSON.stringify(datosCompletos));
 
-    // Actualizar estado del sistema
+    
     await verificarEstado();
 
-    return data; // incluye data.configurado
+    return data; 
   };
 
   const logout = () => {
     setUsuario(null);
     localStorage.removeItem("adrith_usuario");
-    setEstado(prev => prev); // mantener estado del sistema
+    setEstado(prev => prev); 
   };
 
   const registrarPrimerAdmin = async (datos) => {
@@ -71,7 +71,7 @@ export function AuthProvider({ children }) {
     await verificarEstado();
   };
 
-  // Recargar datos del perfil del usuario actual desde la BD
+  
   const recargarPerfil = async () => {
     if (!usuario?.idUsuario) return;
     try {

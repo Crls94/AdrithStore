@@ -38,7 +38,7 @@ public class CompraController {
             .orElse(ResponseEntity.notFound().build());
     }
 
-    // ── POST: crear compra ────────────────────────────────────────
+    
     @PostMapping
     public ResponseEntity<?> crear(@RequestBody CompraRequest req) {
 
@@ -50,7 +50,7 @@ public class CompraController {
         compra.setProveedor(proveedor);
         compra.setTipoComprobante(req.getTipoComprobante());
         compra.setSerieComprobante(req.getSerieComprobante());
-        // Regla de fecha: si viene fecha del frontend la usa, si no usa ahora
+        
         compra.setFecha(req.getFechaIngreso() != null ? req.getFechaIngreso() : LocalDateTime.now());
         compra.setEstado("confirmado");
         compra.setPercepcion(req.getPercepcion()      != null ? req.getPercepcion()      : BigDecimal.ZERO);
@@ -63,16 +63,16 @@ public class CompraController {
             Producto producto = productoRepo.findById(item.getIdProducto()).orElse(null);
             if (producto == null) continue;
 
-            // ── Calcular cantidad real y costo real según bonificación ──
+            
             int cantidadFacturada = item.getCantidad();
             int unidadesBonif     = item.getUnidadesBonificacion() != null ? item.getUnidadesBonificacion() : 0;
-            int cantidadTotal     = cantidadFacturada + unidadesBonif; // total que entra al almacén
+            int cantidadTotal     = cantidadFacturada + unidadesBonif; 
 
             BigDecimal costoTotalLote = item.getCostoUnitario()
                 .multiply(BigDecimal.valueOf(cantidadFacturada))
                 .setScale(4, RoundingMode.HALF_UP);
 
-            // Costo unitario real = costo total / cantidad total (incluyendo bonificadas)
+            
             BigDecimal costoUnitarioReal = cantidadTotal > 0
                 ? costoTotalLote.divide(BigDecimal.valueOf(cantidadTotal), 4, RoundingMode.HALF_UP)
                 : item.getCostoUnitario();
@@ -80,29 +80,29 @@ public class CompraController {
             BigDecimal cppAnterior = producto.getCpp() != null && producto.getCpp().compareTo(BigDecimal.ZERO) > 0
                 ? producto.getCpp() : producto.getPrecioCosto();
 
-            // ── Si hay bonificación de PRODUCTO DISTINTO ──────────────
-            // Distribuir una porción del costo al producto regalado
-            BigDecimal costoLoteAjustado = costoTotalLote; // puede reducirse si hay bonif distinto
+            
+            
+            BigDecimal costoLoteAjustado = costoTotalLote; 
             if (item.getIdProductoBonif() != null && item.getCantidadBonif() != null
                     && item.getCantidadBonif() > 0) {
 
                 Producto prodBonif = productoRepo.findById(item.getIdProductoBonif()).orElse(null);
                 if (prodBonif != null) {
-                    // Costo del regalo: usar el ingresado por el usuario o el CPP existente
+                    
                     BigDecimal cppBonif;
                     BigDecimal costoBonifTotal;
                     if (item.getCostoBonifTotal() != null && item.getCostoBonifTotal().compareTo(BigDecimal.ZERO) > 0) {
-                        // El usuario ingresó el costo total del regalo (producto sin CPP previo)
+                        
                         costoBonifTotal = item.getCostoBonifTotal().setScale(4, RoundingMode.HALF_UP);
                         cppBonif = item.getCantidadBonif() > 0
                             ? costoBonifTotal.divide(BigDecimal.valueOf(item.getCantidadBonif()), 4, RoundingMode.HALF_UP)
                             : costoBonifTotal;
                     } else {
-                        // Usar CPP existente del producto regalado
+                        
                         cppBonif = prodBonif.getCpp() != null && prodBonif.getCpp().compareTo(BigDecimal.ZERO) > 0
                             ? prodBonif.getCpp() : prodBonif.getPrecioCosto();
                         if (cppBonif == null || cppBonif.compareTo(BigDecimal.ZERO) == 0) {
-                            // Sin CPP y sin costo ingresado: no hacer distribución, solo sumar stock
+                            
                             cppBonif = BigDecimal.ZERO;
                         }
                         costoBonifTotal = cppBonif
@@ -110,12 +110,12 @@ public class CompraController {
                             .setScale(4, RoundingMode.HALF_UP);
                     }
 
-                    // Restar del costo del producto pagado
+                    
                     costoLoteAjustado = costoTotalLote.subtract(costoBonifTotal);
                     if (costoLoteAjustado.compareTo(BigDecimal.ZERO) < 0)
                         costoLoteAjustado = BigDecimal.ZERO;
 
-                    // Calcular nuevo CPP del producto bonificado
+                    
                     int stockBonifActual = prodBonif.getStock() != null ? prodBonif.getStock() : 0;
                     int stockBonifNuevo  = stockBonifActual + item.getCantidadBonif();
                     BigDecimal cppBonifAnterior = prodBonif.getCpp() != null ? prodBonif.getCpp() : prodBonif.getPrecioCosto();
@@ -126,7 +126,7 @@ public class CompraController {
                             .divide(BigDecimal.valueOf(stockBonifNuevo), 4, RoundingMode.HALF_UP)
                         : cppBonif;
 
-                    // Crear detalle para el producto bonificado
+                    
                     CompraDetalle detBonif = new CompraDetalle();
                     detBonif.setCompra(compra);
                     detBonif.setProducto(prodBonif);
@@ -134,7 +134,7 @@ public class CompraController {
                     detBonif.setCostoUnitario(cppBonif);
                     detBonif.setCostoAnterior(cppBonifAnterior);
                     detBonif.setSubtotal(costoBonifTotal);
-                    // Subtotal NO suma al total de la factura (es costo distribuido, no pagado extra)
+                    
                     detalles.add(detBonif);
 
                     prodBonif.setStock(stockBonifNuevo);
@@ -149,7 +149,7 @@ public class CompraController {
                 }
             }
 
-            // ── Recalcular costoUnitarioReal con costoLoteAjustado ────
+            
             costoUnitarioReal = cantidadTotal > 0
                 ? costoLoteAjustado.divide(BigDecimal.valueOf(cantidadTotal), 4, RoundingMode.HALF_UP)
                 : item.getCostoUnitario();
@@ -157,16 +157,16 @@ public class CompraController {
             CompraDetalle det = new CompraDetalle();
             det.setCompra(compra);
             det.setProducto(producto);
-            det.setCantidad(cantidadTotal);      // stock total que entra
+            det.setCantidad(cantidadTotal);      
             det.setCostoUnitario(costoUnitarioReal);
             det.setCostoAnterior(cppAnterior);
             det.setVencimiento(item.getVencimiento());
             det.setDescuentoPct(item.getDescuentoPct() != null ? item.getDescuentoPct() : BigDecimal.ZERO);
-            det.setSubtotal(costoTotalLote);     // lo que realmente pagué en factura
+            det.setSubtotal(costoTotalLote);     
             totalGeneral = totalGeneral.add(costoTotalLote);
             detalles.add(det);
 
-            // ── Nuevo CPP ─────────────────────────────────────────────
+            
             int stockActual = producto.getStock() != null ? producto.getStock() : 0;
             int nuevoStock  = stockActual + cantidadTotal;
             BigDecimal cppNuevo = nuevoStock > 0
@@ -209,7 +209,7 @@ public class CompraController {
         return ResponseEntity.ok(guardada);
     }
 
-    // ── PATCH: anular con CPP ponderado inverso ───────────────────
+    
     @PatchMapping("/{id}/anular")
     public ResponseEntity<?> anular(@PathVariable Integer id,
                                     @RequestBody AnulacionRequest req) {
@@ -252,7 +252,7 @@ public class CompraController {
         return ResponseEntity.ok(guardada);
     }
 
-    // ── POST: ajuste Plan B ───────────────────────────────────────
+    
     @PostMapping("/{id}/ajuste")
     public ResponseEntity<?> ajuste(@PathVariable Integer id,
                                     @RequestBody AjusteRequest req) {

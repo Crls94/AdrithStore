@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { T, inputStyle, labelStyle, btnPrimary, cardStyle } from '../theme';
 import { getCategorias, crearCategoria, actualizarCategoria, eliminarCategoria } from '../api/productosApi';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const FORM_VACIO = { nombre: '', descripcion: '' };
 
@@ -17,6 +18,7 @@ const iconoCat = (n) => ICONOS[n] ?? 'bi-tag';
 const colorCat = (id) => PALETA[(id ?? 0) % PALETA.length];
 
 export default function Categorias() {
+  const isMobile = useIsMobile();
   const [cats,         setCats]         = useState([]);
   const [cargando,     setCargando]     = useState(true);
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -51,7 +53,7 @@ export default function Categorias() {
 
   return (
     <div>
-      {/* Header */}
+      { }
       <div className="flex items-center justify-between mb-6">
         <div>
           <h5 className="m-0 font-bold text-lg" style={{ color: T.textPrimary }}>Categorías</h5>
@@ -70,9 +72,9 @@ export default function Categorias() {
         </div>
       ) : (
         <>
-          {/* Grid de tarjetas */}
+          { }
           <div className="grid gap-3 mb-6"
-            style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))' }}>
+            style={{ gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill,minmax(200px,1fr))' }}>
             {cats.length === 0 ? (
               <div className="col-span-full text-center p-12 rounded-2xl"
                 style={{ background: T.bgCard, border: `1px solid ${T.border}`, color: T.textMuted }}>
@@ -84,7 +86,7 @@ export default function Categorias() {
               return (
                 <div key={c.idCategoria} className="overflow-hidden transition-shadow duration-200 hover:shadow-brand-sm rounded-2xl"
                   style={{ background: T.bgCard, border: `1px solid ${T.border}` }}>
-                  {/* Banda de color superior */}
+                  { }
                   <div style={{ height: 5, background: color }} />
                   <div className="p-4">
                     <div className="flex items-center gap-3 mb-3">
@@ -118,7 +120,7 @@ export default function Categorias() {
             })}
           </div>
 
-          {/* Tabla resumen */}
+          { }
           {cats.length > 0 && (
             <div className="overflow-hidden rounded-2xl" style={cardStyle}>
               <div className="px-5 py-3.5 font-bold text-sm" style={{ borderBottom:`1px solid ${T.border}`, color: T.textPrimary }}>
@@ -167,7 +169,7 @@ export default function Categorias() {
         </>
       )}
 
-      {/* Modal */}
+      { }
       {modalAbierto && (
         <div className="fixed inset-0 flex items-center justify-center p-4 z-[2000]"
           style={{ background:'rgba(0,0,0,0.75)' }}>

@@ -30,11 +30,11 @@ public class Producto {
     @Column(name = "descripcion")
     private String descripcion;
 
-    // Tipo de producto: BIEN_FISICO | SERVICIO_PURO | SERVICIO_COMIS | CONSUMIBLE
+    
     @Column(name = "tipo", length = 20)
     private String tipo = "BIEN_FISICO";
 
-    // Si false, no aparece en el POS de ventas (CONSUMIBLES)
+    
     @Column(name = "visible_en_pos")
     private Boolean visibleEnPos = true;
 
@@ -47,11 +47,11 @@ public class Producto {
     @Column(name = "precio_venta", precision = 10, scale = 2)
     private BigDecimal precioVenta = BigDecimal.ZERO;
 
-    // % costo sobre monto para IMPRESIONES
+    
     @Column(name = "porcentaje_costo", precision = 5, scale = 2)
     private BigDecimal porcentajeCosto;
 
-    // Solo para SERVICIO_COMIS: S/1 por cada S/100
+    
     @Column(name = "comision_base", precision = 10, scale = 2)
     private BigDecimal comisionBase;
 
@@ -74,13 +74,13 @@ public class Producto {
     @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ProductoUnidad> unidades;
 
-    // ── Helpers de tipo ───────────────────────────────────────────────────
+    
     public boolean esBienFisico()    { return "BIEN_FISICO".equals(tipo);    }
     public boolean esServicioPuro()  { return "SERVICIO_PURO".equals(tipo);  }
     public boolean esServicioComis() { return "SERVICIO_COMIS".equals(tipo); }
     public boolean esConsumible()    { return "CONSUMIBLE".equals(tipo);     }
 
-    // Calcular comisión sugerida para SERVICIO_COMIS
+    
     public BigDecimal calcularComisionSugerida(BigDecimal montoOperacion) {
         if (comisionBase == null || comisionCada == null
                 || comisionCada.compareTo(BigDecimal.ZERO) == 0

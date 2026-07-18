@@ -88,7 +88,7 @@ export default function Usuarios() {
       fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
       <div style={{ maxWidth:960, margin:"0 auto" }}>
 
-        {/* Header */}
+        { }
         <div style={{ display:"flex", justifyContent:"space-between",
           alignItems:"center", marginBottom:22 }}>
           <div>
@@ -118,11 +118,11 @@ export default function Usuarios() {
           </div>
         )}
 
-        {/* Tabla */}
+        { }
         <div style={{ background:"#fff", borderRadius:16, overflow:"hidden",
           boxShadow:"0 2px 12px rgba(0,0,0,0.06)", border:`1px solid ${C.border}` }}>
 
-          {/* Cabecera */}
+          { }
           <div style={{ display:"grid", gridTemplateColumns:"140px 1fr 100px 90px 90px 1fr",
             padding:"10px 16px", background: C.softGray,
             fontSize:11, fontWeight:700, color:"#888",
@@ -190,7 +190,7 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* Modal */}
+      { }
       {modal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)",
           display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000,

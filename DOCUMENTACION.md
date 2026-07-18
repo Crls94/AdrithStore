@@ -18,7 +18,8 @@ Sistema de punto de venta (POS) integral para negocio minorista en Ica, Perú. D
 | Frontend   | Tailwind CSS              | 3.4      |
 | Frontend   | Bootstrap                 | 5.3      |
 | Gráficos   | Recharts                  | -        |
-| PDF        | jsPDF                     | -        |
+| PDF        | jsPDF + jspdf-autotable   | -        |
+| Excel/CSV  | xlsx (SheetJS)            | -        |
 | Auth       | SHA-256 + salt (custom)   | -        |
 
 ---
@@ -64,7 +65,7 @@ Interfaz de dos paneles:
 - **Botones de acción:**
   - "Confirmar Venta" (verde, deshabilitado si carrito vacío)
   - "Cancelar"
-  - "Imprimir" (genera PDF con jsPDF en formato 80mm)
+  - "Imprimir" (genera el comprobante en PDF, ver sección "Comprobante (PDF)")
 
 ### 2. 📊 Dashboard — `/dashboard`
 
@@ -126,6 +127,7 @@ nuevoCPP = (cppAnterior × stockActual + costoReal × cantidadNueva) / nuevoStoc
 - Anulación de compra (revierte CPP)
 - Ajustes post-compra: COSTO / CANTIDAD / DEVOLUCIÓN
 - Historial de ajustes por compra
+- Impresión de comprobante en PDF por compra (ver sección "Comprobante (PDF)")
 
 ### 7. 🏭 Proveedores — `/proveedores`
 
@@ -186,6 +188,26 @@ Auditoría de todas las operaciones críticas:
 - Tipo de evento, entidad afectada, descripción
 - Datos en JSON del cambio realizado
 - Últimos 100 eventos visibles
+
+### 13. 📊 Reportes — `/reportes`
+
+Dos niveles, con selector arriba de todo:
+
+- **Ejecutivo** (Nivel 1): resumen tipo KPIs — placeholder por ahora, contenido a definir.
+- **Detallado** (Nivel 2): filtro de fecha compartido + 11 tabs, cada uno con tabla ordenable/paginada, fila de totales y exportación (Excel / CSV / PDF / Imprimir):
+  1. Ventas (con detalle expandible por fila e impresión de comprobante individual)
+  2. Compras (ídem)
+  3. Ajustes de Compra
+  4. Movimientos de Tesorería
+  5. Cierres de Caja
+  6. Inventario / Productos
+  7. Clientes (con agregados: N° compras, total comprado, última compra)
+  8. Proveedores (ídem)
+  9. Cuentas Financieras
+  10. Usuarios (ranking de ventas por vendedor)
+  11. Log de Eventos
+
+Tab **Ventas** es el único visible para rol VENDEDOR (filtrado server-side a sus propias ventas); el resto de tabs es solo ADMIN. Imprimir usa CSS `@media print` que oculta header/filtros/tabs/paginación y muestra solo título + tabla + totales; en los tabs paginados (Ventas, Compras, Movimientos, Log de Eventos) se trae el rango filtrado completo (no solo la página visible) antes de imprimir o exportar a PDF.
 
 ---
 
@@ -273,18 +295,34 @@ Auditoría de todas las operaciones críticas:
 | GET | `/api/dashboard/stats` | KPIs (periodo, usuario) |
 | GET | `/api/dashboard/resumen-tesoreria` | Saldos de cuentas |
 
+### Reportes
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/reportes/ventas` | Paginado, filtros de fecha/cliente/vendedor/estado |
+| GET | `/api/reportes/compras` | Paginado, filtros de fecha/proveedor/estado |
+| GET | `/api/reportes/ajustes-compra` | Filtro de fecha/tipo |
+| GET | `/api/reportes/movimientos` | Paginado, filtros de fecha/tipoMov/cuenta |
+| GET | `/api/reportes/cierres` | Filtro de fecha/cuenta |
+| GET | `/api/reportes/productos` | Filtro de categoría/tipo/stock bajo |
+| GET | `/api/reportes/clientes` | Agregado por cliente (N° compras, total, última compra) |
+| GET | `/api/reportes/proveedores` | Agregado por proveedor |
+| GET | `/api/reportes/cuentas` | Cuentas financieras |
+| GET | `/api/reportes/usuarios` | Agregado por vendedor (N° ventas, total vendido) |
+| GET | `/api/reportes/eventos` | Paginado, filtros de tipo/entidad |
+
 ---
 
 ## 📄 Comprobante (PDF)
 
-Generado con jsPDF en formato 80mm (thermal printer):
-- Nombre del negocio: **ADRITHSTORE — Ica, Perú**
-- Tipo y serie de comprobante
-- Fecha y número de venta
-- Lista de ítems: nombre, cantidad × precio = subtotal (− descuentos)
-- Subtotal, IGV (18%), TOTAL
-- Desglose de pagos
-- Mensaje de agradecimiento
+Generador único y compartido (`FRONTEND/src/utils/comprobantePdf.js`), usado por igual desde el POS (`/ventas`), Registro de Ventas, Compras y Reportes → Detallado → Ventas/Compras. Formato ticket 80mm (thermal printer), diseño tipo boleta boutique:
+- Logo del negocio y nombre del cliente/proveedor en cursiva (Google Font **Playball**, incrustada como base64 para que `jsPDF` la pueda usar)
+- Dirección, RUC, WhatsApp del negocio
+- Tipo y serie de comprobante, fecha, hora, cajero/proveedor
+- Tabla de ítems: cantidad, descripción (con salto de línea automático si es larga), precio/costo unitario, subtotal
+- Subtotal, IGV (18%) o descuento/percepción según corresponda, TOTAL
+- Desglose de pagos (venta) o motivo (compra anulada)
+- Mensaje de cierre en cursiva
+- El alto de la página se calcula automáticamente según el contenido (sin papel en blanco de sobra), y el espaciado entre líneas usa la métrica real de cada fuente (`doc.getTextDimensions`) para que quede parejo sin importar si el texto es Playball o Times.
 
 ---
 
@@ -314,11 +352,12 @@ AdrithStore/
 │       └── data.sql
 └── FRONTEND/
     └── src/
-        ├── api/           (7 módulos Axios)
+        ├── api/           (8 módulos Axios, incl. reportesApi)
         ├── auth/          (AuthContext, Login, Recuperar, setup)
-        ├── components/    (common, forms, layout)
-        ├── hooks/         (useDarkMode, useDebounce)
-        └── pages/         (15 páginas: POS, Dashboard, etc.)
+        ├── components/    (common, forms, layout, reportes/)
+        ├── hooks/         (useDarkMode, useDebounce, useIsMobile)
+        ├── utils/         (comprobantePdf.js + fonts/ — PDF de boleta compartido)
+        └── pages/         (16 páginas: POS, Dashboard, Reportes, etc.)
 ```
 
 ---

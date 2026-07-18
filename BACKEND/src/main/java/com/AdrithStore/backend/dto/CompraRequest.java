@@ -15,7 +15,7 @@ public class CompraRequest {
     private BigDecimal    percepcion;
     private BigDecimal    descuentoGlobal;
 
-    // Fecha real de ingreso al almacén (si null → se usa ahora)
+    
     private LocalDateTime fechaIngreso;
 
     private List<DetalleItem> detalles;
@@ -24,20 +24,20 @@ public class CompraRequest {
     public static class DetalleItem {
         private Integer    idProducto;
         private Integer    cantidad;
-        private BigDecimal costoUnitario;  // calculado por frontend: costoTotal / cantidad
-        private BigDecimal precioVenta;    // precio al cliente (opcional, actualiza el producto)
+        private BigDecimal costoUnitario;  
+        private BigDecimal precioVenta;    
         private Integer    idUnidad;
         private BigDecimal descuentoPct;
         private LocalDate  vencimiento;
 
-        // ── Bonificación MISMO producto ──────────────────────────
-        // "Compré 12, me regalaron 2 → pago total de 12 se divide entre 14 unidades"
-        private Integer    unidadesBonificacion;  // unidades extra recibidas gratis
+        
+        
+        private Integer    unidadesBonificacion;  
 
-        // ── Bonificación producto DISTINTO ───────────────────────
-        // "Por comprar X me regalaron Y → distribuir costo entre ambos"
-        private Integer    idProductoBonif;       // id del producto regalado
-        private Integer    cantidadBonif;         // unidades del producto regalado
-        private BigDecimal costoBonifTotal;       // costo total a distribuir al regalo (si es null usa CPP)
+        
+        
+        private Integer    idProductoBonif;       
+        private Integer    cantidadBonif;         
+        private BigDecimal costoBonifTotal;       
     }
 }

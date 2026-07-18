@@ -9,7 +9,7 @@ const C = {
 
 export default function RecuperarPassword() {
   const navigate = useNavigate();
-  // paso: "verificar" | "nueva-clave"
+  
   const [paso,       setPaso]       = useState("verificar");
   const [username,   setUsername]   = useState("");
   const [dni,        setDni]        = useState("");
@@ -77,7 +77,7 @@ export default function RecuperarPassword() {
         borderRadius: 24, padding: "44px 40px",
         boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
       }}>
-        {/* Logo */}
+        { }
         <div style={{ textAlign:"center", marginBottom:28 }}>
           <div style={{
             width:56, height:56, borderRadius:16, margin:"0 auto 16px",
@@ -92,7 +92,7 @@ export default function RecuperarPassword() {
           </p>
         </div>
 
-        {/* PASO 1 — VERIFICAR */}
+        { }
         {!exito && paso === "verificar" && <>
           <div style={{ marginBottom:14 }}>
             <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
@@ -137,7 +137,7 @@ export default function RecuperarPassword() {
           </button>
         </>}
 
-        {/* PASO 2 — NUEVA CLAVE */}
+        { }
         {!exito && paso === "nueva-clave" && <>
           <div style={{ background:"rgba(13,94,79,0.06)", borderRadius:12, padding:"12px 16px", marginBottom:20 }}>
             <p style={{ margin:0, fontSize:13, color:C.emerald, fontWeight:600 }}>
@@ -177,7 +177,7 @@ export default function RecuperarPassword() {
           </button>
         </>}
 
-        {/* PASO 3 — ÉXITO */}
+        { }
         {exito && (
           <div style={{ textAlign:"center" }}>
             <div style={{ fontSize:48, marginBottom:16 }}>✅</div>
@@ -195,7 +195,7 @@ export default function RecuperarPassword() {
           </div>
         )}
 
-        {/* Volver */}
+        { }
         {!exito && (
           <div style={{ textAlign:"center", marginTop:20 }}>
             <button onClick={() => navigate("/login")} style={{

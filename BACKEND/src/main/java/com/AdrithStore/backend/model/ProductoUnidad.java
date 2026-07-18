@@ -22,13 +22,13 @@ public class ProductoUnidad {
     private Producto producto;
 
     @Column(name = "nombre_unidad", nullable = false)
-    private String nombreUnidad;   // "Unidad", "Docena", "Caja x24"
+    private String nombreUnidad;   
 
     @Column(name = "unidad", nullable = false)
-    private Integer unidad;        // factor: 1, 12, 24...
+    private Integer unidad;        
 
     @Column(name = "medida")
-    private String medida;         // "U", "Caj", "Bot"...
+    private String medida;         
 
     @Column(name = "precio_venta", precision = 10, scale = 2)
     private BigDecimal precioVenta;

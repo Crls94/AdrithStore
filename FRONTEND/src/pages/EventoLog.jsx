@@ -48,7 +48,7 @@ export default function EventoLog() {
 
   return (
     <div>
-      {/* Header */}
+      { }
       <div className="flex items-center justify-between mb-6">
         <div>
           <h5 className="m-0 font-bold text-lg" style={{ color: T.textPrimary }}>Log de Eventos</h5>
@@ -62,7 +62,7 @@ export default function EventoLog() {
         </button>
       </div>
 
-      {/* Resumen chips por tipo */}
+      { }
       <div className="grid gap-2 mb-4" style={{ gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))' }}>
         {Object.entries(EVENTO_CFG).map(([tipo, cfg]) => {
           const count = eventos.filter(e => e.tipoEvento===tipo).length;
@@ -83,7 +83,7 @@ export default function EventoLog() {
         })}
       </div>
 
-      {/* Búsqueda + filtro activo */}
+      { }
       <div className="rounded-2xl px-5 py-3.5 mb-3 flex gap-3 items-center flex-wrap" style={cardStyle}>
         <div className="relative flex-1 min-w-[200px]">
           <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color:T.textMuted }} />
@@ -99,7 +99,7 @@ export default function EventoLog() {
         )}
       </div>
 
-      {/* Tabla */}
+      { }
       <div className="overflow-hidden rounded-2xl" style={cardStyle}>
         {cargando ? (
           <div className="flex justify-center p-12"><div className="spinner-border" style={{ color:T.gold }} /></div>
@@ -177,7 +177,7 @@ export default function EventoLog() {
           </div>
         )}
 
-        {/* Paginación */}
+        { }
         {totalPag > 1 && (
           <div className="flex justify-between items-center px-5 py-3.5" style={{ borderTop:`1px solid ${T.border}` }}>
             <small style={{ color:T.textMuted }}>

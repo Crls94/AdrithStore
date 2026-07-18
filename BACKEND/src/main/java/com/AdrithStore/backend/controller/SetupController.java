@@ -57,10 +57,10 @@ public class SetupController {
             periodoRepo.save(pc);
         }
 
-        // ── Saldos — findFirst evita NonUniqueResultException si hay duplicados ──
+        
         if (req.getSaldos() != null) {
             for (SetupRequest.SaldoCuenta sc : req.getSaldos()) {
-                // findAllByNombreIgnoreCase retorna List → tomamos el primero
+                
                 List<CuentaFinanciera> coincidencias =
                     cuentaRepo.findAllByNombreIgnoreCase(sc.getNombreCuenta());
 

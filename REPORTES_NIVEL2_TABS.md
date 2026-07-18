@@ -4,7 +4,12 @@
 > Cada tab corresponde a una tabla o grupo de tablas relacionadas.
 > Filtro de fecha compartido arriba (desde–hasta), aplicado a todos los tabs que tengan campo `fecha`.
 > Exportación independiente por tab: Excel / CSV / PDF / HTML.
-> No existe un "Nivel 1" separado — el Dashboard actual ya cumple ese rol de resumen ejecutivo.
+>
+> **Actualización:** se revirtió la decisión original de reusar el Dashboard como "Nivel 1". El Dashboard es
+> una interfaz operativa interactiva (POS/tesorería en vivo), no un reporte — así que `Reportes.jsx` ahora
+> tiene su propio selector de dos niveles: **Ejecutivo** (Nivel 1, resumen tipo KPIs — hoy es un placeholder,
+> el contenido real se define después) y **Detallado** (Nivel 2, todo lo documentado en este archivo: los 11
+> tabs con filtro de fecha, tablas y exportación).
 
 ---
 

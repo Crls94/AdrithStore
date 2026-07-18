@@ -14,7 +14,7 @@ import java.util.List;
 @Repository
 public interface EventoLogRepository extends JpaRepository<EventoLog, Integer> {
 
-    // Requerido por EventoLogController.java:20
+    
     List<EventoLog> findTop100ByOrderByFechaDesc();
 
     List<EventoLog> findAllByOrderByFechaDesc();
@@ -23,7 +23,7 @@ public interface EventoLogRepository extends JpaRepository<EventoLog, Integer> {
 
     List<EventoLog> findByEntidadAndIdEntidadOrderByFechaDesc(String entidad, Integer idEntidad);
 
-    // ── Reportes ───────────────────────────────────────────────────────────
+    
 
     @Query("""
         SELECT e FROM EventoLog e

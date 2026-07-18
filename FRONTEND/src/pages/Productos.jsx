@@ -2,12 +2,16 @@ import { useState, useEffect, useRef } from 'react';
 import { T, inputStyle, labelStyle, btnPrimary, cardStyle } from '../theme';
 import api from '../api/axiosConfig';
 import { getProductos, buscarProductos, crearProducto, actualizarProducto, eliminarProducto, getCategorias } from '../api/productosApi';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const FORM_VACIO = {
   nombre: '', sku: '', stock: 0, precioCosto: '', precioVenta: '',
-  stockAlert: 5, descripcion: '', imagenUrl: '', categoria: { idCategoria: '' },
+  stockAlert: 5, descripcion: '', imagenUrl: '', tipo: '',
+  categoria: { idCategoria: '' },
   porcentajeCosto: '', comisionBase: '', comisionCada: '',
 };
+
+const CAT_SERVICIOS = new Set(['SERVICIOS', 'IMPRESIONES', 'TRANSFERENCIA']);
 
 const ICONOS_CAT = {
   'Bebidas':'bi-cup-straw','Abarrotes':'bi-basket2','Lacteos':'bi-droplet-half',
@@ -20,8 +24,8 @@ const COLORES_CAT = ['#0d8c6e','#6aad7e','#6a9ac4','#9a7ec4','#4aadad','#b06060'
 const iconoCat  = (n) => ICONOS_CAT[n] ?? 'bi-box-seam';
 const colorCat  = (id) => COLORES_CAT[(id ?? 0) % COLORES_CAT.length];
 
-// Resolver URL de imagen: local o externa
-// Configurar aquí la IP/host del backend
+
+
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 const resolverImagen = (url) => {
@@ -31,6 +35,7 @@ const resolverImagen = (url) => {
 };
 
 export default function Productos() {
+  const isMobile = useIsMobile();
   const [productos,    setProductos]    = useState([]);
   const [categorias,   setCategorias]   = useState([]);
   const [cargando,     setCargando]     = useState(true);
@@ -67,7 +72,8 @@ export default function Productos() {
     setForm({ nombre: p.nombre ?? '', sku: p.sku ?? '', stock: p.stock ?? 0,
       precioCosto: p.precioCosto ?? '', precioVenta: p.precioVenta ?? '',
       stockAlert: p.stockAlert ?? 5, descripcion: p.descripcion ?? '',
-      imagenUrl: p.imagenUrl ?? '', categoria: { idCategoria: p.categoria?.idCategoria ?? '' },
+      imagenUrl: p.imagenUrl ?? '', tipo: p.tipo ?? '',
+      categoria: { idCategoria: p.categoria?.idCategoria ?? '' },
       porcentajeCosto: p.porcentajeCosto ?? '', comisionBase: p.comisionBase ?? '', comisionCada: p.comisionCada ?? '' });
     setError(''); setModalAbierto(true);
   };
@@ -79,7 +85,7 @@ export default function Productos() {
     else setForm(f => ({ ...f, [name]: value }));
   };
 
-  // ── Upload de imagen ──────────────────────────────────────────
+  
   const handleFileChange = async (e) => {
     const file = e.target.files[0]; if (!file) return;
     setSubiendoImg(true);
@@ -89,7 +95,7 @@ export default function Productos() {
       const res = await api.post('/uploads/imagen', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       const newUrl = res.data.url;
       setForm(f => ({ ...f, imagenUrl: newUrl }));
-      // Si ya estamos editando un producto existente, actualizar imagen en BD inmediatamente
+      
       if (editando) {
         await api.patch('/productos/' + editando + '/imagen', { imagenUrl: newUrl }).catch(() => {});
         setProductos(ps => ps.map(pr => pr.idProducto === editando ? { ...pr, imagenUrl: newUrl } : pr));
@@ -101,11 +107,15 @@ export default function Productos() {
   const handleUrlImagen = async () => {
     const url = prompt('Pega la URL de la imagen:'); if (!url) return;
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      setSubiendoImg(true);
+      setSubiendoImg(true); setError('');
       try {
         const res = await api.post('/uploads/imagen-url', { url, idProducto: editando ?? null });
         setForm(f => ({ ...f, imagenUrl: res.data.url }));
-      } catch { setForm(f => ({ ...f, imagenUrl: url })); } // fallback: usar URL directa
+      } catch {
+        
+        
+        setError('No se pudo descargar la imagen desde esa URL. Probá con otra o subí un archivo desde tu dispositivo.');
+      }
       finally { setSubiendoImg(false); }
     } else { setError('URL no válida.'); }
   };
@@ -181,7 +191,7 @@ export default function Productos() {
 
   return (
     <div>
-      {/* Header */}
+      { }
       <div className="flex items-center justify-between mb-5">
         <div>
           <h5 className="m-0 font-bold text-lg" style={{ color:T.textPrimary }}>Inventario</h5>
@@ -194,7 +204,7 @@ export default function Productos() {
         </button>
       </div>
 
-      {/* Tabs */}
+      { }
       <div className="flex gap-2 mb-3 flex-wrap">
         {[
           { key:'todos',    label:'Todos',          count: productos.length, col: T.gold },
@@ -215,7 +225,7 @@ export default function Productos() {
         ))}
       </div>
 
-      {/* Busqueda */}
+      { }
       <div className="rounded-2xl px-5 py-3.5 mb-3" style={cardStyle}>
         <div className="relative max-w-sm">
           <i className="bi bi-search" style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', color:T.textMuted }} />
@@ -231,14 +241,16 @@ export default function Productos() {
         </div>
       </div>
 
-      {/* GRID de tarjetas */}
+      { }
       {prodsFiltradosFinal.length === 0 ? (
         <div style={{ ...cardStyle, textAlign:'center', padding:'48px', color:T.textMuted }}>
           <i className="bi bi-box-seam" style={{ fontSize:'32px', display:'block', marginBottom:'8px' }} />
           {tabActiva === 'negativo' ? 'Sin stock negativo' : tabActiva === 'bajo' ? 'Sin alertas de stock' : 'Sin productos'}
         </div>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'12px' }}>
+        <div style={{ display:'grid',
+          gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(200px, 1fr))',
+          gap:'12px' }}>
           {prodsFiltradosFinal.map(p => {
             const st   = stockEstado(p);
             const mg   = margen(p);
@@ -251,7 +263,7 @@ export default function Productos() {
                 onMouseEnter={e => e.currentTarget.style.boxShadow = T.shadowHover}
                 onMouseLeave={e => e.currentTarget.style.boxShadow = T.shadow}>
 
-                {/* Imagen / placeholder */}
+                { }
                 <div style={{ height:'130px', background: img ? 'transparent' : col+'22',
                   position:'relative', overflow:'hidden', flexShrink:0 }}>
                   {img ? (
@@ -260,19 +272,19 @@ export default function Productos() {
                       onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
                     />
                   ) : null}
-                  {/* Fallback icono */}
+                  { }
                   <div style={{ display: img ? 'none' : 'flex', position:'absolute', inset:0,
                     alignItems:'center', justifyContent:'center' }}>
                     <i className={`bi ${iconoCat(p.categoria?.nombre)}`} style={{ fontSize:'36px', color:col }} />
                   </div>
-                  {/* Badge stock */}
+                  { }
                   <div style={{ position:'absolute', top:'8px', right:'8px',
                     background:st.bg, border:`1px solid ${st.borde}`,
                     borderRadius:'999px', padding:'2px 10px',
                     fontSize:'11px', fontWeight:800, color:st.color }}>
                     {p.stock < 0 ? '⊖' : ''}{p.stock}
                   </div>
-                  {/* Badge categoria */}
+                  { }
                   <div style={{ position:'absolute', top:'8px', left:'8px',
                     background: col+'dd', borderRadius:'6px', padding:'2px 8px',
                     fontSize:'10px', fontWeight:700, color:'#fff', maxWidth:'100px',
@@ -281,7 +293,7 @@ export default function Productos() {
                   </div>
                 </div>
 
-                {/* Info */}
+                { }
                 <div style={{ padding:'10px 12px', flex:1, display:'flex', flexDirection:'column' }}>
                   {p.sku && (
                     <span style={{ fontFamily:'monospace', fontSize:'10px', color:T.textMuted,
@@ -294,7 +306,7 @@ export default function Productos() {
                     {p.nombre}
                   </div>
 
-                  {/* Precio + margen */}
+                  { }
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px' }}>
                     <span style={{ fontSize:'16px', fontWeight:800, color:col }}>
                       S/ {parseFloat(p.precioVenta??0).toFixed(2)}
@@ -309,7 +321,7 @@ export default function Productos() {
                     )}
                   </div>
 
-                  {/* Costo CPP */}
+                  { }
                   <div style={{ fontSize:'11px', color:T.textMuted, marginBottom:'8px' }}>
                     CPP: S/ {parseFloat(p.cpp ?? p.precioCosto ?? 0).toFixed(2)}
                     {p.stockAlert && p.stock <= p.stockAlert && p.stock >= 0 && (
@@ -319,7 +331,7 @@ export default function Productos() {
                     )}
                   </div>
 
-                  {/* Acciones */}
+                  { }
                   <div style={{ display:'flex', gap:'6px', marginTop:'auto' }}>
                     <button onClick={() => abrirEditar(p)} title="Editar"
                       style={{ flex:1, padding:'6px', borderRadius:'8px', border:`1px solid ${T.goldBorder}`,
@@ -345,7 +357,7 @@ export default function Productos() {
         </div>
       )}
 
-      {/* Modal crear/editar */}
+      { }
       {modalAbierto && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:2000,
           display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
@@ -372,22 +384,23 @@ export default function Productos() {
                 </div>
               )}
 
-              {/* Imagen del producto */}
+              { }
               <div style={{ marginBottom:'16px' }}>
                 <label style={labelStyle}>Imagen del producto</label>
                 <div style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
-                  {/* Preview */}
+                  { }
                   <div style={{ width:'80px', height:'80px', borderRadius:'10px', overflow:'hidden',
                     background:T.bgMuted, border:`1px solid ${T.border}`, flexShrink:0,
                     display:'flex', alignItems:'center', justifyContent:'center' }}>
                     {form.imagenUrl ? (
                       <img src={resolverImagen(form.imagenUrl)} alt="preview" loading="lazy"
-                        style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                    ) : (
-                      <i className="bi bi-image" style={{ fontSize:'28px', color:T.textMuted }} />
-                    )}
+                        style={{ width:'100%', height:'100%', objectFit:'cover' }}
+                        onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
+                    ) : null}
+                    <i className="bi bi-image" style={{ fontSize:'28px', color:T.textMuted,
+                      display: form.imagenUrl ? 'none' : 'flex' }} />
                   </div>
-                  {/* Botones de carga */}
+                  { }
                   <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'6px' }}>
                     <input type="file" accept="image/*" ref={fileRef} style={{ display:'none' }}
                       onChange={handleFileChange} />
@@ -436,9 +449,16 @@ export default function Productos() {
                     </div>
                     <div className="col-12">
                       <label style={labelStyle}>Categoria *</label>
-                      <select name="idCategoria" value={form.categoria.idCategoria} onChange={handleChange} style={inputStyle}>
+                      <select name="idCategoria" value={form.categoria.idCategoria} onChange={handleChange} style={inputStyle}
+                        disabled={editando && esServicio}>
                         <option value="">Seleccionar...</option>
-                        {categorias.map(c => <option key={c.idCategoria} value={c.idCategoria}>{c.nombre}</option>)}
+                        {categorias
+                          .filter(c => {
+                            if (editando && esServicio) return c.nombre === catSel;
+                            if (editando && !esServicio) return !CAT_SERVICIOS.has(c.nombre);
+                            return true;
+                          })
+                          .map(c => <option key={c.idCategoria} value={c.idCategoria}>{c.nombre}</option>)}
                       </select>
                     </div>
                     {esBienFisico && (
@@ -518,7 +538,7 @@ export default function Productos() {
         </div>
       )}
 
-      {/* Modal ajuste stock */}
+      { }
       {modalStock && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:2000,
           display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>

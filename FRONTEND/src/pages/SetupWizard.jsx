@@ -18,7 +18,7 @@ export default function SetupWizard() {
     card:"#fff", texto:"#1a3329", borde:"#c3dac3", input:"#f8fbf8"
   };
 
-  // Cargar cuentas disponibles al montar
+  
   useEffect(() => {
     api.get('/auth/cuentas-setup')
       .then(r => setCuentas(r.data))
@@ -34,7 +34,7 @@ export default function SetupWizard() {
 
     setCargando(true);
     try {
-      // Buscar cuenta de caja física
+      
       const cajaCuenta = cuentas.find(c =>
         c.tipo === "EFECTIVO" || c.nombre.toLowerCase().includes("caja")
       );
@@ -48,7 +48,7 @@ export default function SetupWizard() {
 
       const res = await api.post('/setup/configurar', body);
 
-      // Verificar que la respuesta sea exitosa
+      
       if (res.data?.ok) {
         await recargarEstado();
         navigate("/dashboard");
@@ -56,7 +56,7 @@ export default function SetupWizard() {
         setError("Error inesperado al configurar.");
       }
     } catch (e) {
-      // Extraer el mensaje de error de forma segura
+      
       const msg = e.response?.data;
       if (typeof msg === "string") {
         setError(msg);
@@ -76,7 +76,7 @@ export default function SetupWizard() {
       <div style={{ background: T.card, borderRadius:20, padding:"40px 44px",
         width:440, boxShadow:"0 8px 32px #0002" }}>
 
-        {/* Header */}
+        { }
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ fontSize:52, marginBottom:8 }}>🏪</div>
           <h1 style={{ margin:0, color: T.verde, fontSize:24, fontWeight:800 }}>
@@ -87,7 +87,7 @@ export default function SetupWizard() {
           </p>
         </div>
 
-        {/* Nombre del negocio */}
+        { }
         <div style={{ marginBottom:20 }}>
           <label style={{ display:"block", fontSize:13, fontWeight:700,
             color: T.texto, marginBottom:6 }}>
@@ -104,7 +104,7 @@ export default function SetupWizard() {
           />
         </div>
 
-        {/* Caja inicial */}
+        { }
         <div style={{ marginBottom:28 }}>
           <label style={{ display:"block", fontSize:13, fontWeight:700,
             color: T.texto, marginBottom:6 }}>
@@ -129,7 +129,7 @@ export default function SetupWizard() {
           </p>
         </div>
 
-        {/* Resumen */}
+        { }
         {(nombreNegocio || cajaInicial) && (
           <div style={{ background: T.verdeClaro, borderRadius:10,
             padding:"14px 16px", marginBottom:20, border:`1px solid ${T.borde}` }}>
@@ -145,7 +145,7 @@ export default function SetupWizard() {
           </div>
         )}
 
-        {/* Error */}
+        { }
         {error && (
           <div style={{ background:"#fff0f0", border:"1px solid #fcc",
             borderRadius:8, padding:"10px 14px", color:"#c00",
@@ -154,7 +154,7 @@ export default function SetupWizard() {
           </div>
         )}
 
-        {/* Botón */}
+        { }
         <button onClick={handleIniciar} disabled={cargando}
           style={{ width:"100%", padding:14, background: T.verde,
             color:"#fff", border:"none", borderRadius:12, cursor:"pointer",

@@ -1,5 +1,7 @@
 package com.AdrithStore.backend.controller;
 
+import com.AdrithStore.backend.model.Producto;
+import com.AdrithStore.backend.repository.ProductoRepository;
 import lombok.RequiredArgsConstructor;
 import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +14,8 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.imageio.ImageIO;
@@ -25,7 +29,9 @@ public class ImagenController {
     @Value("${app.upload.dir:uploads/imagenes}")
     private String uploadDir;
 
-    // ── POST: subir desde archivo — nombre basado en idProducto ──
+    private final ProductoRepository productoRepo;
+
+    
     @PostMapping("/imagen")
     public ResponseEntity<?> subirImagen(
             @RequestParam("file") MultipartFile file,
@@ -39,7 +45,7 @@ public class ImagenController {
         }
     }
 
-    // ── POST: guardar desde URL externa ──────────────────────────
+    
     @PostMapping("/imagen-url")
     public ResponseEntity<?> guardarDesdeUrl(@RequestBody Map<String, Object> body) {
         String urlExterna = (String) body.get("url");
@@ -55,16 +61,55 @@ public class ImagenController {
             String localUrl = procesarYGuardar(is, nombre);
             return ResponseEntity.ok(Map.of("url", localUrl, "original", urlExterna));
         } catch (Exception e) {
-            // Fallback: devolver la URL externa directamente sin descargar
-            return ResponseEntity.ok(Map.of(
-                "url", urlExterna,
-                "original", urlExterna,
-                "warning", "No se pudo descargar localmente: " + e.getMessage()
-            ));
+            
+            
+            
+            return ResponseEntity.unprocessableEntity()
+                .body(Map.of("error", "No se pudo descargar la imagen desde esa URL: " + e.getMessage()));
         }
     }
 
-    // ── GET: servir imagen local ──────────────────────────────────
+    
+    
+    
+    
+    @PostMapping("/reparar-imagenes")
+    public ResponseEntity<?> repararImagenes() {
+        List<Producto> productos = productoRepo.findAll().stream()
+            .filter(p -> p.getImagenUrl() != null && p.getImagenUrl().startsWith("http"))
+            .toList();
+
+        int migradas = 0;
+        List<Map<String, Object>> detalle = new ArrayList<>();
+
+        for (Producto p : productos) {
+            String urlExterna = p.getImagenUrl();
+            try {
+                String nombre = generarNombre(p.getIdProducto());
+                InputStream is = new URL(urlExterna).openStream();
+                String localUrl = procesarYGuardar(is, nombre);
+                p.setImagenUrl(localUrl);
+                productoRepo.save(p);
+                migradas++;
+                detalle.add(Map.of("idProducto", p.getIdProducto(), "nombre", p.getNombre(), "resultado", "migrada"));
+            } catch (Exception e) {
+                p.setImagenUrl(null);
+                productoRepo.save(p);
+                detalle.add(Map.of("idProducto", p.getIdProducto(), "nombre", p.getNombre(),
+                    "resultado", "sin-descargar", "motivo", String.valueOf(e.getMessage())));
+            }
+        }
+
+        Map<String, Object> res = Map.of(
+            "total",        productos.size(),
+            "migradas",     migradas,
+            "sinDescargar", productos.size() - migradas,
+            "detalle",      detalle
+        );
+        return ResponseEntity.ok(res);
+    }
+
+    
     @GetMapping("/imagen/{nombre}")
     public ResponseEntity<byte[]> servirImagen(@PathVariable String nombre) {
         try {
@@ -79,15 +124,15 @@ public class ImagenController {
         }
     }
 
-    // ── Generar nombre del archivo basado en idProducto ──────────
-    // Si idProducto existe → "prod-{id}.jpg" (sobreescribe si ya hay imagen del mismo producto)
-    // Si no → UUID corto
+    
+    
+    
     private String generarNombre(Integer idProducto) {
         if (idProducto != null) return "prod-" + idProducto + ".jpg";
         return "img-" + UUID.randomUUID().toString().replace("-","").substring(0,10) + ".jpg";
     }
 
-    // ── Procesar: redimensionar + comprimir → JPEG ────────────────
+    
     private String procesarYGuardar(InputStream input, String nombre) throws Exception {
         Files.createDirectories(Path.of(uploadDir));
         Path destino = Path.of(uploadDir, nombre);

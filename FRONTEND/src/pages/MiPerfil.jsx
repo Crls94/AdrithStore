@@ -101,7 +101,7 @@ export default function MiPerfil() {
       fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
       <div style={{ maxWidth:520, margin:"0 auto" }}>
 
-        {/* Hero card */}
+        { }
         <div style={{
           background:`linear-gradient(135deg, ${C.emerald}, ${C.teal})`,
           borderRadius:18, padding:"28px 24px", marginBottom:24,
@@ -129,7 +129,7 @@ export default function MiPerfil() {
           )}
         </div>
 
-        {/* Tabs */}
+        { }
         <div style={{ display:"flex", gap:8, marginBottom:20 }}>
           {[["datos","👤 Mis datos"],["password","🔑 Contraseña"]].map(([k,l]) => (
             <button key={k} onClick={() => { setTab(k); setError(""); setExito(""); }}

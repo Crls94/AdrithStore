@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { useHeaderScroll } from '../components/layout/Layout';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { T } from '../theme';
 import api from '../api/axiosConfig';
-
-
-let jsPDF = null;
-import('jspdf').then(m => { jsPDF = m.jsPDF || m.default; }).catch(() => {});
+import { imprimirComprobanteVenta } from '../utils/comprobantePdf';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 const resolverImagen = (url) => {
@@ -22,73 +21,17 @@ const COLORES_CAT = [
 
 const MEDIOS_PAGO = ['Efectivo', 'Plin', 'Yape', 'Tarjeta', 'Transferencia'];
 
-// ── Genera PDF del comprobante ──────────────────────────────────────────
-function generarPDF(ventaData, carrito, cabecera, totalFinal, descGlobal, pagos) {
-  if (!jsPDF) { alert('Librería PDF no disponible. Ejecuta: npm install jspdf'); return; }
-  const doc = new jsPDF({ unit: 'mm', format: [80, 200] });
-  const W = 80; let y = 8;
-
-  const line = (txt, size = 8, bold = false, align = 'left') => {
-    doc.setFontSize(size);
-    doc.setFont('helvetica', bold ? 'bold' : 'normal');
-    const x = align === 'center' ? W / 2 : align === 'right' ? W - 4 : 4;
-    doc.text(txt, x, y, { align });
-    y += size * 0.4 + 1;
-  };
-  const hrule = () => { doc.setDrawColor(180); doc.line(4, y, W - 4, y); y += 2; };
-
-  line('ADRITHSTORE', 12, true, 'center');
-  line('Ica, Perú', 7, false, 'center');
-  hrule();
-  line(`${cabecera.tipoComprobante} ${cabecera.serieComprobante}`, 8, true, 'center');
-  line(`Fecha: ${new Date().toLocaleString('es-PE')}`, 7, false, 'center');
-  if (ventaData?.idVenta) line(`Venta #${ventaData.idVenta}`, 7, false, 'center');
-  hrule();
-
-  carrito.forEach(item => {
-    if (item.tipoItem === 'normal') {
-      const dsc = parseFloat(item.descuento || 0);
-      const sub = (item.precio * item.cantidad) - dsc;
-      line(`${item.nombre}`, 7, true);
-      line(`  ${item.cantidad} x S/${item.precio.toFixed(2)}${dsc > 0 ? ` - S/${dsc.toFixed(2)}` : ''} = S/${sub.toFixed(2)}`, 7);
-    } else {
-      const mon = parseFloat(item.monto) || 0;
-      line(`${item.nombre}`, 7, true);
-      if (item.tipoItem === 'transferencia') {
-        const com2 = parseFloat(item.comision) || 0;
-        line(`  ${item.origen || '?'} → ${item.destino || '?'}`, 7);
-        line(`  S/${mon.toFixed(2)} + S/${com2.toFixed(2)} = S/${(mon+com2).toFixed(2)}`, 7);
-      } else {
-        line(`  S/${mon.toFixed(2)}`, 7);
-      }
-    }
-  });
-
-  hrule();
-  const totalBruto = carrito.reduce((a, i) => a + (i.precio * i.cantidad) - parseFloat(i.descuento || 0), 0);
-  if (descGlobal > 0) {
-    line(`Subtotal:  S/${totalBruto.toFixed(2)}`, 7, false, 'right');
-    line(`Desc. global: -S/${descGlobal.toFixed(2)}`, 7, false, 'right');
-  }
-  const subtotalSinIgv = totalFinal / 1.18;
-  const igv = totalFinal - subtotalSinIgv;
-  line(`Subtotal s/IGV:  S/${subtotalSinIgv.toFixed(2)}`, 7, false, 'right');
-  line(`IGV (18%):  S/${igv.toFixed(2)}`, 7, false, 'right');
-  line(`TOTAL:  S/${totalFinal.toFixed(2)}`, 9, true, 'right');
-  hrule();
-  pagos.filter(p => parseFloat(p.monto) > 0).forEach(p => {
-    line(`${p.medioPago}: S/${parseFloat(p.monto).toFixed(2)}`, 7, false, 'right');
-  });
-  hrule();
-  line('¡Gracias por su compra!', 8, true, 'center');
-  line('AdrithStore · Ica, Perú', 7, false, 'center');
-
-  doc.save(`comprobante-${ventaData?.idVenta || 'nuevo'}.pdf`);
-}
-
 export default function Ventas() {
   const navigate  = useNavigate();
   const { usuario } = useAuth();
+  
+  
+  
+  const setHeaderScrolled = useHeaderScroll();
+  useEffect(() => {
+    setHeaderScrolled(false); 
+    return () => setHeaderScrolled(false); 
+  }, [setHeaderScrolled]);
 
   const [productos,  setProductos]  = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -101,16 +44,23 @@ export default function Ventas() {
   const [guardando,  setGuardando]  = useState(false);
   const [error,      setError]      = useState('');
   const [exito,      setExito]      = useState('');
-  const [ultimaVenta,setUltimaVenta]= useState(null); // datos para PDF
+  
+  const [vistaMobile,setVistaMobile]= useState(null);
+  const [ultimaVenta,setUltimaVenta]= useState(null); 
   const busqRef = useRef(null);
   const uidRef  = useRef(0);
+  const isMobile = useIsMobile();
+
+  useEffect(() => {
+    busqRef.current?.focus();
+  }, []);
 
   const [cuentas, setCuentas] = useState([]);
 
-  // Multi-pago
+  
   const [pagos, setPagos] = useState([{ medioPago: 'Efectivo', monto: '' }]);
 
-  // Descuento global (monto numérico final deseado — ej: 20 sobre total 20.10)
+  
   const [descGlobalInput, setDescGlobalInput] = useState('');
 
   const [cabecera, setCabecera] = useState({
@@ -138,7 +88,7 @@ export default function Ventas() {
       .finally(() => setCargando(false));
   }, []);
 
-  // Helpers carrito 
+  
   const cantidadEnCarrito = (id) => {
     const items = carrito.filter(i => i.idProducto === id);
     if (items.length === 0) return 0;
@@ -153,11 +103,9 @@ export default function Ventas() {
 
     setError('');
 
-    // SERVICIOS / IMPRESIONES — 1 item sin cantidad
+    
     if (tipo === 'SERVICIO_PURO') {
       setCarrito(c => {
-        const existe = c.find(i => i.idProducto === prod.idProducto);
-        if (existe) return c;
         if (catNombre === 'SERVICIOS') {
           return [...c, {
             _uid, tipoItem: 'servicio',
@@ -183,7 +131,7 @@ export default function Ventas() {
       return;
     }
 
-    // TRANSFERENCIA — cada clic agrega un item
+    
     if (tipo === 'SERVICIO_COMIS') {
       setCarrito(c => [...c, {
         _uid, tipoItem: 'transferencia',
@@ -197,7 +145,7 @@ export default function Ventas() {
       return;
     }
 
-    // BIEN_FISICO / CONSUMIBLE — comportamiento normal
+    
     if (prod.stock <= 0 && !prod.permiteStockNegativo) {
       setError('Sin stock: ' + prod.nombre); return;
     }
@@ -235,7 +183,7 @@ export default function Ventas() {
     }));
   };
 
-  // Descuento por ítem — no puede superar precio × cantidad
+  
   const cambiarDescuento = (uid, val) => {
     setCarrito(c => c.map(i => {
       if (i._uid !== uid || i.tipoItem !== 'normal') return i;
@@ -255,8 +203,8 @@ export default function Ventas() {
     setPagos([{ medioPago: 'Efectivo', monto: '' }]);
   };
 
-  // ── Cálculos ──────────────────────────────────────────────────────────
-  // Total bruto = suma (precio × cantidad - descuento_item + servicios)
+  
+  
   const totalItemsBruto = carrito.reduce((a, i) => {
     if (i.tipoItem === 'servicio' || i.tipoItem === 'impresion')
       return a + (parseFloat(i.monto) || 0);
@@ -268,8 +216,8 @@ export default function Ventas() {
     return a + i.precio * i.cantidad - (parseFloat(i.descuento) || 0);
   }, 0);
 
-  // Descuento global: el usuario ingresa el monto final que quiere cobrar
-  // Si ingresa 20 y el total es 20.10 → descuento = 0.10
+  
+  
   const totalDeseado   = parseFloat(descGlobalInput) || 0;
   const descGlobal     = descGlobalInput !== ''
     ? Math.max(0, Math.min(totalItemsBruto - totalDeseado, totalItemsBruto))
@@ -280,10 +228,10 @@ export default function Ventas() {
   const totalFinal     = descGlobalInput !== ''
     ? Math.max(0, totalDeseado)
     : totalItemsBruto;
-  const igv            = totalFinal * 0.18 / 1.18; // IGV incluido en el total
+  const igv            = totalFinal * 0.18 / 1.18; 
   const subtotalSinIgv = totalFinal - igv;
 
-  // Multi-pago
+  
   const totalPagado = pagos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const faltante    = Math.max(0, totalFinal - totalPagado);
   const vuelto      = pagos.length === 1 && pagos[0].medioPago === 'Efectivo'
@@ -301,7 +249,18 @@ export default function Ventas() {
     if (faltante > 0.005) actualizarPago(idx, 'monto', faltante.toFixed(2));
   };
 
-  // ── Clientes filtrados (búsqueda por nombre o DNI) ─────────────────────
+  
+  
+  
+  
+  
+  useEffect(() => {
+    if (pagos.length !== 1) return;
+    const nuevo = totalFinal > 0 ? totalFinal.toFixed(2) : '';
+    setPagos(ps => (ps.length === 1 && ps[0].monto !== nuevo) ? [{ ...ps[0], monto: nuevo }] : ps);
+  }, [totalFinal, pagos.length]);
+
+  
   const clientesFiltrados = clientes.filter(c => {
     if (!busqCliente.trim()) return true;
     const q = busqCliente.toLowerCase();
@@ -312,7 +271,7 @@ export default function Ventas() {
     );
   });
 
-  // ── Confirmar venta ────────────────────────────────────────────────────
+  
   const confirmarVenta = async () => {
     if (!cabecera.idCliente)  { setError('Selecciona un cliente.'); return; }
     if (carrito.length === 0) { setError('Agrega productos al carrito.'); return; }
@@ -321,7 +280,7 @@ export default function Ventas() {
     }
     if (!usuario?.idUsuario) { setError('Error de sesión. Vuelve a iniciar sesión.'); return; }
 
-    // Validar campos requeridos en servicios
+    
     const errServicio = carrito.some(i => {
       if (i.tipoItem === 'transferencia')
         return !i.origen || !i.destino || (parseFloat(i.monto) || 0) <= 0;
@@ -376,6 +335,8 @@ export default function Ventas() {
       setExito(msj);
       limpiarCarrito();
       api.get('/productos').then(r => setProductos(r.data));
+      
+      setTimeout(() => setVistaMobile(null), 1000);
     } catch (e) {
       const msg = e.response?.data;
       setError(typeof msg === 'string' ? msg : 'Error al registrar la venta.');
@@ -386,12 +347,73 @@ export default function Ventas() {
 
   const handleImprimir = () => {
     if (!ultimaVenta) { alert('Confirma una venta primero.'); return; }
-    // Reconstruimos carrito desde la última venta para el PDF
-    generarPDF(ultimaVenta, carrito.length > 0 ? carrito : [], cabecera, totalFinal, descGlobal, pagos);
+    
+    
+    
+    const clienteSel = clientes.find(c => c.idCliente == cabecera.idCliente);
+    const detalles = carrito
+      .filter(i => i.tipoItem === 'normal')
+      .map(i => ({
+        producto: { nombre: i.nombre },
+        cantidad: i.cantidad,
+        precioHistorico: i.precio,
+        descuentoItem: parseFloat(i.descuento || 0),
+        subtotal: (i.precio * i.cantidad) - parseFloat(i.descuento || 0),
+      }));
+    const detallesServicio = carrito
+      .filter(i => i.tipoItem !== 'normal')
+      .map(i => {
+        const monto = parseFloat(i.monto) || 0;
+        const comision = parseFloat(i.comision) || 0;
+        return {
+          producto: { nombre: i.nombre },
+          monto,
+          comision: i.tipoItem === 'transferencia' ? comision : undefined,
+          origen: i.origen,
+          destino: i.destino,
+          subtotal: monto + (i.tipoItem === 'transferencia' ? comision : 0),
+        };
+      });
+    const ventaParaPdf = {
+      idVenta: ultimaVenta.idVenta,
+      fecha: new Date(),
+      tipoComprobante: cabecera.tipoComprobante,
+      serieComprobante: cabecera.serieComprobante,
+      estado: 'confirmado',
+      cliente: clienteSel ? { nombre: clienteSel.nombre, apellido: clienteSel.apellido } : null,
+      usuario: { nombres: usuario?.nombres },
+      subtotal: subtotalSinIgv,
+      igv,
+      descuentoGlobal: ultimaVenta.descuentoGlobal ?? descGlobal,
+      total: ultimaVenta.total ?? totalFinal,
+      detalles,
+      detallesServicio,
+      pagos: pagos.filter(p => parseFloat(p.monto) > 0)
+        .map(p => ({ medioPago: p.medioPago, monto: parseFloat(p.monto) })),
+    };
+    imprimirComprobanteVenta(ventaParaPdf);
   };
 
   const colorCat = (id) => COLORES_CAT[(id ?? 0) % COLORES_CAT.length];
   const CATS_SERVICIO = ['SERVICIOS', 'IMPRESIONES', 'TRANSFERENCIA'];
+
+  
+  
+  const totalVisibles = productos.filter(p => p.visibleEnPos !== false).length;
+  const catsServicio = categorias.filter(c => CATS_SERVICIO.includes(c.nombre));
+  const conteoServicio = catsServicio.reduce((acc, cat) => acc +
+    productos.filter(p => p.categoria?.idCategoria === cat.idCategoria && p.visibleEnPos !== false).length, 0);
+  const catsNormalesConConteo = categorias
+    .filter(c => !CATS_SERVICIO.includes(c.nombre))
+    .map(cat => ({ cat, conteo: productos.filter(p =>
+      p.categoria?.idCategoria === cat.idCategoria && p.visibleEnPos !== false).length }))
+    .filter(({ conteo }) => conteo > 0);
+  const catActivaData = catActiva === null
+    ? { conteo: totalVisibles, color: T.gold }
+    : catActiva === 'servicios'
+      ? { conteo: conteoServicio, color: T.gold }
+      : { conteo: catsNormalesConConteo.find(({ cat }) => cat.idCategoria === catActiva)?.conteo ?? 0,
+          color: colorCat(catActiva) };
 
   const prodFiltrados = productos.filter(p => {
     const matchB = busqueda.trim() === '' ||
@@ -422,164 +444,110 @@ export default function Ventas() {
   };
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 56px)', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
 
-      
+      { }
+      <div className="md:p-4" style={{ display:'flex', gap:'16px', flex:1, overflow:'hidden' }}>
 
-      {/* ── CONTENIDO PRINCIPAL ──────────────────────────────────────────── */}
-      <div style={{ display:'flex', gap:'16px', flex:1, overflow:'hidden', padding:'12px 16px' }}>
+        { }
+        <div className={`${vistaMobile ? 'hidden md:flex' : 'flex'}`}
+          style={{ flex:1, flexDirection:'column', overflow:'hidden' }}>
 
-        {/* ── IZQUIERDA: Catálogo ─────────────────────────────────────── */}
-        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-
-          {/* Cabecera de venta */}
-          <div style={{ background: T.bgCard, borderRadius:'14px',
-            border:`1px solid ${T.border}`, padding:'12px 16px',
+          { }
+          <div style={{ display:'flex', gap:'8px', alignItems:'stretch',
             marginBottom:'10px', flexShrink:0 }}>
-            <div className="row g-2 align-items-end">
-              {/* Cliente con búsqueda por nombre o DNI */}
-              <div className="col-md-5">
-                <label style={lbl}>Cliente</label>
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre o DNI..."
-                  value={busqCliente}
-                  onChange={e => setBusqCliente(e.target.value)}
-                  style={{ ...inp, marginBottom: busqCliente ? 4 : 0 }}
-                />
-                {busqCliente.trim() !== '' && (
-                  <div style={{ border:`1px solid ${T.border}`, borderRadius:'8px',
-                    background: T.bgCard, maxHeight:140, overflowY:'auto',
-                    boxShadow:'0 4px 12px rgba(0,0,0,0.1)' }}>
-                    {clientesFiltrados.length === 0
-                      ? <div style={{ padding:'8px 12px', fontSize:12, color: T.textMuted }}>
-                          Sin resultados
-                        </div>
-                      : clientesFiltrados.slice(0, 8).map(c => (
-                          <button key={c.idCliente}
-                            onClick={() => {
-                              setCabecera(f => ({ ...f, idCliente: c.idCliente }));
-                              setBusqCliente('');
-                            }}
-                            style={{ width:'100%', textAlign:'left', padding:'7px 12px',
-                              background:'none', border:'none', cursor:'pointer',
-                              fontSize:12, color: T.textPrimary, borderBottom:`1px solid ${T.border}` }}>
-                            {c.nombre} {c.apellido}
-                            {c.dni && <span style={{ color: T.textMuted, marginLeft:6 }}>DNI: {c.dni}</span>}
-                          </button>
-                        ))
-                    }
-                  </div>
-                )}
-                {cabecera.idCliente && busqCliente === '' && (
-                  <div style={{ fontSize:11, color: T.gold, marginTop:2 }}>
-                    ✓ {clientes.find(c => c.idCliente == cabecera.idCliente)?.nombre || 'Cliente seleccionado'}
-                    {' '}<button onClick={() => setCabecera(f => ({ ...f, idCliente:'' }))}
-                      style={{ background:'none', border:'none', cursor:'pointer',
-                        color:'#b06060', fontSize:11 }}>×</button>
-                  </div>
-                )}
-              </div>
-              <div className="col-md-3">
-                <label style={lbl}>Comprobante</label>
-                <select value={cabecera.tipoComprobante}
-                  onChange={e => setCabecera(f => ({ ...f, tipoComprobante: e.target.value }))}
-                  style={inp}>
-                  <option>Boleta</option><option>Factura</option><option>Ticket</option>
-                </select>
-              </div>
-              <div className="col-md-2">
-                <label style={lbl}>Serie</label>
-                <input value={cabecera.serieComprobante} maxLength={4}
-                  onChange={e => setCabecera(f => ({ ...f, serieComprobante: e.target.value }))}
-                  style={inp} />
-              </div>
-              <div className="col-md-2">
-                <label style={lbl}>Fecha</label>
-                <input value={new Date().toLocaleDateString('es-PE')} readOnly
-                  style={{ ...inp, background: T.bgMuted, color: T.textMuted }} />
-              </div>
+            <div style={{ position:'relative', flex:1 }}>
+              <i className="bi bi-search" style={{ position:'absolute', left:'14px', top:'50%',
+                transform:'translateY(-50%)', color: T.textMuted, fontSize:'14px' }} />
+              <input ref={busqRef} type="text"
+                placeholder="Buscar producto por nombre o SKU..."
+                value={busqueda} onChange={e => setBusqueda(e.target.value)}
+                style={{ width:'100%', height:'100%', boxSizing:'border-box',
+                  padding:'11px 16px 11px 42px',
+                  border:`1px solid ${T.border}`, borderRadius:'12px', fontSize:'14px',
+                  outline:'none', background: T.bgCard, color: T.textPrimary,
+                  boxShadow: T.shadow }} />
+              {busqueda && (
+                <button onClick={() => setBusqueda('')}
+                  style={{ position:'absolute', right:'12px', top:'50%',
+                    transform:'translateY(-50%)', background:'none', border:'none',
+                    color: T.textMuted, cursor:'pointer', fontSize:'18px' }}>
+                  <i className="bi bi-x" />
+                </button>
+              )}
             </div>
-          </div>
-
-          {/* Búsqueda */}
-          <div style={{ position:'relative', marginBottom:'10px', flexShrink:0 }}>
-            <i className="bi bi-search" style={{ position:'absolute', left:'14px', top:'50%',
-              transform:'translateY(-50%)', color: T.textMuted, fontSize:'14px' }} />
-            <input ref={busqRef} type="text"
-              placeholder="Buscar producto por nombre o SKU..."
-              value={busqueda} onChange={e => setBusqueda(e.target.value)}
-              style={{ width:'100%', padding:'11px 16px 11px 42px',
-                border:`1px solid ${T.border}`, borderRadius:'12px', fontSize:'14px',
-                outline:'none', background: T.bgCard, color: T.textPrimary,
-                boxShadow: T.shadow }} />
-            {busqueda && (
-              <button onClick={() => setBusqueda('')}
-                style={{ position:'absolute', right:'12px', top:'50%',
-                  transform:'translateY(-50%)', background:'none', border:'none',
-                  color: T.textMuted, cursor:'pointer', fontSize:'18px' }}>
-                <i className="bi bi-x" />
-              </button>
-            )}
-          </div>
-
-          {/* Filtro categorías */}
-          <div style={{ display:'flex', gap:'6px', overflowX:'auto',
-            marginBottom:'10px', flexShrink:0, paddingBottom:'4px' }}>
-            <button onClick={() => setCatActiva(null)}
-              style={{ padding:'5px 14px', borderRadius:'20px', border:'none',
-                cursor:'pointer', fontSize:'12px', fontWeight:600, whiteSpace:'nowrap',
-                background: catActiva === null ? T.gold : T.bgMuted,
-                color:       catActiva === null ? '#0f0f0f' : T.textMuted }}>
-              Todos ({productos.filter(p => p.visibleEnPos !== false).length})
+            <button onClick={() => setVistaMobile('carrito')} title="Ver carrito"
+              className="md:hidden flex items-center justify-center"
+              style={{ flexShrink:0, width:'44px', borderRadius:'12px', position:'relative',
+                border:`1px solid ${T.border}`, background: T.bgCard, color: T.gold,
+                cursor:'pointer', fontSize:'18px' }}>
+              <i className="bi bi-cart3" />
+              {carrito.length > 0 && (
+                <span style={{ position:'absolute', top:'2px', right:'2px', background: T.gold,
+                  color:'#0f0f0f', borderRadius:'50%', width:'16px', height:'16px', fontSize:'9px',
+                  fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {carrito.length}
+                </span>
+              )}
             </button>
-            {(() => {
-              const catsServicio = categorias.filter(c => CATS_SERVICIO.includes(c.nombre));
-              const conteoServicio = catsServicio.reduce((acc, cat) => acc +
-                productos.filter(p =>
-                  p.categoria?.idCategoria === cat.idCategoria && p.visibleEnPos !== false
-                ).length, 0);
-              const catsNormales = categorias.filter(c => !CATS_SERVICIO.includes(c.nombre));
-              return (
-                <>
-                  {conteoServicio > 0 && (
-                    <button onClick={() => setCatActiva('servicios')}
-                      style={{ padding:'5px 14px', borderRadius:'20px', border:'none',
-                        cursor:'pointer', fontSize:'12px', fontWeight:600, whiteSpace:'nowrap',
-                        background: catActiva === 'servicios' ? T.gold : T.bgMuted,
-                        color:       catActiva === 'servicios' ? '#0f0f0f' : T.textMuted }}>
-                      Servicios ({conteoServicio})
-                    </button>
-                  )}
-                  {catsNormales.map(cat => {
-                    const conteo = productos.filter(p =>
-                      p.categoria?.idCategoria === cat.idCategoria && p.visibleEnPos !== false
-                    ).length;
-                    if (conteo === 0) return null;
-                    return (
-                      <button key={cat.idCategoria} onClick={() => setCatActiva(cat.idCategoria)}
-                        style={{ padding:'5px 14px', borderRadius:'20px', border:'none',
-                          cursor:'pointer', fontSize:'12px', fontWeight:600, whiteSpace:'nowrap',
-                          background: catActiva === cat.idCategoria ? colorCat(cat.idCategoria) : T.bgMuted,
-                          color:       catActiva === cat.idCategoria ? '#fff' : T.textMuted }}>
-                        {cat.nombre} ({conteo})
-                      </button>
-                    );
-                  })}
-                </>
-              );
-            })()}
+            <button onClick={() => setVistaMobile('cliente')} title="Datos del cliente"
+              style={{ flexShrink:0, width:'44px', borderRadius:'12px',
+                border:`1px solid ${T.border}`, background: T.bgCard, color: T.gold,
+                cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:'18px' }}>
+              <i className="bi bi-person-vcard" />
+            </button>
           </div>
 
-          {/* ── Grid de productos ── */}
-          <div style={{ flex:1, overflowY:'auto' }}>
+          { }
+          <div style={{ display:'flex', gap:'6px', alignItems:'center', overflowX:'auto',
+            marginBottom:'10px', flexShrink:0, paddingBottom:'4px' }}>
+            <div style={{ position:'sticky', left:0, zIndex:1, flexShrink:0,
+              padding:'5px 10px', borderRadius:'20px',
+              background: catActivaData.color,
+              color: catActivaData.color === T.gold ? '#0f0f0f' : '#fff',
+              fontSize:'12px', fontWeight:800,
+              boxShadow:'6px 0 8px -4px rgba(0,0,0,0.25)' }}>
+              {catActivaData.conteo}
+            </div>
+              <button onClick={() => setCatActiva(null)}
+                style={{ padding:'5px 14px', borderRadius:'20px', border:'none',
+                  cursor:'pointer', fontSize:'12px', fontWeight:600, whiteSpace:'nowrap',
+                  background: catActiva === null ? T.gold : T.bgMuted,
+                  color:       catActiva === null ? '#0f0f0f' : T.textMuted }}>
+                <span>Tod</span>
+              </button>
+              {conteoServicio > 0 && (
+                <button onClick={() => setCatActiva('servicios')}
+                  style={{ padding:'5px 14px', borderRadius:'20px', border:'none',
+                    cursor:'pointer', fontSize:'12px', fontWeight:600, whiteSpace:'nowrap',
+                    background: catActiva === 'servicios' ? T.gold : T.bgMuted,
+                    color:       catActiva === 'servicios' ? '#0f0f0f' : T.textMuted }}>
+                  <span>Ser</span>
+                </button>
+              )}
+              {catsNormalesConConteo.map(({ cat, conteo }) => (
+                <button key={cat.idCategoria} onClick={() => setCatActiva(cat.idCategoria)}
+                  style={{ padding:'5px 14px', borderRadius:'20px', border:'none',
+                    cursor:'pointer', fontSize:'12px', fontWeight:600, whiteSpace:'nowrap',
+                    background: catActiva === cat.idCategoria ? colorCat(cat.idCategoria) : T.bgMuted,
+                    color:       catActiva === cat.idCategoria ? '#fff' : T.textMuted }}>
+                  <span>{cat.nombre.slice(0, 3)}</span>
+                </button>
+              ))}
+          </div>
+
+          { }
+          <div style={{ flex:1, overflowY:'auto', minHeight:0 }}
+            onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 10)}>
             {prodFiltrados.length === 0 ? (
               <div style={{ textAlign:'center', padding:'40px', color: T.textMuted }}>
                 No se encontraron productos
               </div>
             ) : (
               <div style={{ display:'grid',
-                gridTemplateColumns:'repeat(auto-fill, minmax(130px, 1fr))', gap:'10px' }}>
+                gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(auto-fill, minmax(130px, 1fr))',
+                gap:'10px' }}>
                 {prodFiltrados.map(prod => {
                   const sinStock  = prod.stock <= 0 && !prod.permiteStockNegativo;
                   const enCarrito = cantidadEnCarrito(prod.idProducto);
@@ -653,29 +621,39 @@ export default function Ventas() {
           </div>
         </div>
 
-        {/* ── DERECHA: Carrito ──────────────────────────────────────────── */}
-        <div style={{ width:'320px', background: T.bgCard,
-          border:`1px solid ${T.border}`, borderRadius:'16px',
-          display:'flex', flexDirection:'column', flexShrink:0, overflow:'hidden' }}>
+        { }
+        <div className={`${vistaMobile === 'carrito' ? 'flex' : 'hidden'} md:flex`}
+          style={{ background: T.bgCard, border:`1px solid ${T.border}`,
+            flexDirection:'column', overflow:'hidden', flexShrink:0,
+            ...(vistaMobile === 'carrito'
+              ? { position:'fixed', inset:0, zIndex:200, width:'100%', borderRadius:0 }
+              : { width:'320px', borderRadius:'16px' }) }}>
 
-          {/* Header carrito */}
+          { }
           <div style={{ padding:'12px 14px', borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span style={{ fontWeight:700, color: T.textPrimary, fontSize:'14px' }}>
                 <i className="bi bi-cart me-2" />
                 Carrito ({carrito.length} ítem{carrito.length !== 1 ? 's' : ''})
               </span>
-              {carrito.length > 0 && (
-                <button onClick={limpiarCarrito}
+              <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+                {carrito.length > 0 && (
+                  <button onClick={limpiarCarrito}
+                    style={{ background:'none', border:'none', color: T.textMuted,
+                      cursor:'pointer', fontSize:'12px' }}>
+                    Limpiar
+                  </button>
+                )}
+                <button onClick={() => setVistaMobile(null)} className="md:hidden"
                   style={{ background:'none', border:'none', color: T.textMuted,
-                    cursor:'pointer', fontSize:'12px' }}>
-                  Limpiar
+                    cursor:'pointer', fontSize:'20px', lineHeight:1 }}>
+                  <i className="bi bi-x-lg" />
                 </button>
-              )}
+              </div>
             </div>
           </div>
 
-          {/* Mensajes */}
+          { }
           {error && (
             <div style={{ padding:'8px 14px', background:'#b0606018',
               borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
@@ -694,8 +672,8 @@ export default function Ventas() {
             </div>
           )}
 
-          {/* Items del carrito */}
-          <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
+          { }
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:'10px' }}>
             {carrito.length === 0 ? (
               <div style={{ textAlign:'center', padding:'40px 20px', color: T.textMuted }}>
                 <i className="bi bi-cart" style={{ fontSize:'40px', display:'block',
@@ -717,7 +695,7 @@ export default function Ventas() {
                 border:`1px solid ${T.border}`, borderRadius:'10px',
                 padding:'9px 11px', marginBottom:'7px' }}>
 
-                {/* ── Normal (BIEN_FISICO/CONSUMIBLE) ── */}
+                { }
                 {normal && <>
                   <div style={{ display:'flex', justifyContent:'space-between',
                     alignItems:'flex-start', marginBottom:'6px' }}>
@@ -790,7 +768,7 @@ export default function Ventas() {
                   )}
                 </>}
 
-                {/* ── SERVICIOS ── */}
+                { }
                 {servicio && <>
                   <div style={{ display:'flex', justifyContent:'space-between',
                     alignItems:'flex-start', marginBottom:'6px' }}>
@@ -828,7 +806,7 @@ export default function Ventas() {
                   </div>
                 </>}
 
-                {/* ── IMPRESIONES ── */}
+                { }
                 {impresion && <>
                   <div style={{ display:'flex', justifyContent:'space-between',
                     alignItems:'flex-start', marginBottom:'6px' }}>
@@ -866,7 +844,7 @@ export default function Ventas() {
                   </div>
                 </>}
 
-                {/* ── TRANSFERENCIA ── */}
+                { }
                 {transfer && <>
                   <div style={{ display:'flex', justifyContent:'space-between',
                     alignItems:'flex-start', marginBottom:'6px' }}>
@@ -934,11 +912,11 @@ export default function Ventas() {
             )})}
           </div>
 
-          {/* Totales y pago */}
+          { }
           <div style={{ borderTop:`1px solid ${T.border}`, padding:'14px', flexShrink:0 }}>
             {carrito.length > 0 && (
               <>
-                {/* Desglose */}
+                { }
                 {carrito.some(i => i.tipoItem === 'normal' && i.descuento > 0) && (
                   <div style={{ fontSize:'11px', color: T.textMuted,
                     display:'flex', justifyContent:'space-between', marginBottom:'2px' }}>
@@ -959,7 +937,7 @@ export default function Ventas() {
                   <span>S/ {igv.toFixed(2)}</span>
                 </div>
 
-                {/* Descuento global — input monto final deseado */}
+                { }
                 <div style={{ background:'rgba(13,94,79,0.05)', borderRadius:'8px',
                   padding:'8px 10px', marginBottom:'8px' }}>
                   <div style={{ fontSize:'10px', color: T.textMuted, fontWeight:700,
@@ -996,7 +974,7 @@ export default function Ventas() {
                   <span>S/ {totalFinal.toFixed(2)}</span>
                 </div>
 
-                {/* ── Formas de pago ── */}
+                { }
                 <div style={{ marginBottom:'10px' }}>
                   <div style={{ display:'flex', justifyContent:'space-between',
                     alignItems:'center', marginBottom:'5px' }}>
@@ -1043,7 +1021,7 @@ export default function Ventas() {
                     </div>
                   ))}
 
-                  {/* Estado del pago */}
+                  { }
                   <div style={{ fontSize:'11px', marginTop:'3px' }}>
                     {faltante > 0.01 ? (
                       <span style={{ color:'#b06060', fontWeight:600 }}>
@@ -1060,7 +1038,7 @@ export default function Ventas() {
               </>
             )}
 
-            {/* Botones */}
+            { }
             <div style={{ display:'flex', flexDirection:'column', gap:'7px' }}>
               <button onClick={confirmarVenta}
                 disabled={guardando || carrito.length === 0}
@@ -1100,6 +1078,100 @@ export default function Ventas() {
           </div>
         </div>
       </div>
+
+      { }
+      {vistaMobile === 'cliente' && (
+        <div className="fixed inset-0 z-[200] flex items-stretch md:items-center justify-center md:bg-black/40"
+          onClick={() => setVistaMobile(null)}>
+          <div className="flex flex-col w-full h-full md:h-auto md:max-h-[85vh] md:w-[440px] md:rounded-2xl overflow-y-auto"
+            style={{ background: T.bgPage, padding:'16px' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+              marginBottom:'16px', flexShrink:0 }}>
+              <span style={{ fontWeight:700, fontSize:'16px', color: T.textPrimary }}>
+                <i className="bi bi-person-vcard me-2" />Datos del cliente
+              </span>
+              <button onClick={() => setVistaMobile(null)}
+                style={{ background:'none', border:'none', color: T.textMuted,
+                  cursor:'pointer', fontSize:'22px', lineHeight:1 }}>
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+
+            <div style={{ flex:1 }}>
+              <div style={{ marginBottom:14 }}>
+                <label style={lbl}>Cliente</label>
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre o DNI..."
+                  value={busqCliente}
+                  onChange={e => setBusqCliente(e.target.value)}
+                  style={{ ...inp, marginBottom: busqCliente ? 4 : 0 }}
+                />
+                {busqCliente.trim() !== '' && (
+                  <div style={{ border:`1px solid ${T.border}`, borderRadius:'8px',
+                    background: T.bgCard, maxHeight:180, overflowY:'auto',
+                    boxShadow:'0 4px 12px rgba(0,0,0,0.1)' }}>
+                    {clientesFiltrados.length === 0
+                      ? <div style={{ padding:'8px 12px', fontSize:12, color: T.textMuted }}>
+                          Sin resultados
+                        </div>
+                      : clientesFiltrados.slice(0, 8).map(c => (
+                          <button key={c.idCliente}
+                            onClick={() => {
+                              setCabecera(f => ({ ...f, idCliente: c.idCliente }));
+                              setBusqCliente('');
+                            }}
+                            style={{ width:'100%', textAlign:'left', padding:'9px 12px',
+                              background:'none', border:'none', cursor:'pointer',
+                              fontSize:13, color: T.textPrimary, borderBottom:`1px solid ${T.border}` }}>
+                            {c.nombre} {c.apellido}
+                            {c.dni && <span style={{ color: T.textMuted, marginLeft:6 }}>DNI: {c.dni}</span>}
+                          </button>
+                        ))
+                    }
+                  </div>
+                )}
+                {cabecera.idCliente && busqCliente === '' && (
+                  <div style={{ fontSize:12, color: T.gold, marginTop:4 }}>
+                    ✓ {clientes.find(c => c.idCliente == cabecera.idCliente)?.nombre || 'Cliente seleccionado'}
+                    {' '}<button onClick={() => setCabecera(f => ({ ...f, idCliente:'' }))}
+                      style={{ background:'none', border:'none', cursor:'pointer',
+                        color:'#b06060', fontSize:12 }}>×</button>
+                  </div>
+                )}
+              </div>
+              <div style={{ marginBottom:14 }}>
+                <label style={lbl}>Comprobante</label>
+                <select value={cabecera.tipoComprobante}
+                  onChange={e => setCabecera(f => ({ ...f, tipoComprobante: e.target.value }))}
+                  style={inp}>
+                  <option>Boleta</option><option>Factura</option><option>Ticket</option>
+                </select>
+              </div>
+              <div style={{ marginBottom:14 }}>
+                <label style={lbl}>Serie</label>
+                <input value={cabecera.serieComprobante} maxLength={4}
+                  onChange={e => setCabecera(f => ({ ...f, serieComprobante: e.target.value }))}
+                  style={inp} />
+              </div>
+              <div style={{ marginBottom:14 }}>
+                <label style={lbl}>Fecha</label>
+                <input value={new Date().toLocaleDateString('es-PE')} readOnly
+                  style={{ ...inp, background: T.bgMuted, color: T.textMuted }} />
+              </div>
+            </div>
+
+            <button onClick={() => setVistaMobile(null)}
+              style={{ flexShrink:0, padding:'13px', borderRadius:'10px', border:'none',
+                background: `linear-gradient(135deg, ${T.gold}, ${T.goldDark})`,
+                color:'#0f0f0f', fontWeight:700, fontSize:'14px', cursor:'pointer',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+              <i className="bi bi-check-circle" />Completo
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

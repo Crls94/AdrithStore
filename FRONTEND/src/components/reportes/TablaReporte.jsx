@@ -41,7 +41,7 @@ export default function TablaReporte({
     <div style={{ background:"#fff", borderRadius:16,
       border:`1px solid ${C.border}`, overflow:"hidden" }}>
 
-      {/* Header */}
+      { }
       <div style={{ display:"grid", gridTemplateColumns: gridTemplate,
         padding:"10px 16px", background:C.softGray,
         fontSize:11, fontWeight:700, color:"#888",
@@ -62,7 +62,7 @@ export default function TablaReporte({
         ))}
       </div>
 
-      {/* Filas */}
+      { }
       {data.map((row, i) => {
         const idx = pagina != null ? pagina * pageSize + i : i;
         const abierta = expandida === idx;
@@ -95,7 +95,7 @@ export default function TablaReporte({
               })}
             </div>
 
-            {/* Expandible */}
+            { }
             {abierta && renderExpandible && (
               <div style={{ borderTop:`1px solid ${C.border}`, background:"#F8FDF8",
                 padding:"16px 20px" }}>
@@ -106,7 +106,7 @@ export default function TablaReporte({
         );
       })}
 
-      {/* Fila de totales */}
+      { }
       {totales && Object.keys(totales).length > 0 && (
         <div style={{ display:"grid", gridTemplateColumns: gridTemplate,
           padding:"12px 16px", background:"#0D5E4F", color:"#fff",
@@ -125,9 +125,9 @@ export default function TablaReporte({
         </div>
       )}
 
-      {/* Paginación */}
+      { }
       {totalPaginas > 1 && onCambiarPagina && (
-        <div style={{ display:"flex", justifyContent:"center", alignItems:"center",
+        <div className="no-print" style={{ display:"flex", justifyContent:"center", alignItems:"center",
           gap:12, padding:"14px 16px", borderTop:`1px solid ${C.border}` }}>
           <button onClick={() => onCambiarPagina(pagina - 1)} disabled={pagina <= 0}
             style={{ padding:"7px 16px", borderRadius:8, border:"none",

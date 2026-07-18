@@ -39,7 +39,7 @@ export default function FiltroFecha({ desde, hasta, onChange }) {
   };
 
   return (
-    <div style={{ display:"flex", alignItems:"end", gap:12, flexWrap:"wrap", marginBottom:20 }}>
+    <div className="no-print" style={{ display:"flex", alignItems:"end", gap:12, flexWrap:"wrap", marginBottom:20 }}>
       {PERIODOS.map(p => (
         <button key={p.k} onClick={() => handlePeriodo(p.k)}
           style={{ ...S.btn,

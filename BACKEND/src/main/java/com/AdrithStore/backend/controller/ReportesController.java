@@ -34,7 +34,7 @@ public class ReportesController {
     private final EventoLogRepository             eventoRepo;
     private final CategoriaRepository             categoriaRepo;
 
-    // ── helpers ──────────────────────────────────────────────────────────────
+    
 
     private LocalDateTime inicioDelDia(String fecha) {
         return fecha != null ? LocalDate.parse(fecha).atStartOfDay() : LocalDate.now().atStartOfDay();
@@ -66,9 +66,9 @@ public class ReportesController {
         return res;
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 1 — VENTAS
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @Transactional(readOnly = true)
     @GetMapping("/ventas")
@@ -88,7 +88,7 @@ public class ReportesController {
         LocalDateTime d = inicioDelDia(desde);
         LocalDateTime h = finDelDia(hasta);
 
-        // Forzar idVendedor si el rol del usuario logueado es VENDEDOR
+        
         if ("VENDEDOR".equals(rol) && idUsuario != null) {
             idVendedor = idUsuario;
         }
@@ -105,9 +105,9 @@ public class ReportesController {
         return paginaAMapa(pagina, totales);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 2 — COMPRAS
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @Transactional(readOnly = true)
     @GetMapping("/compras")
@@ -136,9 +136,9 @@ public class ReportesController {
         return paginaAMapa(pagina, totales);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 3 — AJUSTES DE COMPRA
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @GetMapping("/ajustes-compra")
     public Map<String, Object> ajustesCompra(
@@ -153,9 +153,9 @@ public class ReportesController {
         return listaAMapa(lista, Map.of());
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 4 — MOVIMIENTOS DE TESORERÍA
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @GetMapping("/movimientos")
     public Map<String, Object> movimientos(
@@ -181,9 +181,9 @@ public class ReportesController {
         return paginaAMapa(pagina, totales);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 5 — CIERRES DE CAJA
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @GetMapping("/cierres")
     public Map<String, Object> cierres(
@@ -196,7 +196,7 @@ public class ReportesController {
 
         List<CierreDiario> lista;
         if (idCuenta != null) {
-            // Filtrar en memoria (bajo volumen: 1 cierre por cuenta por día)
+            
             lista = cierreRepo.findByFechaCierreBetweenOrderByFechaCierreDesc(d, h)
                     .stream()
                     .filter(c -> c.getCuenta().getIdCuenta().equals(idCuenta))
@@ -208,9 +208,9 @@ public class ReportesController {
         return listaAMapa(lista, Map.of());
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 6 — INVENTARIO / PRODUCTOS
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @GetMapping("/productos")
     public Map<String, Object> productos(
@@ -230,7 +230,7 @@ public class ReportesController {
             lista = productoRepo.findAll();
         }
 
-        // Aplicar filtros adicionales en memoria (categoría + tipo combinados)
+        
         if (idCategoria != null && tipo != null && !tipo.isBlank() && !soloStockBajo) {
             lista = lista.stream()
                     .filter(p -> p.getCategoria() != null && p.getCategoria().getIdCategoria().equals(idCategoria))
@@ -241,9 +241,9 @@ public class ReportesController {
         return listaAMapa(lista, Map.of());
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 7 — CLIENTES
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @GetMapping("/clientes")
     public Map<String, Object> clientes(
@@ -273,9 +273,9 @@ public class ReportesController {
         return listaAMapa(lista, Map.of());
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 8 — PROVEEDORES
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @GetMapping("/proveedores")
     public Map<String, Object> proveedores(
@@ -307,9 +307,9 @@ public class ReportesController {
         return listaAMapa(lista, Map.of());
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 9 — CUENTAS FINANCIERAS
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @GetMapping("/cuentas")
     public Map<String, Object> cuentas() {
@@ -317,9 +317,9 @@ public class ReportesController {
         return listaAMapa(lista, Map.of());
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 10 — USUARIOS (solo ADMIN)
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @GetMapping("/usuarios")
     public Map<String, Object> usuarios(
@@ -349,9 +349,9 @@ public class ReportesController {
         return listaAMapa(lista, Map.of());
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 11 — LOG DE EVENTOS
-    // ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    
 
     @GetMapping("/eventos")
     public Map<String, Object> eventos(
@@ -364,7 +364,7 @@ public class ReportesController {
             @RequestParam(required = false)    String tipoEvento,
             @RequestParam(required = false)    String entidad) {
 
-        // Si no hay rango de fecha, solo top 100
+        
         if (desde == null && hasta == null && tipoEvento == null && entidad == null) {
             List<EventoLog> top = eventoRepo.findTop100ByOrderByFechaDesc();
             return listaAMapa(top, Map.of());

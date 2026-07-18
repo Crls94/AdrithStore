@@ -21,7 +21,7 @@ public class VentaPago {
     private Venta venta;
 
     @Column(name = "medio_pago", nullable = false, length = 50)
-    private String medioPago;  // efectivo | plin | yape | tarjeta | transferencia
+    private String medioPago;  
 
     @Column(name = "monto", nullable = false, precision = 10, scale = 2)
     private BigDecimal monto;

@@ -1,17 +1,17 @@
-/** @type {import('tailwindcss').Config} */
+ 
 export default {
   content: [
     "./index.html",
     "./src/**/*.{js,jsx,ts,tsx}",
   ],
 
-  // class strategy: dark mode se activa añadiendo class="dark" al <html>
+  
   darkMode: "class",
 
   theme: {
     extend: {
       colors: {
-        // Paleta AdrithStore — nombres sin guión (evita conflicto con variantes Tailwind)
+        
         brand:    "#0D5E4F",
         tealmed:  "#0A3D3A",
         tealdark: "#061A18",

@@ -10,12 +10,15 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/productos")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class ProductoController {
+
+    private static final Set<String> CATEGORIAS_SERVICIO = Set.of("SERVICIOS", "IMPRESIONES", "TRANSFERENCIA");
 
     private final ProductoRepository   productoRepo;
     private final CategoriaRepository  categoriaRepo;
@@ -31,13 +34,13 @@ public class ProductoController {
         return productoRepo.findByNombreContainingIgnoreCaseOrSkuContainingIgnoreCase(nombre, nombre);
     }
 
-    // Solo visibles en POS (excluye CONSUMIBLES)
+    
     @GetMapping("/pos")
     public List<Producto> paraPos() {
         return productoRepo.findByVisibleEnPosTrue();
     }
 
-    // Solo consumibles internos
+    
     @GetMapping("/consumibles")
     public List<Producto> consumibles() {
         return productoRepo.findByTipo("CONSUMIBLE");
@@ -66,11 +69,21 @@ public class ProductoController {
         String error = validarProducto(producto);
         if (error != null) return ResponseEntity.badRequest().body(error);
 
-        // CONSUMIBLE siempre invisible en POS
+        
+        if (producto.getCategoria() != null && producto.getCategoria().getIdCategoria() != null) {
+            var cat = categoriaRepo.findById(producto.getCategoria().getIdCategoria()).orElse(null);
+            if (cat != null && CATEGORIAS_SERVICIO.contains(cat.getNombre())) {
+                if (productoRepo.existsByCategoriaNombre(cat.getNombre())) {
+                    return ResponseEntity.badRequest().body("Ya existe un producto en la categoría " + cat.getNombre());
+                }
+            }
+        }
+
+        
         if ("CONSUMIBLE".equals(producto.getTipo()))
             producto.setVisibleEnPos(false);
 
-        // CPP inicial = precio_costo
+        
         if (producto.getCpp() == null || producto.getCpp().compareTo(BigDecimal.ZERO) == 0)
             producto.setCpp(producto.getPrecioCosto());
 
@@ -80,29 +93,43 @@ public class ProductoController {
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizar(@PathVariable Integer id,
                                         @RequestBody Producto datos) {
+        var p = productoRepo.findById(id).orElse(null);
+        if (p == null) return ResponseEntity.notFound().build();
+
+        String catNombreExistente = p.getCategoria() != null ? p.getCategoria().getNombre() : null;
+        boolean existenteEsServicio = catNombreExistente != null && CATEGORIAS_SERVICIO.contains(catNombreExistente);
+
+        
+        if (existenteEsServicio) {
+            datos.setCategoria(p.getCategoria());
+        } else if (datos.getCategoria() != null && datos.getCategoria().getIdCategoria() != null) {
+            var nuevaCat = categoriaRepo.findById(datos.getCategoria().getIdCategoria()).orElse(null);
+            if (nuevaCat != null && CATEGORIAS_SERVICIO.contains(nuevaCat.getNombre())) {
+                return ResponseEntity.badRequest().body("No puedes cambiar un producto físico a una categoría de servicio.");
+            }
+        }
+
         forzarTipoPorCategoria(datos);
         String error = validarProducto(datos);
         if (error != null) return ResponseEntity.badRequest().body(error);
 
-        return productoRepo.findById(id).map(p -> {
-            p.setNombre(datos.getNombre());
-            p.setSku(datos.getSku());
-            p.setTipo(datos.getTipo());
-            p.setVisibleEnPos("CONSUMIBLE".equals(datos.getTipo()) ? false : datos.getVisibleEnPos());
-            p.setStock(datos.getStock());
-            p.setPrecioCosto(datos.getPrecioCosto());
-            p.setPorcentajeCosto(datos.getPorcentajeCosto());
-            p.setPrecioVenta(datos.getPrecioVenta());
-            p.setStockAlert(datos.getStockAlert());
-            p.setDescripcion(datos.getDescripcion());
-            p.setCategoria(datos.getCategoria());
-            p.setPermiteStockNegativo(datos.getPermiteStockNegativo());
-            p.setComisionBase(datos.getComisionBase());
-            p.setComisionCada(datos.getComisionCada());
-            if (datos.getCpp() != null) p.setCpp(datos.getCpp());
-            if (datos.getImagenUrl() != null) p.setImagenUrl(datos.getImagenUrl());
-            return ResponseEntity.ok(productoRepo.save(p));
-        }).orElse(ResponseEntity.notFound().build());
+        p.setNombre(datos.getNombre());
+        p.setSku(datos.getSku());
+        p.setTipo(datos.getTipo());
+        p.setVisibleEnPos("CONSUMIBLE".equals(datos.getTipo()) ? false : datos.getVisibleEnPos());
+        p.setStock(datos.getStock());
+        p.setPrecioCosto(datos.getPrecioCosto());
+        p.setPorcentajeCosto(datos.getPorcentajeCosto());
+        p.setPrecioVenta(datos.getPrecioVenta());
+        p.setStockAlert(datos.getStockAlert());
+        p.setDescripcion(datos.getDescripcion());
+        p.setCategoria(datos.getCategoria());
+        p.setPermiteStockNegativo(datos.getPermiteStockNegativo());
+        p.setComisionBase(datos.getComisionBase());
+        p.setComisionCada(datos.getComisionCada());
+        if (datos.getCpp() != null) p.setCpp(datos.getCpp());
+        if (datos.getImagenUrl() != null) p.setImagenUrl(datos.getImagenUrl());
+        return ResponseEntity.ok(productoRepo.save(p));
     }
 
     @PatchMapping("/{id}/imagen")
@@ -147,7 +174,7 @@ public class ProductoController {
         return ResponseEntity.noContent().build();
     }
 
-    // ── Validaciones por tipo (String, sin enum) ───────────────────────────
+    
     private String validarProducto(Producto p) {
         if (p.getTipo() == null || p.getTipo().isBlank())
             p.setTipo("BIEN_FISICO");
@@ -172,16 +199,16 @@ public class ProductoController {
                     return "SERVICIO_COMIS requiere precio_venta >= 0.";
                 break;
             case "CONSUMIBLE":
-                // sin restricciones
+                
                 break;
             default:
                 return "Tipo de producto invalido: " + tipo
                     + ". Use: BIEN_FISICO, SERVICIO_PURO, SERVICIO_COMIS, CONSUMIBLE";
         }
-        return null; // sin error
+        return null; 
     }
 
-    // ── Forzar tipo según categoría (servicios) ──────────────────────────
+    
     private void forzarTipoPorCategoria(Producto p) {
         if (p.getCategoria() == null || p.getCategoria().getIdCategoria() == null) return;
         categoriaRepo.findById(p.getCategoria().getIdCategoria()).ifPresent(cat -> {

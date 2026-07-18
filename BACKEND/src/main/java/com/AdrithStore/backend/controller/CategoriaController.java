@@ -10,7 +10,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/categorias")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")   // ← permite cualquier origen (red local + producción)
+@CrossOrigin(origins = "*")   
 public class CategoriaController {
 
     private final CategoriaRepository categoriaRepo;

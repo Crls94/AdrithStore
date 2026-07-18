@@ -19,14 +19,14 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
  
     boolean existsByDni(String dni);
  
-    // Contar todos los usuarios (para detectar si es la primera vez)
+    
     long count();
  
     List<Usuario> findByRolOrderByNombresAsc(String rol);
  
     List<Usuario> findAllByOrderByNombresAsc();
 
-    // ── Reportes ───────────────────────────────────────────────────────────
+    
 
     @Query("""
         SELECT u, COUNT(v.idVenta), COALESCE(SUM(v.total), 0)

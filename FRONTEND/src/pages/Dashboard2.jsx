@@ -24,7 +24,7 @@ function buildChartData(ventas, periodo) {
   else if (periodo === "mes_anterior") { desde.setMonth(ahora.getMonth()-1); desde.setDate(1); }
   else                                 desde.setHours(0,0,0,0);
   const mapa = {};
-    {/* Agrupa por dia */ }
+    {  }
   
 ventas
     .filter(v => v.fecha && v.total && new Date(v.fecha) >= desde)
@@ -244,9 +244,9 @@ export default function Dashboard() {
   return esAdmin() ? <DashAdmin/> : <DashVendedor/>;
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// DASH ADMIN
-// ═════════════════════════════════════════════════════════════════════════
+
+
+
 function DashAdmin() {
   const {usuario,esAdmin,logout} = useAuth();
   const navigate = useNavigate();
@@ -327,7 +327,7 @@ function DashAdmin() {
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-surface font-sans text-ink">
 
-      {/* HEADER */}
+      { }
       <header className="flex-shrink-0 h-14 flex items-center justify-between px-4 lg:px-7
         border-b border-brand/10 bg-canvas sticky top-0 z-[90]">
         <div className="flex items-center gap-2">
@@ -346,10 +346,10 @@ function DashAdmin() {
           onLogout={()=>{logout();navigate("/login");}}/>
       </header>
 
-      {/* BODY */}
+      { }
       <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-3 lg:p-5 lg:gap-4">
 
-        {/* ── Fila accesos rápidos iconos ── */}
+        { }
         <div className="flex items-center justify-center gap-1.5 flex-shrink-0">
           {ACCESOS.map(a=>(
             <button key={a.ruta} onClick={()=>navigate(a.ruta)} title={a.label}
@@ -364,35 +364,35 @@ function DashAdmin() {
        
 
 
-       {/* HERO CARD */}
+       { }
         <div className="flex-shrink-0 rounded-3xl p-5 lg:p-6 relative overflow-hidden shadow-teal-lg"
           style={{background:G.hero}}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full pointer-events-none"
             style={{background:"radial-gradient(circle,rgba(255,255,255,0.05)0%,transparent 65%)"}}/>
 
-          {/* Mobile: flex-col — Desktop: grid 3 cols */}
+          { }
           <div className="flex flex-col gap-4 lg:grid lg:gap-0 relative"
             style={{gridTemplateColumns:"1fr 1fr 2fr", gridTemplateRows:"auto auto auto auto"}}>
 
-            {/* Fila 1 col 1: Picker período */}
+            { }
             <div className="lg:p-2 flex items-center">
               <PeriodoPicker periodo={periodo} setPeriodo={setPeriodo} periodos={periodos}/>
             </div>
 
-            {/* Fila 1 col 2: Picker vendedor */}
+            { }
             <div className="lg:p-2 flex items-center hidden lg:flex">
               <VendedorPicker filtroVendedor={filtroVendedor}
                 setFiltroVendedor={setFiltroVendedor} usuarios={usuarios}/>
             </div>
 
-            {/* Mobile: pickers en fila juntos */}
+            { }
             <div className="flex items-center gap-2 lg:hidden">
               <PeriodoPicker periodo={periodo} setPeriodo={setPeriodo} periodos={periodos}/>
               <VendedorPicker filtroVendedor={filtroVendedor}
                 setFiltroVendedor={setFiltroVendedor} usuarios={usuarios}/>
             </div>
 
-            {/* Fila 1 col 3: Label tendencia — span 4 filas en desktop */}
+            { }
             <div className="hidden lg:flex lg:flex-col lg:p-3 lg:pl-5 lg:border-l lg:border-white/10"
               style={{gridColumn:"3", gridRow:"1 / 5"}}>
               <div className="text-[11px] text-white/75 font-bold uppercase tracking-wider mb-3">
@@ -405,7 +405,7 @@ function DashAdmin() {
               </div>
             </div>
 
-            {/* Fila 2: Ingresos — span 2 cols */}
+            { }
             <div className="lg:col-span-2 lg:px-2 lg:py-3 lg:border-b lg:border-white/10">
               <div className="text-[10px] text-white/70 font-bold uppercase tracking-widest mb-1">
                 {periodos.find(p=>p.k===periodo)?.l} — Ingresos
@@ -415,7 +415,7 @@ function DashAdmin() {
               </div>
             </div>
 
-            {/* Fila 3: Ventas | Ticket prom — 1 col cada uno */}
+            { }
             {[
               {l:"Ventas",       v: String(stats?.totalVentas||0)},
               {l:"Ticket prom.", v: money(stats?.ticketPromedio||0)},
@@ -427,7 +427,7 @@ function DashAdmin() {
               </div>
             ))}
 
-            {/* Fila 4: Ganancia | Saldo total — 1 col cada uno */}
+            { }
             {[
               {l:"Ganancia",    v: money(ingresos-costos),  accent:false},
               {l:"Saldo total", v: money(totalCtas),        accent:true},
@@ -441,7 +441,7 @@ function DashAdmin() {
               </div>
             ))}
 
-            {/* Mobile: gráfico al final */}
+            { }
             <div className="lg:hidden mt-2 border-t border-white/10 pt-3">
               <div className="text-[10px] text-white/70 font-bold uppercase tracking-wider mb-2">
                 Tendencia · {periodos.find(p=>p.k===periodo)?.l}
@@ -457,10 +457,10 @@ function DashAdmin() {
 
 
 
-        {/* ══ FILA A: Saldos | Métricas | Últimas Ventas ══════════════ */}
+        { }
         <div className="grid grid-cols-1 lg:grid-cols-[3fr_3fr_4fr] gap-3 lg:gap-4 items-stretch">
 
-          {/* 💰 Saldos — FIX: 1 col en desktop (6 filas), 2 cols en mobile */}
+          { }
           <div className="rounded-2xl p-4 relative overflow-hidden shadow-teal-lg"
             style={{background:G.accounts}}>
             <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full pointer-events-none"
@@ -472,7 +472,7 @@ function DashAdmin() {
               <div className="text-2xl font-black text-accent">{money(totalCtas)}</div>
             </div>
 
-            {/* Mobile: 2 cols — Desktop: 1 col (cada cuenta en su fila) */}
+            { }
             <div className="grid grid-cols-2 lg:grid-cols-1 gap-1.5">
               {cuentasMostradas.map(c=>(
                 <div key={c.nombre} className="rounded-xl p-2 backdrop-blur-md"
@@ -492,7 +492,7 @@ function DashAdmin() {
             </div>
           </div>
 
-          {/* Métricas */}
+          { }
           <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-brand-md"
             style={{background:G.kpi}}>
             <SectionLabel>Métricas del período</SectionLabel>
@@ -534,7 +534,7 @@ function DashAdmin() {
             </div>
           </div>
 
-          {/* Últimas Ventas — FIX: agrega vendedor y medio de pago */}
+          { }
           <div className="bg-white rounded-2xl p-4 lg:p-5 border border-brand/10 shadow-sm flex flex-col">
             <div className="flex justify-between items-center mb-3 flex-shrink-0">
               <SectionLabel dark={false}>Últimas Ventas</SectionLabel>
@@ -556,11 +556,11 @@ function DashAdmin() {
                     <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-sm flex-shrink-0 mt-0.5">🧾</div>
                     <div>
                       <div className="text-sm font-bold text-brand">Venta #{v.idVenta}</div>
-                      {/* Cliente */}
+                      { }
                       <div className="text-xs text-gray-500">
                         {v.cliente?`${v.cliente.nombre} ${v.cliente.apellido||""}`.trim():"Cliente General"}
                       </div>
-                      {/* Vendedor + medio de pago */}
+                      { }
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {v.usuario && (
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
@@ -595,9 +595,9 @@ function DashAdmin() {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// DASH VENDEDOR
-// ═════════════════════════════════════════════════════════════════════════
+
+
+
 function DashVendedor() {
   const {usuario,logout} = useAuth();
   const navigate = useNavigate();
@@ -643,7 +643,7 @@ function DashVendedor() {
 
       <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-3 lg:p-5 lg:gap-4">
 
-        {/* Filtro período */}
+        { }
         <div className="flex-shrink-0 flex gap-2 justify-center flex-wrap">
           {periodos.map(p=>(
             <button key={p.k} onClick={()=>setPeriodo(p.k)}
@@ -654,7 +654,7 @@ function DashVendedor() {
           ))}
         </div>
 
-        {/* HERO CARD igual al admin */}
+        { }
         <div className="flex-shrink-0 rounded-3xl p-4 lg:p-5 relative overflow-hidden shadow-teal-lg"
           style={{background:G.hero}}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full pointer-events-none"
@@ -693,7 +693,7 @@ function DashVendedor() {
           </div>
         </div>
 
-        {/* Accesos + Mis Últimas Ventas */}
+        { }
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-3 lg:gap-4 items-stretch">
 
           <div className="bg-white rounded-2xl p-4 lg:p-5 border border-brand/10 shadow-sm">

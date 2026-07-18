@@ -13,7 +13,7 @@ public class LogService {
     public static final String VENTA_ANULADA    = "VENTA_ANULADA";
     public static final String COMPRA_CREADA    = "COMPRA_CREADA";
     public static final String COMPRA_ANULADA   = "COMPRA_ANULADA";
-    public static final String COMPRA_AJUSTE    = "COMPRA_AJUSTE";   // ← faltaba
+    public static final String COMPRA_AJUSTE    = "COMPRA_AJUSTE";   
     public static final String STOCK_AJUSTADO   = "STOCK_AJUSTADO";
     public static final String STOCK_NEGATIVO   = "STOCK_NEGATIVO";
     public static final String PRODUCTO_CREADO  = "PRODUCTO_CREADO";

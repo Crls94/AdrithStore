@@ -43,7 +43,7 @@ public class VentaController {
         return ventaRepo.findAllConPagosOrderByFechaDesc();
     }
 
-    // Ventas filtradas por usuario — para dashboard vendedor
+    
     @GetMapping("/por-usuario/{idUsuario}")
     @Transactional(readOnly = true)
     public List<Venta> porUsuario(@PathVariable Integer idUsuario) {
@@ -95,7 +95,7 @@ public class VentaController {
             }
 
             BigDecimal precio      = p.getPrecioVenta() != null ? p.getPrecioVenta() : BigDecimal.ZERO;
-            // Descuento por ítem — no puede superar el precio unitario × cantidad
+            
             BigDecimal dscItem     = d.getDescuentoItem() != null ? d.getDescuentoItem() : BigDecimal.ZERO;
             BigDecimal maxDscItem  = precio.multiply(BigDecimal.valueOf(cantidad));
             if (dscItem.compareTo(maxDscItem) > 0) dscItem = maxDscItem;
@@ -117,7 +117,7 @@ public class VentaController {
         if (venta.getDetalles().isEmpty() && sinServicios)
             return ResponseEntity.badRequest().body("Ningún producto fue encontrado.");
 
-        // Calcular total de servicios
+        
         BigDecimal totalServicios = BigDecimal.ZERO;
         if (req.getDetallesServicio() != null) {
             for (VentaRequest.DetalleServicioItem dsi : req.getDetallesServicio()) {
@@ -135,7 +135,7 @@ public class VentaController {
             }
         }
 
-        // Descuento global — monto fijo (ej: redondeo 20.10 → 20.00 = descuento 0.10)
+        
         BigDecimal dscGlobal = req.getDescuentoGlobal() != null ? req.getDescuentoGlobal() : BigDecimal.ZERO;
         if (dscGlobal.compareTo(totalBruto.add(totalServicios)) > 0)
             dscGlobal = totalBruto.add(totalServicios);
@@ -146,7 +146,7 @@ public class VentaController {
         venta.setSubtotal(totalFinal.divide(BigDecimal.valueOf(1.18), 2, RoundingMode.HALF_UP));
         venta.setIgv(totalFinal.subtract(venta.getSubtotal()));
 
-        // Validar pago suficiente
+        
         BigDecimal totalPagado = req.getPagos().stream()
             .map(p -> p.getMonto() != null ? p.getMonto() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -156,7 +156,7 @@ public class VentaController {
 
         Venta guardada = ventaRepo.save(venta);
 
-        // Guardar detalles de servicio
+        
         if (req.getDetallesServicio() != null) {
             for (VentaRequest.DetalleServicioItem dsi : req.getDetallesServicio()) {
                 VentaDetalleServicio vds = new VentaDetalleServicio();
@@ -208,7 +208,7 @@ public class VentaController {
         ));
     }
 
-    // ── ENDPOINTS DETALLE-SERVICIO ───────────────────────────────────────
+    
     @PostMapping("/{id}/detalle-servicio")
     @Transactional
     public ResponseEntity<?> agregarDetalleServicio(@PathVariable Integer id,
@@ -230,7 +230,7 @@ public class VentaController {
         return detalleServicioRepo.findByVenta_IdVenta(id);
     }
 
-    // ── ANULAR VENTA ─────────────────────────────────────────────────────
+    
     @PatchMapping("/{id}/anular")
     @Transactional
     public ResponseEntity<?> anular(@PathVariable Integer id,
@@ -242,7 +242,7 @@ public class VentaController {
             if (!"confirmado".equals(v.getEstado()))
                 return ResponseEntity.badRequest().body("La venta ya fue anulada.");
 
-            // Revertir stock de cada producto
+            
             for (VentaDetalle det : v.getDetalles()) {
                 Producto p = det.getProducto();
                 if (p != null && ("BIEN_FISICO".equals(p.getTipo()) || "CONSUMIBLE".equals(p.getTipo()))) {
@@ -292,7 +292,7 @@ public class VentaController {
         @Data public static class DetalleItem {
             private Integer    idProducto;
             private Integer    cantidad;
-            private BigDecimal descuentoItem; // monto fijo descontado del ítem
+            private BigDecimal descuentoItem; 
         }
         @Data public static class DetalleServicioItem {
             private Integer    idProducto;

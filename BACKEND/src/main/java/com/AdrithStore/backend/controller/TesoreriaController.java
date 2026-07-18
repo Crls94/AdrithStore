@@ -28,13 +28,13 @@ public class TesoreriaController {
     private final CuentaFinancieraRepository      cuentaRepo;
     private final TransaccionFinancieraRepository txRepo;
 
-    // ── GET /api/tesoreria/cuentas ────────────────────────────────────────
+    
     @GetMapping("/cuentas")
     public List<CuentaFinanciera> cuentas() {
         return cuentaRepo.findByActivaTrue();
     }
 
-    // ── GET /api/tesoreria/resumen ────────────────────────────────────────
+    
     @Transactional(readOnly = true)
     @GetMapping("/resumen")
     public Map<String, Object> resumen() {
@@ -46,7 +46,7 @@ public class TesoreriaController {
             .map(c -> c.getSaldoActual() != null ? c.getSaldoActual() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Movimientos del mes en curso
+        
         LocalDateTime inicioPeriodo = LocalDate.now().withDayOfMonth(1).atStartOfDay();
         List<TransaccionFinanciera> movimientos = txRepo
             .findByFechaBetweenOrderByFechaDesc(inicioPeriodo, LocalDateTime.now());
@@ -78,7 +78,7 @@ public class TesoreriaController {
         return res;
     }
 
-    // ── GET /api/tesoreria/movimientos ────────────────────────────────────
+    
     @Transactional(readOnly = true)
     @GetMapping("/movimientos")
     public List<TransaccionFinanciera> movimientos(
@@ -87,8 +87,8 @@ public class TesoreriaController {
         return txRepo.findByFechaBetweenOrderByFechaDesc(desde, LocalDateTime.now());
     }
 
-    // ── POST /api/tesoreria/gasto ─────────────────────────────────────────
-    // Registra un egreso manual (gasto operativo) deducido de la cuenta indicada
+    
+    
     @PostMapping("/gasto")
     @Transactional
     public ResponseEntity<?> registrarGasto(@RequestBody GastoRequest req) {
@@ -97,7 +97,7 @@ public class TesoreriaController {
         if (req.getMonto() == null || req.getMonto().compareTo(BigDecimal.ZERO) <= 0)
             return ResponseEntity.badRequest().body("El monto debe ser mayor a 0.");
 
-        // Buscar la cuenta de salida por nombre
+        
         String nombreCuenta = req.getCuenta() != null ? req.getCuenta() : "Caja Fisica";
         CuentaFinanciera cuenta = cuentaRepo.findByNombreIgnoreCase(nombreCuenta)
             .orElseGet(() -> cuentaRepo.findByActivaTrue().stream().findFirst()
@@ -106,7 +106,7 @@ public class TesoreriaController {
         if (cuenta == null)
             return ResponseEntity.badRequest().body("No se encontró la cuenta: " + nombreCuenta);
 
-        // Descontar de la cuenta
+        
         BigDecimal nuevoSaldo = (cuenta.getSaldoActual() != null ? cuenta.getSaldoActual() : BigDecimal.ZERO)
             .subtract(req.getMonto());
 
@@ -121,7 +121,7 @@ public class TesoreriaController {
         cuenta.setSaldoActual(nuevoSaldo);
         cuentaRepo.save(cuenta);
 
-        // Registrar transacción con signo -1 (egreso)
+        
         TransaccionFinanciera tx = new TransaccionFinanciera();
         tx.setCuenta(cuenta);
         tx.setMonto(req.getMonto());

@@ -11,17 +11,17 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
 
     boolean existsByCategoriaNombre(String nombre);
 
-    // ── Métodos que ProductoController ya usa (NO QUITAR) ──────────────────
+    
 
     List<Producto> findByVisibleEnPosTrue();
 
     List<Producto> findByTipo(String tipo);
 
-    // Búsqueda por nombre o SKU
+    
     List<Producto> findByNombreContainingIgnoreCaseOrSkuContainingIgnoreCase(
         String nombre, String sku);
 
-    // Stock bajo: donde stock <= stock_alert (solo bienes físicos)
+    
     @Query("""
         SELECT p FROM Producto p
         WHERE p.tipo = 'BIEN_FISICO'
@@ -32,12 +32,12 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
     """)
     List<Producto> findStockBajo();
 
-    // Stock negativo
+    
     List<Producto> findByStockLessThan(int cantidad);
 
-    // ── Métodos que DashboardController usa ────────────────────────────────
+    
 
-    // Contar productos con stock bajo (para KPI del dashboard)
+    
     @Query("""
         SELECT COUNT(p) FROM Producto p
         WHERE p.tipo = 'BIEN_FISICO'
@@ -47,7 +47,7 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
     """)
     long countProductosStockBajo();
 
-    // ── Reportes ───────────────────────────────────────────────────────────
+    
 
     List<Producto> findByCategoria_IdCategoria(Integer idCategoria);
 }

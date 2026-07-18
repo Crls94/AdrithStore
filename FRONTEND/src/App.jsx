@@ -1,16 +1,16 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 
-// Auth y Setup
+
 import PrimerAdmin  from "./auth/PrimerAdmin";
 import Login        from "./auth/Login";
 import SetupWizard  from "./pages/SetupWizard";
 import Layout       from "./components/layout/Layout";
 
-// Dashboard — sin Layout (centro de operaciones propio)
+
 import Dashboard from "./pages/Dashboard";
 
-// Páginas internas — dentro del Layout mínimo
+
 import Ventas         from "./pages/ventas";
 import RegistroVentas from "./pages/RegistroVentas";
 import Productos      from "./pages/Productos";
@@ -26,7 +26,7 @@ import Tesoreria      from "./pages/Tesoreria";
 import Reportes       from "./pages/Reportes";
 import RecuperarPassword from "./auth/RecuperarPassword";
 
-// ── Guards ────────────────────────────────────────────────────────────────
+
 function PrivateRoute({ children, soloAdmin = false }) {
   const { usuario, cargando, estado } = useAuth();
   if (cargando) return <Cargando />;
@@ -61,14 +61,14 @@ function Cargando() {
   );
 }
 
-// ── Rutas ─────────────────────────────────────────────────────────────────
+
 function AppRoutes() {
   const { usuario, cargando, estado } = useAuth();
   if (cargando) return <Cargando />;
 
   return (
     <Routes>
-      {/* Raíz: detectar flujo */}
+      { }
       <Route path="/" element={
         !estado?.hayUsuarios   ? <Navigate to="/primer-admin" replace />
         : !usuario             ? <Navigate to="/login"        replace />
@@ -76,21 +76,21 @@ function AppRoutes() {
         :                        <Navigate to="/dashboard"    replace />
       } />
 
-      {/* Públicas */}
+      { }
       <Route path="/primer-admin" element={
         estado?.hayUsuarios ? <Navigate to="/login" replace /> : <PrimerAdmin />
       } />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/recuperar" element={<PublicRoute><RecuperarPassword /></PublicRoute>} />
 
-      {/* Setup */}
+      { }
       <Route path="/setup" element={
         !usuario ? <Navigate to="/login" replace />
         : estado?.configurado ? <Navigate to="/dashboard" replace />
         : <SetupWizard />
       } />
 
-      {/* ── Páginas internas CON Layout (header unificado Dashboard + páginas) ── */}
+      { }
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/ventas"          element={<Ventas />} />

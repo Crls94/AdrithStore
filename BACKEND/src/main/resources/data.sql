@@ -1,7 +1,7 @@
--- AdrithStore — Seed completo de productos (401 ítems del inventario real)
--- Generado automáticamente desde Registro_resumido.xlsx
 
--- CATEGORIAS
+
+
+
 INSERT INTO categorias (nombre, descripcion) VALUES ('Abarrotes', 'Categoría Abarrotes') ON CONFLICT (nombre) DO NOTHING;
 INSERT INTO categorias (nombre, descripcion) VALUES ('Bazar', 'Categoría Bazar') ON CONFLICT (nombre) DO NOTHING;
 INSERT INTO categorias (nombre, descripcion) VALUES ('Bebidas', 'Categoría Bebidas') ON CONFLICT (nombre) DO NOTHING;
@@ -20,18 +20,18 @@ INSERT INTO categorias (nombre, descripcion) VALUES ('TRANSFERENCIA', 'Transfere
 INSERT INTO categorias (nombre, descripcion) VALUES ('Utiles de oficina', 'Categoría Utiles de oficina') ON CONFLICT (nombre) DO NOTHING;
 INSERT INTO categorias (nombre, descripcion) VALUES ('Varios', 'Categoría Varios') ON CONFLICT (nombre) DO NOTHING;
 
--- PRODUCTOS SERVICIOS (3 nuevos)
+
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'SRV-GEN', 'Servicios General', 'SERVICIO_PURO', true, 0, 0.10, 0.50, 5, 0.10, true FROM categorias WHERE nombre='SERVICIOS' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, porcentaje_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'IMP-GEN', 'Impresiones/Fotocopia', 'SERVICIO_PURO', true, 0, 0.00, 75.00, 0.50, 5, 0.00, true FROM categorias WHERE nombre='IMPRESIONES' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo, comision_base, comision_cada) SELECT id_categoria, 'TRF-GEN', 'Transferencia/Pagos', 'SERVICIO_COMIS', true, 0, 0.00, 1.00, 5, 0.00, true, 1.00, 100.00 FROM categorias WHERE nombre='TRANSFERENCIA' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
 
--- PRODUCTOS (398 registros)
+
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'UTO-0001', 'Fastener', 'BIEN_FISICO', true, 0, 0.12, 0.3, 5, 0.12, true FROM categorias WHERE nombre='Utiles de oficina' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'UTO-0002', 'Folder Manila', 'BIEN_FISICO', true, 0, 0.3, 0.8, 5, 0.3, true FROM categorias WHERE nombre='Utiles de oficina' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'UTO-0003', 'Sobre Manila', 'BIEN_FISICO', true, 0, 0.2, 1.0, 5, 0.2, true FROM categorias WHERE nombre='Utiles de oficina' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'UTO-0004', 'Papel BOND', 'BIEN_FISICO', true, 0, 0.025, 0.1, 5, 0.025, true FROM categorias WHERE nombre='Utiles de oficina' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'UTO-0005', 'Mica', 'BIEN_FISICO', true, 0, 1.0, 1.0, 5, 1.0, true FROM categorias WHERE nombre='Utiles de oficina' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
--- Productos movidos de antigua categoría Servicios → Varios
+
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'SRV-0012', 'Chip Movistar', 'SERVICIO_PURO', true, 0, 1.0, 5.0, 5, 1.0, true FROM categorias WHERE nombre='Varios' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'FAR-0013', 'Vendas', 'BIEN_FISICO', true, 0, 0.0309, 0.1, 5, 0.0309, true FROM categorias WHERE nombre='Farmacia' LIMIT 1 ON CONFLICT (sku) DO NOTHING;
 INSERT INTO producto (id_categoria, sku, nombre, tipo, visible_en_pos, stock, precio_costo, precio_venta, stock_alert, cpp, permite_stock_negativo) SELECT id_categoria, 'FAR-0014', 'Guantes', 'BIEN_FISICO', true, 0, 0.15, 1.0, 5, 0.15, true FROM categorias WHERE nombre='Farmacia' LIMIT 1 ON CONFLICT (sku) DO NOTHING;

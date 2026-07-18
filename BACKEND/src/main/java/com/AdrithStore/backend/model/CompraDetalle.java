@@ -37,7 +37,7 @@ public class CompraDetalle {
     @Column(name = "costo_unitario", precision = 10, scale = 4)
     private BigDecimal costoUnitario;
 
-    // CPP del producto ANTES de esta compra (para auditoría y ajustes)
+    
     @Column(name = "costo_anterior", precision = 10, scale = 4)
     private BigDecimal costoAnterior;
 

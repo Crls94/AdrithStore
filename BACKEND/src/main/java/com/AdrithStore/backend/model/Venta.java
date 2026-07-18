@@ -3,6 +3,7 @@ package com.AdrithStore.backend.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.BatchSize;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ public class Venta {
     @JsonIgnoreProperties({"hibernateLazyInitializer","handler"})
     private Cliente cliente;
 
-    // Usuario que registró la venta — requerido desde ahora
+    
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_usuario")
     @JsonIgnoreProperties({"passwordHash","hibernateLazyInitializer","handler"})
@@ -41,18 +42,27 @@ public class Venta {
     @Column(name = "descuento_global", precision = 10, scale = 2) private BigDecimal descuentoGlobal = BigDecimal.ZERO;
     @Column(name = "total",            precision = 10, scale = 2) private BigDecimal total;
 
+    
+    
+    
+    
+    
+    
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL,
                fetch = FetchType.EAGER, orphanRemoval = true)
+    @BatchSize(size = 50)
     @JsonIgnoreProperties({"venta","hibernateLazyInitializer"})
     private List<VentaDetalle> detalles = new ArrayList<>();
 
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL,
-               fetch = FetchType.LAZY, orphanRemoval = true)
+               fetch = FetchType.EAGER, orphanRemoval = true)
+    @BatchSize(size = 50)
     @JsonIgnoreProperties({"venta","hibernateLazyInitializer"})
     private List<VentaPago> pagos = new ArrayList<>();
 
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL,
-               fetch = FetchType.LAZY, orphanRemoval = true)
+               fetch = FetchType.EAGER, orphanRemoval = true)
+    @BatchSize(size = 50)
     @JsonIgnoreProperties({"venta","hibernateLazyInitializer"})
     private List<VentaDetalleServicio> detallesServicio = new ArrayList<>();
 }

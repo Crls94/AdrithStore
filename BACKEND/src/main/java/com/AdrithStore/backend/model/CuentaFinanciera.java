@@ -17,7 +17,7 @@ public class CuentaFinanciera {
     @Column(name = "nombre", nullable = false)
     private String nombre;
 
-    // EFECTIVO | DIGITAL | BANCO
+    
     @Column(name = "tipo", length = 20)
     private String tipo;
 

@@ -14,7 +14,7 @@ public interface CompraAjusteRepository extends JpaRepository<CompraAjuste, Inte
     List<CompraAjuste> findByCompraOriginal_IdCompraOrderByFechaDesc(Integer idCompra);
     List<CompraAjuste> findByProducto_IdProductoOrderByFechaDesc(Integer idProducto);
 
-    // ── Reportes ───────────────────────────────────────────────────────────
+    
 
     @Query("""
         SELECT a FROM CompraAjuste a

@@ -62,7 +62,7 @@ public class UsuarioController {
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizar(@PathVariable Integer id, @RequestBody UsuarioRequest req) {
         return usuarioRepo.findById(id).map(u -> {
-            // Cambio de username — validar que no esté tomado por otro usuario
+            
             if (req.getUsername() != null && !req.getUsername().isBlank()) {
                 String nuevoUsername = req.getUsername().trim().toLowerCase();
                 if (!nuevoUsername.equals(u.getUsername()) &&

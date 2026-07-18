@@ -4,6 +4,7 @@ import FiltroFecha from "../components/reportes/FiltroFecha";
 import TablaReporte from "../components/reportes/TablaReporte";
 import ExportButtons from "../components/reportes/ExportButtons";
 import * as api from "../api/reportesApi";
+import { imprimirComprobanteVenta, imprimirComprobanteCompra } from "../utils/comprobantePdf";
 
 const C = {
   emerald:"#0D5E4F", teal:"#0A3D3A",
@@ -33,7 +34,7 @@ function valorCelda(val, row, col) {
   return val ?? "—";
 }
 
-// ─── DEFINICIÓN DE COLUMNAS POR TAB ───────────────────────────────────────
+
 const COL = {
   ventas: [
     { key:"fecha",            label:"Fecha",       numeric:false, sortable:true,  render:(v)=>fmtFecha(v) },
@@ -165,7 +166,14 @@ const COL = {
   ],
 };
 
-// ─── TAB RENDERERS ────────────────────────────────────────────────────────
+
+const btnImprimirFila = {
+  padding:"7px 16px", borderRadius:8, border:"none", cursor:"pointer",
+  fontSize:12, fontWeight:700, background:"#E8F0FE", color:"#1A73E8",
+  fontFamily:"inherit",
+};
+
+
 
 function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
   const { usuario } = useAuth();
@@ -176,23 +184,32 @@ function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
   const [totalPaginas, setTotalPaginas] = useState(0);
   const [sortBy, setSortBy] = useState("fecha");
   const [sortDir, setSortDir] = useState("desc");
+  const [filasImpresion, setFilasImpresion] = useState(null);
   const totalPag = totalPaginas;
 
-  const cargar = useCallback(() => {
-    setLoading(true);
-    const params = { desde, hasta, page:pagina, size:20, sort:sortBy, dir:sortDir };
+  const armarParams = useCallback((overrides = {}) => {
+    const params = { desde, hasta, page:pagina, size:20, sort:sortBy, dir:sortDir, ...overrides };
     if (filtros.idCliente) params.idCliente = filtros.idCliente;
     if (esAdmin && filtros.idVendedor) params.idVendedor = filtros.idVendedor;
     if (filtros.estado) params.estado = filtros.estado;
     params.idUsuario = usuario?.idUsuario;
     params.rol = usuario?.rol;
-    api.getReporteVentas(params)
+    return params;
+  }, [desde, hasta, pagina, sortBy, sortDir, filtros, esAdmin, usuario?.idUsuario, usuario?.rol]);
+
+  const cargar = useCallback(() => {
+    setLoading(true);
+    api.getReporteVentas(armarParams())
       .then(r => { setData(r.data.content||[]); setTotales(r.data.totales||{}); setTotalPaginas(r.data.totalPages||0); })
       .catch(() => { setData([]); setTotales({}); })
       .finally(() => setLoading(false));
-  }, [desde, hasta, pagina, sortBy, sortDir, filtros, esAdmin, usuario?.idUsuario, usuario?.rol]);
+  }, [armarParams]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  
+  const obtenerTodo = () => api.getReporteVentas(armarParams({ page:0, size:5000 }))
+    .then(r => r.data.content || []);
 
   const handleSort = (key) => {
     if (sortBy === key) { setSortDir(d => d === "asc" ? "desc" : "asc"); }
@@ -201,6 +218,7 @@ function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
   };
 
   const renderExpandible = (row) => (
+    <div>
     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
       <div>
         <div style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>
@@ -259,6 +277,12 @@ function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
         </div>
       </div>
     </div>
+    <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"flex-end" }}>
+      <button onClick={() => imprimirComprobanteVenta(row)} style={btnImprimirFila}>
+        🖨️ Imprimir comprobante PDF
+      </button>
+    </div>
+    </div>
   );
 
   const columnasVisibles = esAdmin ? COL.ventas : COL.ventas.filter(c => c.key !== "vendedor");
@@ -266,7 +290,8 @@ function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
   return (
     <div>
       <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
-        <ExportButtons data={data} columnas={columnasVisibles} titulo="Ventas" />
+        <ExportButtons data={data} columnas={columnasVisibles} titulo="Ventas"
+          onObtenerTodo={obtenerTodo} onPrepararImpresion={setFilasImpresion} />
       </div>
       <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
         <input placeholder="ID Cliente" value={filtros.idCliente} onChange={e => onActualizarFiltro("ventas","idCliente",e.target.value)}
@@ -282,10 +307,18 @@ function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
           <option value="anulado">Anulado</option>
         </select>
       </div>
-      <TablaReporte columnas={columnasVisibles} data={data} totales={totales} loading={loading}
-        onSort={handleSort} sortBy={sortBy} sortDir={sortDir}
-        pagina={pagina} totalPaginas={totalPag} onCambiarPagina={setPagina}
-        renderExpandible={renderExpandible} mensajeVacio="Sin ventas en el rango" />
+      <div className="screen-only">
+        <TablaReporte columnas={columnasVisibles} data={data} totales={totales} loading={loading}
+          onSort={handleSort} sortBy={sortBy} sortDir={sortDir}
+          pagina={pagina} totalPaginas={totalPag} onCambiarPagina={setPagina}
+          renderExpandible={renderExpandible} mensajeVacio="Sin ventas en el rango" />
+      </div>
+      {filasImpresion && (
+        <div className="print-only">
+          <TablaReporte columnas={columnasVisibles} data={filasImpresion} totales={totales}
+            mensajeVacio="Sin ventas en el rango" />
+        </div>
+      )}
     </div>
   );
 }
@@ -298,19 +331,27 @@ function TabCompras({ desde, hasta, filtros, onActualizarFiltro }) {
   const [totalPaginas, setTotalPaginas] = useState(0);
   const [sortBy, setSortBy] = useState("fecha");
   const [sortDir, setSortDir] = useState("desc");
+  const [filasImpresion, setFilasImpresion] = useState(null);
+
+  const armarParams = useCallback((overrides = {}) => {
+    const params = { desde, hasta, page:pagina, size:20, sort:sortBy, dir:sortDir, ...overrides };
+    if (filtros.idProveedor) params.idProveedor = filtros.idProveedor;
+    if (filtros.estado) params.estado = filtros.estado;
+    return params;
+  }, [desde, hasta, pagina, sortBy, sortDir, filtros]);
 
   const cargar = useCallback(() => {
     setLoading(true);
-    const params = { desde, hasta, page:pagina, size:20, sort:sortBy, dir:sortDir };
-    if (filtros.idProveedor) params.idProveedor = filtros.idProveedor;
-    if (filtros.estado) params.estado = filtros.estado;
-    api.getReporteCompras(params)
+    api.getReporteCompras(armarParams())
       .then(r => { setData(r.data.content||[]); setTotales(r.data.totales||{}); setTotalPaginas(r.data.totalPages||0); })
       .catch(() => { setData([]); setTotales({}); })
       .finally(() => setLoading(false));
-  }, [desde, hasta, pagina, sortBy, sortDir, filtros]);
+  }, [armarParams]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  const obtenerTodo = () => api.getReporteCompras(armarParams({ page:0, size:5000 }))
+    .then(r => r.data.content || []);
 
   const handleSort = (key) => {
     if (sortBy === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -333,13 +374,19 @@ function TabCompras({ desde, hasta, filtros, onActualizarFiltro }) {
           <span style={{ fontWeight:700, color:C.emerald }}>{money(d.subtotal)}</span>
         </div>
       )) : <div style={{ fontSize:12, color:"#bbb" }}>Sin detalles</div>}
+      <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"flex-end" }}>
+        <button onClick={() => imprimirComprobanteCompra(row)} style={btnImprimirFila}>
+          🖨️ Imprimir comprobante PDF
+        </button>
+      </div>
     </div>
   );
 
   return (
     <div>
       <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
-        <ExportButtons data={data} columnas={COL.compras} titulo="Compras" />
+        <ExportButtons data={data} columnas={COL.compras} titulo="Compras"
+          onObtenerTodo={obtenerTodo} onPrepararImpresion={setFilasImpresion} />
       </div>
       <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
         <input placeholder="ID Proveedor" value={filtros.idProveedor} onChange={e => onActualizarFiltro("compras","idProveedor",e.target.value)}
@@ -351,10 +398,18 @@ function TabCompras({ desde, hasta, filtros, onActualizarFiltro }) {
           <option value="anulado">Anulado</option>
         </select>
       </div>
-      <TablaReporte columnas={COL.compras} data={data} totales={totales} loading={loading}
-        onSort={handleSort} sortBy={sortBy} sortDir={sortDir}
-        pagina={pagina} totalPaginas={totalPaginas} onCambiarPagina={setPagina}
-        renderExpandible={renderExpandible} mensajeVacio="Sin compras en el rango" />
+      <div className="screen-only">
+        <TablaReporte columnas={COL.compras} data={data} totales={totales} loading={loading}
+          onSort={handleSort} sortBy={sortBy} sortDir={sortDir}
+          pagina={pagina} totalPaginas={totalPaginas} onCambiarPagina={setPagina}
+          renderExpandible={renderExpandible} mensajeVacio="Sin compras en el rango" />
+      </div>
+      {filasImpresion && (
+        <div className="print-only">
+          <TablaReporte columnas={COL.compras} data={filasImpresion} totales={totales}
+            mensajeVacio="Sin compras en el rango" />
+        </div>
+      )}
     </div>
   );
 }
@@ -398,19 +453,27 @@ function TabMovimientos({ desde, hasta, filtros, onActualizarFiltro }) {
   const [totalPaginas, setTotalPaginas] = useState(0);
   const [sortBy, setSortBy] = useState("fecha");
   const [sortDir, setSortDir] = useState("desc");
+  const [filasImpresion, setFilasImpresion] = useState(null);
+
+  const armarParams = useCallback((overrides = {}) => {
+    const params = { desde, hasta, page:pagina, size:20, sort:sortBy, dir:sortDir, ...overrides };
+    if (filtros.tipoMov) params.tipoMov = filtros.tipoMov;
+    if (filtros.idCuenta) params.idCuenta = filtros.idCuenta;
+    return params;
+  }, [desde, hasta, pagina, sortBy, sortDir, filtros]);
 
   const cargar = useCallback(() => {
     setLoading(true);
-    const params = { desde, hasta, page:pagina, size:20, sort:sortBy, dir:sortDir };
-    if (filtros.tipoMov) params.tipoMov = filtros.tipoMov;
-    if (filtros.idCuenta) params.idCuenta = filtros.idCuenta;
-    api.getMovimientos(params)
+    api.getMovimientos(armarParams())
       .then(r => { setData(r.data.content||[]); setTotales(r.data.totales||{}); setTotalPaginas(r.data.totalPages||0); })
       .catch(() => { setData([]); setTotales({}); })
       .finally(() => setLoading(false));
-  }, [desde, hasta, pagina, sortBy, sortDir, filtros]);
+  }, [armarParams]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  const obtenerTodo = () => api.getMovimientos(armarParams({ page:0, size:5000 }))
+    .then(r => r.data.content || []);
 
   const handleSort = (key) => {
     if (sortBy === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -420,7 +483,8 @@ function TabMovimientos({ desde, hasta, filtros, onActualizarFiltro }) {
 
   return (
     <div>
-      <ExportButtons data={data} columnas={COL.movimientos} titulo="Movimientos" />
+      <ExportButtons data={data} columnas={COL.movimientos} titulo="Movimientos"
+        onObtenerTodo={obtenerTodo} onPrepararImpresion={setFilasImpresion} />
       <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
         <select value={filtros.tipoMov} onChange={e => onActualizarFiltro("movimientos","tipoMov",e.target.value)}
           style={{ padding:"7px 12px", borderRadius:8, border:`1.5px solid ${C.border}`, fontSize:12, outline:"none", background:"#fff" }}>
@@ -436,10 +500,18 @@ function TabMovimientos({ desde, hasta, filtros, onActualizarFiltro }) {
         <input placeholder="ID Cuenta" value={filtros.idCuenta} onChange={e => onActualizarFiltro("movimientos","idCuenta",e.target.value)}
           style={{ padding:"7px 12px", borderRadius:8, border:`1.5px solid ${C.border}`, fontSize:12, outline:"none", width:100 }} />
       </div>
-      <TablaReporte columnas={COL.movimientos} data={data} totales={totales} loading={loading}
-        onSort={handleSort} sortBy={sortBy} sortDir={sortDir}
-        pagina={pagina} totalPaginas={totalPaginas} onCambiarPagina={setPagina}
-        mensajeVacio="Sin movimientos en el rango" />
+      <div className="screen-only">
+        <TablaReporte columnas={COL.movimientos} data={data} totales={totales} loading={loading}
+          onSort={handleSort} sortBy={sortBy} sortDir={sortDir}
+          pagina={pagina} totalPaginas={totalPaginas} onCambiarPagina={setPagina}
+          mensajeVacio="Sin movimientos en el rango" />
+      </div>
+      {filasImpresion && (
+        <div className="print-only">
+          <TablaReporte columnas={COL.movimientos} data={filasImpresion} totales={totales}
+            mensajeVacio="Sin movimientos en el rango" />
+        </div>
+      )}
     </div>
   );
 }
@@ -596,20 +668,28 @@ function TabEventos({ desde, hasta, filtros, onActualizarFiltro }) {
   const [totalPaginas, setTotalPaginas] = useState(0);
   const [sortBy, setSortBy] = useState("fecha");
   const [sortDir, setSortDir] = useState("desc");
+  const [filasImpresion, setFilasImpresion] = useState(null);
 
-  const cargar = useCallback(() => {
-    setLoading(true);
-    const params = { page:pagina, size:20, sort:sortBy, dir:sortDir };
+  const armarParams = useCallback((overrides = {}) => {
+    const params = { page:pagina, size:20, sort:sortBy, dir:sortDir, ...overrides };
     if (desde && hasta) { params.desde = desde; params.hasta = hasta; }
     if (filtros.tipoEvento) params.tipoEvento = filtros.tipoEvento;
     if (filtros.entidad) params.entidad = filtros.entidad;
-    api.getReporteEventos(params)
+    return params;
+  }, [desde, hasta, pagina, sortBy, sortDir, filtros]);
+
+  const cargar = useCallback(() => {
+    setLoading(true);
+    api.getReporteEventos(armarParams())
       .then(r => { setData(r.data.content||[]); setTotalPaginas(r.data.totalPages||0); })
       .catch(() => setData([]))
       .finally(() => setLoading(false));
-  }, [desde, hasta, pagina, sortBy, sortDir, filtros]);
+  }, [armarParams]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  const obtenerTodo = () => api.getReporteEventos(armarParams({ page:0, size:5000 }))
+    .then(r => r.data.content || []);
 
   const handleSort = (key) => {
     if (sortBy === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -619,22 +699,31 @@ function TabEventos({ desde, hasta, filtros, onActualizarFiltro }) {
 
   return (
     <div>
-      <ExportButtons data={data} columnas={COL.eventos} titulo="Eventos" />
+      <ExportButtons data={data} columnas={COL.eventos} titulo="Eventos"
+        onObtenerTodo={obtenerTodo} onPrepararImpresion={setFilasImpresion} />
       <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
         <input placeholder="Tipo evento" value={filtros.tipoEvento} onChange={e => onActualizarFiltro("eventos","tipoEvento",e.target.value)}
           style={{ padding:"7px 12px", borderRadius:8, border:`1.5px solid ${C.border}`, fontSize:12, outline:"none", width:140 }} />
         <input placeholder="Entidad" value={filtros.entidad} onChange={e => onActualizarFiltro("eventos","entidad",e.target.value)}
           style={{ padding:"7px 12px", borderRadius:8, border:`1.5px solid ${C.border}`, fontSize:12, outline:"none", width:120 }} />
       </div>
-      <TablaReporte columnas={COL.eventos} data={data} loading={loading}
-        onSort={handleSort} sortBy={sortBy} sortDir={sortDir}
-        pagina={pagina} totalPaginas={totalPaginas} onCambiarPagina={setPagina}
-        mensajeVacio="Sin eventos registrados" />
+      <div className="screen-only">
+        <TablaReporte columnas={COL.eventos} data={data} loading={loading}
+          onSort={handleSort} sortBy={sortBy} sortDir={sortDir}
+          pagina={pagina} totalPaginas={totalPaginas} onCambiarPagina={setPagina}
+          mensajeVacio="Sin eventos registrados" />
+      </div>
+      {filasImpresion && (
+        <div className="print-only">
+          <TablaReporte columnas={COL.eventos} data={filasImpresion}
+            mensajeVacio="Sin eventos registrados" />
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────
+
 
 const TABS = [
   { k:"ventas",     l:"🛒 Ventas" },
@@ -654,11 +743,12 @@ export default function Reportes() {
   const { usuario } = useAuth();
   const esAdmin = usuario?.rol === "ADMIN";
 
+  const [nivel, setNivel] = useState("detallado"); 
   const [tabActual, setTabActual] = useState("ventas");
   const [desde, setDesde] = useState(() => hoy());
   const [hasta, setHasta] = useState(() => hoy());
 
-  // Filtros propios por tab — se conservan al cambiar de tab
+  
   const [filtrosTab, setFiltrosTab] = useState({
     ventas:     { idCliente:"", idVendedor:"", estado:"" },
     compras:    { idProveedor:"", estado:"" },
@@ -681,11 +771,10 @@ export default function Reportes() {
   };
 
   return (
-    <div style={{ background:C.softGray, minHeight:"100vh", padding:24,
-      fontFamily:"'Inter','DM Sans','Segoe UI',sans-serif" }}>
+    <div style={{ background:C.softGray }}>
       <div style={{ maxWidth:1200, margin:"0 auto" }}>
 
-        {/* Header */}
+        { }
         <h1 style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:C.charcoal }}>
           📊 Reportes
         </h1>
@@ -693,46 +782,79 @@ export default function Reportes() {
           Análisis detallado de ventas, compras, tesorería e inventario
         </p>
 
-        {/* Filtro fecha compartido */}
-        <FiltroFecha desde={desde} hasta={hasta} onChange={(d,h) => { setDesde(d); setHasta(h); }} />
-
-        {/* Tabs */}
-        <div style={{ display:"flex", gap:4, marginBottom:20,
-          borderBottom:`2px solid ${C.border}`, flexWrap:"wrap" }}>
-          {tabs.map(t => (
-            <button key={t.k}
-              onClick={() => !t.disabled && setTabActual(t.k)}
-              title={t.disabled ? "Solo ADMIN" : ""}
-              style={{ ...inputStyle,
-                background: tabActual === t.k ? "#fff" : "transparent",
-                color: t.disabled ? "#ccc" : tabActual === t.k ? C.emerald : "#888",
-                borderBottom: tabActual === t.k ? `2px solid ${C.emerald}` : "2px solid transparent",
-                marginBottom:-2,
-                cursor: t.disabled ? "not-allowed" : "pointer",
-              }}>
-              {t.l}
+        { }
+        <div className="no-print" style={{ display:"flex", gap:4, marginBottom:20,
+          background:"#fff", borderRadius:10, padding:4, width:"fit-content",
+          boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
+          {[{ k:"ejecutivo", l:"📈 Ejecutivo" }, { k:"detallado", l:"📋 Detallado" }].map(n => (
+            <button key={n.k} onClick={() => setNivel(n.k)}
+              style={{ padding:"8px 18px", borderRadius:8, border:"none", cursor:"pointer",
+                fontSize:13, fontWeight:800, fontFamily:"'Inter','DM Sans','Segoe UI',sans-serif",
+                background: nivel === n.k ? C.emerald : "transparent",
+                color:      nivel === n.k ? "#fff" : "#888",
+                transition:"all 0.15s" }}>
+              {n.l}
             </button>
           ))}
         </div>
 
-        {/* Contenido condicional */}
-        {tabActual === "ventas"      && <TabVentas desde={desde} hasta={hasta} esAdmin={esAdmin}
-                                            filtros={filtrosTab.ventas} onActualizarFiltro={actualizarFiltro} />}
-        {tabActual === "compras"     && <TabCompras desde={desde} hasta={hasta}
-                                            filtros={filtrosTab.compras} onActualizarFiltro={actualizarFiltro} />}
-        {tabActual === "ajustes"     && <TabAjustesCompra desde={desde} hasta={hasta}
-                                            filtros={filtrosTab.ajustes} onActualizarFiltro={actualizarFiltro} />}
-        {tabActual === "movimientos" && <TabMovimientos desde={desde} hasta={hasta}
-                                            filtros={filtrosTab.movimientos} onActualizarFiltro={actualizarFiltro} />}
-        {tabActual === "cierres"     && <TabCierres desde={desde} hasta={hasta}
-                                            filtros={filtrosTab.cierres} onActualizarFiltro={actualizarFiltro} />}
-        {tabActual === "productos"   && <TabProductos desde={desde} hasta={hasta} />}
-        {tabActual === "clientes"    && <TabClientes desde={desde} hasta={hasta} />}
-        {tabActual === "proveedores" && <TabProveedores desde={desde} hasta={hasta} />}
-        {tabActual === "cuentas"     && <TabCuentas desde={desde} hasta={hasta} />}
-        {tabActual === "usuarios"    && <TabUsuarios desde={desde} hasta={hasta} />}
-        {tabActual === "eventos"     && <TabEventos desde={desde} hasta={hasta}
-                                            filtros={filtrosTab.eventos} onActualizarFiltro={actualizarFiltro} />}
+        {nivel === "ejecutivo" && (
+          <div style={{ background:"#fff", borderRadius:16, border:`1px solid ${C.border}`,
+            padding:"60px 24px", textAlign:"center" }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>📈</div>
+            <div style={{ fontSize:16, fontWeight:800, color:C.charcoal, marginBottom:6 }}>
+              Resumen ejecutivo — próximamente
+            </div>
+            <div style={{ fontSize:13, color:"#888" }}>
+              Acá van a vivir los KPIs principales del negocio de un vistazo.
+            </div>
+          </div>
+        )}
+
+        {nivel === "detallado" && (
+          <>
+            { }
+            <FiltroFecha desde={desde} hasta={hasta} onChange={(d,h) => { setDesde(d); setHasta(h); }} />
+
+            { }
+            <div className="no-print" style={{ display:"flex", gap:4, marginBottom:20,
+              borderBottom:`2px solid ${C.border}`, flexWrap:"wrap" }}>
+              {tabs.map(t => (
+                <button key={t.k}
+                  onClick={() => !t.disabled && setTabActual(t.k)}
+                  title={t.disabled ? "Solo ADMIN" : ""}
+                  style={{ ...inputStyle,
+                    background: tabActual === t.k ? "#fff" : "transparent",
+                    color: t.disabled ? "#ccc" : tabActual === t.k ? C.emerald : "#888",
+                    borderBottom: tabActual === t.k ? `2px solid ${C.emerald}` : "2px solid transparent",
+                    marginBottom:-2,
+                    cursor: t.disabled ? "not-allowed" : "pointer",
+                  }}>
+                  {t.l}
+                </button>
+              ))}
+            </div>
+
+            { }
+            {tabActual === "ventas"      && <TabVentas desde={desde} hasta={hasta} esAdmin={esAdmin}
+                                                filtros={filtrosTab.ventas} onActualizarFiltro={actualizarFiltro} />}
+            {tabActual === "compras"     && <TabCompras desde={desde} hasta={hasta}
+                                                filtros={filtrosTab.compras} onActualizarFiltro={actualizarFiltro} />}
+            {tabActual === "ajustes"     && <TabAjustesCompra desde={desde} hasta={hasta}
+                                                filtros={filtrosTab.ajustes} onActualizarFiltro={actualizarFiltro} />}
+            {tabActual === "movimientos" && <TabMovimientos desde={desde} hasta={hasta}
+                                                filtros={filtrosTab.movimientos} onActualizarFiltro={actualizarFiltro} />}
+            {tabActual === "cierres"     && <TabCierres desde={desde} hasta={hasta}
+                                                filtros={filtrosTab.cierres} onActualizarFiltro={actualizarFiltro} />}
+            {tabActual === "productos"   && <TabProductos desde={desde} hasta={hasta} />}
+            {tabActual === "clientes"    && <TabClientes desde={desde} hasta={hasta} />}
+            {tabActual === "proveedores" && <TabProveedores desde={desde} hasta={hasta} />}
+            {tabActual === "cuentas"     && <TabCuentas desde={desde} hasta={hasta} />}
+            {tabActual === "usuarios"    && <TabUsuarios desde={desde} hasta={hasta} />}
+            {tabActual === "eventos"     && <TabEventos desde={desde} hasta={hasta}
+                                                filtros={filtrosTab.eventos} onActualizarFiltro={actualizarFiltro} />}
+          </>
+        )}
 
       </div>
     </div>

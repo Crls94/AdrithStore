@@ -93,7 +93,7 @@ export default function PrimerAdmin() {
         padding:"40px 40px", width:440,
         boxShadow:"0 8px 32px rgba(0,0,0,0.08)" }}>
 
-        {/* Header */}
+        { }
         <div style={{ textAlign:"center", marginBottom:30 }}>
           <div style={{ width:52, height:52, borderRadius:14,
             background:`linear-gradient(135deg,${C.emerald},${C.teal})`,

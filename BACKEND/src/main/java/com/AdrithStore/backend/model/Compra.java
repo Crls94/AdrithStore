@@ -30,7 +30,7 @@ public class Compra {
     @Column(name = "fecha")
     private LocalDateTime fecha;
 
-    // confirmado | anulado | borrador
+    
     @Column(name = "estado")
     private String estado = "confirmado";
 

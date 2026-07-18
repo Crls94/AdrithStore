@@ -15,7 +15,7 @@ const G = {
 
 const money = (n) => `S/ ${parseFloat(n || 0).toFixed(2)}`;
 
-// buildChartData agrupa por: hoy→hora, año→mes, resto→día
+
 function buildChartData(ventas, periodo) {
   if (!ventas || ventas.length === 0) return [];
   const ahora = new Date();
@@ -75,7 +75,7 @@ function SectionLabel({children, dark=true}) {
   );
 }
 
-// ── VendedorPicker ────────────────────────────────────────────────────────
+
 function VendedorPicker({ filtroVendedor, setFiltroVendedor, usuarios }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -118,7 +118,7 @@ function VendedorPicker({ filtroVendedor, setFiltroVendedor, usuarios }) {
   );
 }
 
-// ── SparkLine ─────────────────────────────────────────────────────────────
+
 function SparkLine({ data, gradId }) {
   if (data.length === 0) {
     return (
@@ -164,7 +164,7 @@ function SparkLine({ data, gradId }) {
   );
 }
 
-// Botones de período para el encabezado del gráfico
+
 const PERIODOS_BOTONES = [
   {k:"hoy",    l:"Día"},
   {k:"semana", l:"Semana"},
@@ -177,14 +177,14 @@ export default function Dashboard() {
   return esAdmin() ? <DashAdmin/> : <DashVendedor/>;
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// DASH ADMIN
-// ═════════════════════════════════════════════════════════════════════════
+
+
+
 function DashAdmin() {
   const {usuario,esAdmin} = useAuth();
   const navigate = useNavigate();
 
-  // periodo controla stats + gráfico + consultas
+  
   const [periodo,        setPeriodo]        = useState("hoy");
   const [stats,          setStats]          = useState(null);
   const [tes,            setTes]            = useState(null);
@@ -224,7 +224,7 @@ function DashAdmin() {
   const stockBajo = stats?.productosStockBajo||0;
   const chartData = useMemo(()=>buildChartData(rechartVentas,periodo),[rechartVentas,periodo]);
 
-  // Label legible del período activo
+  
   const periodoLabel = PERIODOS_BOTONES.find(p=>p.k===periodo)?.l ?? periodo;
 
   const CUENTAS_FIJAS = [
@@ -243,22 +243,22 @@ function DashAdmin() {
   return (
     <div className="flex flex-col gap-3">
 
-      {/* ══ HERO CARD ═════════════════════════════════════════════════ */}
+      { }
         <div className="flex-shrink-0 rounded-3xl p-5 lg:p-6 relative overflow-hidden shadow-teal-lg"
           style={{background:G.hero}}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full pointer-events-none"
             style={{background:"radial-gradient(circle,rgba(255,255,255,0.05)0%,transparent 65%)"}}/>
 
-          {/* ── MOBILE: flex-col ── */}
+          { }
           <div className="flex flex-col gap-4 lg:hidden">
 
-            {/* Vendedor centrado */}
+            { }
             <div className="flex justify-center">
               <VendedorPicker filtroVendedor={filtroVendedor}
                 setFiltroVendedor={setFiltroVendedor} usuarios={usuarios}/>
             </div>
 
-            {/* Ingresos */}
+            { }
             <div>
               <div className="text-[10px] text-white/70 font-bold uppercase tracking-widest mb-1">
                 {periodoLabel} — Ingresos
@@ -268,7 +268,7 @@ function DashAdmin() {
               </div>
             </div>
 
-            {/* Mini tabla 2×2 */}
+            { }
             <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               {[
                 {l:"Ventas",      v:String(stats?.totalVentas||0)},
@@ -283,7 +283,7 @@ function DashAdmin() {
               ))}
             </div>
 
-            {/* Gráfico mobile + botones período */}
+            { }
             <div className="border-t border-white/10 pt-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[10px] text-white/70 font-bold uppercase tracking-wider">
@@ -305,19 +305,19 @@ function DashAdmin() {
             </div>
           </div>
 
-          {/* ── DESKTOP: grid 2 cols [35% / 65%] ── */}
+          { }
           <div className="hidden lg:grid lg:grid-cols-[35%_65%] lg:gap-6">
 
-            {/* COL IZQUIERDA */}
+            { }
             <div className="flex flex-col gap-3 border-r border-white/10 pr-6">
 
-              {/* Fila 1: Vendedor centrado */}
+              { }
               <div className="flex justify-center">
                 <VendedorPicker filtroVendedor={filtroVendedor}
                   setFiltroVendedor={setFiltroVendedor} usuarios={usuarios}/>
               </div>
 
-              {/* Fila 2: Ingresos */}
+              { }
               <div className="border-b border-white/10 pb-3">
                 <div className="text-[10px] text-white/70 font-bold uppercase tracking-widest mb-1">
                   {periodoLabel} — Ingresos
@@ -327,7 +327,7 @@ function DashAdmin() {
                 </div>
               </div>
 
-              {/* Fila 3: Ventas | Ticket prom */}
+              { }
               <div className="grid grid-cols-2 gap-x-4 border-b border-white/10 pb-3">
                 {[
                   {l:"Ventas",      v:String(stats?.totalVentas||0)},
@@ -340,7 +340,7 @@ function DashAdmin() {
                 ))}
               </div>
 
-              {/* Fila 4: Ganancia | Saldo total */}
+              { }
               <div className="grid grid-cols-2 gap-x-4">
                 {[
                   {l:"Ganancia",    v:money(ingresos-costos), accent:false},
@@ -354,7 +354,7 @@ function DashAdmin() {
               </div>
             </div>
 
-            {/* COL DERECHA: gráfico + botones período */}
+            { }
             <div className="flex flex-col">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[11px] text-white/75 font-bold uppercase tracking-wider">
@@ -381,10 +381,10 @@ function DashAdmin() {
           </div>
         </div>
 
-        {/* ══ FILA A: Cuentas | Métricas | Últimas Ventas ══════════════ */}
+        { }
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_2fr_6fr] gap-3 lg:gap-4 items-stretch">
 
-          {/* Cuentas */}
+          { }
           <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-teal-lg"
             style={{background:G.accounts}}>
             <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full pointer-events-none"
@@ -411,7 +411,7 @@ function DashAdmin() {
             </div>
           </div>
 
-          {/* Métricas */}
+          { }
           <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-brand-md"
             style={{background:G.kpi}}>
             <SectionLabel>Métricas del período</SectionLabel>
@@ -446,7 +446,7 @@ function DashAdmin() {
             </div>
           </div>
 
-          {/* Últimas Ventas */}
+          { }
           <div className="bg-white rounded-2xl p-4 lg:p-5 border border-brand/10 shadow-sm flex flex-col">
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <SectionLabel dark={false}>Últimas Ventas</SectionLabel>
@@ -503,9 +503,9 @@ function DashAdmin() {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// DASH VENDEDOR
-// ═════════════════════════════════════════════════════════════════════════
+
+
+
 function DashVendedor() {
   const {usuario} = useAuth();
   const navigate = useNavigate();
@@ -535,7 +535,7 @@ function DashVendedor() {
   return (
     <div className="flex flex-col gap-3">
 
-      {/* Filtro período */}
+      { }
         <div className="flex-shrink-0 flex gap-2 justify-center flex-wrap">
           {periodos.map(p=>(
             <button key={p.k} onClick={()=>setPeriodo(p.k)}
@@ -546,7 +546,7 @@ function DashVendedor() {
           ))}
         </div>
 
-        {/* HERO CARD */}
+        { }
         <div className="flex-shrink-0 rounded-3xl p-5 lg:p-6 relative overflow-hidden shadow-teal-lg"
           style={{background:G.hero}}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full pointer-events-none"
@@ -585,7 +585,7 @@ function DashVendedor() {
           </div>
         </div>
 
-        {/* Accesos + Mis Últimas Ventas */}
+        { }
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-3 lg:gap-4 items-stretch">
           <div className="bg-white rounded-2xl p-4 lg:p-5 border border-brand/10 shadow-sm">
             <SectionLabel dark={false}>Accesos Rápidos</SectionLabel>

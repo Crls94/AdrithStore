@@ -29,7 +29,7 @@ public class CompraAjuste {
     @Column(name = "fecha")
     private LocalDateTime fecha;
 
-    // COSTO | CANTIDAD | DEVOLUCION
+    
     @Column(name = "tipo", nullable = false)
     private String tipo;
 

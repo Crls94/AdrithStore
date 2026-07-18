@@ -17,7 +17,7 @@ public interface CompraRepository extends JpaRepository<Compra, Integer> {
     List<Compra> findAllByOrderByFechaDesc();
     List<Compra> findByEstadoOrderByFechaDesc(String estado);
 
-    // ── Reportes ───────────────────────────────────────────────────────────
+    
 
     @Query("""
         SELECT c FROM Compra c

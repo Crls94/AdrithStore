@@ -27,7 +27,7 @@ public interface TransaccionFinancieraRepository extends JpaRepository<Transacci
     @Query("SELECT t FROM TransaccionFinanciera t WHERE t.idVenta = :idVenta")
     List<TransaccionFinanciera> findByVentaId(@Param("idVenta") Integer idVenta);
 
-    // Saldo total de una cuenta usando signo +1/-1
+    
     @Query("""
         SELECT COALESCE(SUM(t.monto * t.signo), 0)
         FROM TransaccionFinanciera t
@@ -35,8 +35,8 @@ public interface TransaccionFinancieraRepository extends JpaRepository<Transacci
     """)
     Optional<BigDecimal> calcularSaldoTotal(@Param("idCuenta") Integer idCuenta);
 
-    // Gastos operativos del período (tipoMov='GASTO', signo=-1)
-    // El modelo tiene tipoMov (no 'tipo') y signo -1 para salidas
+    
+    
     @Query("""
         SELECT COALESCE(SUM(t.monto), 0)
         FROM TransaccionFinanciera t
@@ -71,7 +71,7 @@ public interface TransaccionFinancieraRepository extends JpaRepository<Transacci
 
     List<TransaccionFinanciera> findByFechaAfterOrderByFechaDesc(LocalDateTime desde);
 
-    // ── Reportes ───────────────────────────────────────────────────────────
+    
 
     @Query("""
         SELECT t FROM TransaccionFinanciera t

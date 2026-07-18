@@ -13,7 +13,7 @@ import java.util.List;
 public interface ProveedorRepository extends JpaRepository<Proveedor, Integer> {
     List<Proveedor> findByEmpresaContainingIgnoreCaseOrRucContaining(String empresa, String ruc);
 
-    // ── Reportes ───────────────────────────────────────────────────────────
+    
 
     @Query("""
         SELECT p, COUNT(c.idCompra), COALESCE(SUM(c.total), 0), MAX(c.fecha)

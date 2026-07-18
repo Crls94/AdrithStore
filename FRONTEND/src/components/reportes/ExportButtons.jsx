@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 const btnBase = {
   padding:"6px 14px", borderRadius:8, border:"none",
@@ -64,7 +64,7 @@ function exportarPDF(data, columnas, titulo) {
     })
   );
   doc.text(titulo || "Reporte", 14, 15);
-  doc.autoTable({
+  autoTable(doc, {
     head: [headers],
     body,
     startY: 22,
@@ -82,21 +82,49 @@ function exportarHTML() {
   window.print();
 }
 
-export default function ExportButtons({ data, columnas, titulo }) {
+export default function ExportButtons({ data, columnas, titulo, onObtenerTodo, onPrepararImpresion }) {
   if (!data || data.length === 0) return null;
 
+  
+  
+  const obtenerDatosCompletos = async () => {
+    if (!onObtenerTodo) return data;
+    try {
+      const todo = await onObtenerTodo();
+      return Array.isArray(todo) && todo.length > 0 ? todo : data;
+    } catch {
+      return data;
+    }
+  };
+
+  const handlePDF = async () => {
+    const filas = await obtenerDatosCompletos();
+    exportarPDF(filas, columnas, titulo);
+  };
+
+  const handleImprimir = async () => {
+    const filas = await obtenerDatosCompletos();
+    if (onPrepararImpresion) {
+      onPrepararImpresion(filas);
+      
+      setTimeout(() => window.print(), 50);
+    } else {
+      exportarHTML();
+    }
+  };
+
   return (
-    <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+    <div className="no-print" style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
       <button onClick={() => exportarExcel(data, columnas, titulo)} style={{ ...btnBase, background:"#E8F5E9", color:"#2E7D32" }}>
         📊 Excel
       </button>
       <button onClick={() => exportarCSV(data, columnas, titulo)} style={{ ...btnBase, background:"#FFF3E0", color:"#B84D00" }}>
         📄 CSV
       </button>
-      <button onClick={() => exportarPDF(data, columnas, titulo)} style={{ ...btnBase, background:"#FFEBEE", color:"#C62828" }}>
+      <button onClick={handlePDF} style={{ ...btnBase, background:"#FFEBEE", color:"#C62828" }}>
         📕 PDF
       </button>
-      <button onClick={exportarHTML} style={{ ...btnBase, background:"#E8F0FE", color:"#1A73E8" }}>
+      <button onClick={handleImprimir} style={{ ...btnBase, background:"#E8F0FE", color:"#1A73E8" }}>
         🖨️ Imprimir
       </button>
     </div>
