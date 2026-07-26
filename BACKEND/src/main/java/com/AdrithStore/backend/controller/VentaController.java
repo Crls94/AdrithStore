@@ -84,23 +84,27 @@ public class VentaController {
             Producto p = productoRepo.findById(d.getIdProducto()).orElse(null);
             if (p == null) continue;
 
-            int cantidad = d.getCantidad() != null ? d.getCantidad() : 1;
+            BigDecimal cantidad = d.getCantidad() != null ? d.getCantidad() : BigDecimal.ONE;
+
+            if (!p.esVentaPorKg() && cantidad.stripTrailingZeros().scale() > 0)
+                return ResponseEntity.badRequest()
+                    .body("Este producto se vende solo en unidades enteras: " + p.getNombre());
 
             if ("BIEN_FISICO".equals(p.getTipo()) || "CONSUMIBLE".equals(p.getTipo())) {
-                if (p.getStock() < cantidad && !Boolean.TRUE.equals(p.getPermiteStockNegativo()))
+                if (p.getStock().compareTo(cantidad) < 0 && !Boolean.TRUE.equals(p.getPermiteStockNegativo()))
                     return ResponseEntity.badRequest()
                         .body("Stock insuficiente: " + p.getNombre() + " (disponible: " + p.getStock() + ")");
-                p.setStock(p.getStock() - cantidad);
+                p.setStock(p.getStock().subtract(cantidad));
                 productoRepo.save(p);
             }
 
             BigDecimal precio      = p.getPrecioVenta() != null ? p.getPrecioVenta() : BigDecimal.ZERO;
-            
+
             BigDecimal dscItem     = d.getDescuentoItem() != null ? d.getDescuentoItem() : BigDecimal.ZERO;
-            BigDecimal maxDscItem  = precio.multiply(BigDecimal.valueOf(cantidad));
+            BigDecimal maxDscItem  = precio.multiply(cantidad);
             if (dscItem.compareTo(maxDscItem) > 0) dscItem = maxDscItem;
 
-            BigDecimal subtotal = precio.multiply(BigDecimal.valueOf(cantidad)).subtract(dscItem);
+            BigDecimal subtotal = precio.multiply(cantidad).subtract(dscItem);
             totalBruto = totalBruto.add(subtotal);
 
             VentaDetalle det = new VentaDetalle();
@@ -246,7 +250,7 @@ public class VentaController {
             for (VentaDetalle det : v.getDetalles()) {
                 Producto p = det.getProducto();
                 if (p != null && ("BIEN_FISICO".equals(p.getTipo()) || "CONSUMIBLE".equals(p.getTipo()))) {
-                    p.setStock(p.getStock() + det.getCantidad());
+                    p.setStock(p.getStock().add(det.getCantidad()));
                     productoRepo.save(p);
                 }
             }
@@ -291,8 +295,8 @@ public class VentaController {
         }
         @Data public static class DetalleItem {
             private Integer    idProducto;
-            private Integer    cantidad;
-            private BigDecimal descuentoItem; 
+            private BigDecimal cantidad;
+            private BigDecimal descuentoItem;
         }
         @Data public static class DetalleServicioItem {
             private Integer    idProducto;

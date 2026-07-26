@@ -13,7 +13,9 @@ public interface CierreDiarioRepository extends JpaRepository<CierreDiario, Inte
 
     List<CierreDiario> findByFechaCierreOrderByIdCierre(LocalDate fechaCierre);
 
-    Optional<CierreDiario> findByFechaCierreAndCuenta_IdCuenta(LocalDate fechaCierre, Integer idCuenta);
+
+    Optional<CierreDiario> findFirstByFechaCierreAndCuenta_IdCuentaOrderByCerradoEnDesc(
+        LocalDate fechaCierre, Integer idCuenta);
 
     List<CierreDiario> findByFechaCierreBetweenOrderByFechaCierreDesc(LocalDate desde, LocalDate hasta);
 }

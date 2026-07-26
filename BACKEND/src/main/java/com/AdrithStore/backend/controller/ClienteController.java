@@ -34,10 +34,10 @@ public class ClienteController {
     public ResponseEntity<Cliente> actualizar(@PathVariable Integer id,
                                                @RequestBody Cliente datos) {
         return clienteRepo.findById(id).map(c -> {
-            c.setNombre(datos.getNombre());
-            c.setApellido(datos.getApellido());
-            c.setDni(datos.getDni());
-            c.setTelefono(datos.getTelefono());
+            if (datos.getNombre() != null)   c.setNombre(datos.getNombre());
+            if (datos.getApellido() != null) c.setApellido(datos.getApellido());
+            if (datos.getDni() != null)      c.setDni(datos.getDni());
+            if (datos.getTelefono() != null) c.setTelefono(datos.getTelefono());
             return ResponseEntity.ok(clienteRepo.save(c));
         }).orElse(ResponseEntity.notFound().build());
     }

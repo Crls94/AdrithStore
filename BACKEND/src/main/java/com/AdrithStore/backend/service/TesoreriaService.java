@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -53,7 +54,20 @@ public class TesoreriaService {
         tx.setCreadaPor(creadaPor);
         tx.setFecha(LocalDateTime.now());
 
-        return txRepo.save(tx);
+        TransaccionFinanciera guardada = txRepo.save(tx);
+        recalcularSaldoCuenta(cuenta);
+        return guardada;
+    }
+
+    // Mantiene el saldo cacheado de la cuenta al día en cada movimiento, en vez de
+    // depender de recalcularSaldos() (que hoy solo corre al abrir período o al cerrar caja).
+    @Transactional
+    public void recalcularSaldoCuenta(CuentaFinanciera cuenta) {
+        BigDecimal saldo = txRepo.calcularSaldoTotal(cuenta.getIdCuenta())
+            .orElse(BigDecimal.ZERO)
+            .setScale(2, RoundingMode.HALF_UP);
+        cuenta.setSaldoActual(saldo);
+        cuentaRepo.save(cuenta);
     }
 
     
@@ -155,25 +169,29 @@ public class TesoreriaService {
         List<CuentaFinanciera> cuentas = cuentaRepo.findByActivaTrue();
         List<Map<String, Object>> preview = new ArrayList<>();
         for (CuentaFinanciera c : cuentas) {
+            boolean esEfectivo = "EFECTIVO".equalsIgnoreCase(c.getTipo());
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("idCuenta", c.getIdCuenta());
             item.put("nombre", c.getNombre());
+            item.put("tipo", c.getTipo());
             item.put("saldoSistema", c.getSaldoActual());
             item.put("fondoCaja", c.getFondoCaja() != null ? c.getFondoCaja() : BigDecimal.ZERO);
-            item.put("retiroSugerido",
-                c.getSaldoActual().subtract(c.getFondoCaja() != null ? c.getFondoCaja() : BigDecimal.ZERO));
+            item.put("retiroSugerido", esEfectivo
+                ? c.getSaldoActual().subtract(c.getFondoCaja() != null ? c.getFondoCaja() : BigDecimal.ZERO)
+                : BigDecimal.ZERO);
 
-            boolean yaCerrado = cierreRepo
-                .findByFechaCierreAndCuenta_IdCuenta(fecha, c.getIdCuenta()).isPresent();
-            item.put("yaCerrado", yaCerrado);
+            // "yaCerrado" es solo informativo (hubo al menos un cierre hoy) — no bloquea
+            // volver a cerrar la cuenta; se permiten varios cierres el mismo día para
+            // reconciliar con más frecuencia y corregir cierres previos con error.
+            Optional<CierreDiario> ultimoCierre = cierreRepo
+                .findFirstByFechaCierreAndCuenta_IdCuentaOrderByCerradoEnDesc(fecha, c.getIdCuenta());
+            item.put("yaCerrado", ultimoCierre.isPresent());
 
-            if (yaCerrado) {
-                CierreDiario cd = cierreRepo
-                    .findByFechaCierreAndCuenta_IdCuenta(fecha, c.getIdCuenta()).get();
+            ultimoCierre.ifPresent(cd -> {
                 item.put("saldoContado", cd.getSaldoContado());
                 item.put("diferencia", cd.getDiferencia());
                 item.put("cerradoEn", cd.getCerradoEn());
-            }
+            });
 
             preview.add(item);
         }
@@ -188,19 +206,21 @@ public class TesoreriaService {
                 .orElseThrow(() -> new IllegalArgumentException(
                     "Cuenta no encontrada: " + item.getIdCuenta()));
 
-            
-            if (cierreRepo.findByFechaCierreAndCuenta_IdCuenta(fecha, cuenta.getIdCuenta()).isPresent())
-                throw new IllegalStateException(
-                    "La cuenta " + cuenta.getNombre() + " ya fue cerrada para el día " + fecha);
-
+            // Se permiten varios cierres por cuenta el mismo día: cada uno reconcilia
+            // contra el saldo del sistema en ese momento, permitiendo corregir con
+            // más frecuencia en vez de esperar a un único cierre diario.
             BigDecimal saldoSistema = cuenta.getSaldoActual();
             BigDecimal saldoContado = item.getSaldoContado();
             BigDecimal diferencia = saldoContado.subtract(saldoSistema);
             BigDecimal fondo = cuenta.getFondoCaja() != null ? cuenta.getFondoCaja() : BigDecimal.ZERO;
-            BigDecimal retiro = saldoContado.subtract(fondo);
+            // El retiro físico (dejar solo el fondo en caja) solo aplica a efectivo:
+            // las cuentas digitales/bancarias no tienen un cajón del que "sacar" dinero,
+            // el saldo contado debe quedar tal cual como saldo del sistema.
+            boolean esEfectivo = "EFECTIVO".equalsIgnoreCase(cuenta.getTipo());
+            BigDecimal retiro = esEfectivo ? saldoContado.subtract(fondo) : BigDecimal.ZERO;
             boolean ajusteRegistrado = false;
 
-            
+
             if (diferencia.compareTo(BigDecimal.ZERO) != 0) {
                 int signo = diferencia.compareTo(BigDecimal.ZERO) > 0 ? 1 : -1;
                 registrar("AJUSTE", cuenta.getNombre(), diferencia.abs(), signo,
@@ -210,8 +230,8 @@ public class TesoreriaService {
                 cuenta.setSaldoActual(saldoContado);
             }
 
-            
-            if (retiro.compareTo(BigDecimal.ZERO) > 0) {
+
+            if (esEfectivo && retiro.compareTo(BigDecimal.ZERO) > 0) {
                 registrar("RETIRO", cuenta.getNombre(), retiro, -1,
                     "RETIRO cierre " + fecha + " (contado=" + saldoContado + ", fondo=" + fondo + ")",
                     null, null, usuario);

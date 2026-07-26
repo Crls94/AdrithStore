@@ -6,6 +6,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { T } from '../theme';
 import api from '../api/axiosConfig';
 import { imprimirComprobanteVenta } from '../utils/comprobantePdf';
+import FormProducto from '../components/forms/FormProducto';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 const resolverImagen = (url) => {
@@ -20,6 +21,9 @@ const COLORES_CAT = [
 ];
 
 const MEDIOS_PAGO = ['Efectivo', 'Plin', 'Yape', 'Tarjeta', 'Transferencia'];
+
+const MEDIO_PAGO_KEY = 'adrith_medio_pago_default';
+const medioPagoDefault = () => localStorage.getItem(MEDIO_PAGO_KEY) || 'Yape';
 
 export default function Ventas() {
   const navigate  = useNavigate();
@@ -46,7 +50,8 @@ export default function Ventas() {
   const [exito,      setExito]      = useState('');
   
   const [vistaMobile,setVistaMobile]= useState(null);
-  const [ultimaVenta,setUltimaVenta]= useState(null); 
+  const [ultimaVenta,setUltimaVenta]= useState(null);
+  const [modalEditarProd, setModalEditarProd] = useState(null);
   const busqRef = useRef(null);
   const uidRef  = useRef(0);
   const isMobile = useIsMobile();
@@ -58,7 +63,7 @@ export default function Ventas() {
   const [cuentas, setCuentas] = useState([]);
 
   
-  const [pagos, setPagos] = useState([{ medioPago: 'Efectivo', monto: '' }]);
+  const [pagos, setPagos] = useState([{ medioPago: medioPagoDefault(), monto: '' }]);
 
   
   const [descGlobalInput, setDescGlobalInput] = useState('');
@@ -88,12 +93,23 @@ export default function Ventas() {
       .finally(() => setCargando(false));
   }, []);
 
-  
+
   const cantidadEnCarrito = (id) => {
     const items = carrito.filter(i => i.idProducto === id);
     if (items.length === 0) return 0;
     const normQty = items.reduce((a, i) => a + (i.cantidad || 0), 0);
     return normQty || items.length;
+  };
+
+  const recargarProductos = () => api.get('/productos').then(r => setProductos(r.data));
+
+  const quitarUnaDelCarrito = (prod) => {
+    setCarrito(c => {
+      const existe = c.find(i => i.idProducto === prod.idProducto && i.tipoItem === 'normal');
+      if (!existe) return c;
+      if (existe.cantidad <= 1) return c.filter(i => i._uid !== existe._uid);
+      return c.map(i => i._uid === existe._uid ? { ...i, cantidad: i.cantidad - 1 } : i);
+    });
   };
 
   const agregarAlCarrito = (prod) => {
@@ -166,6 +182,7 @@ export default function Ventas() {
         precio:     parseFloat(prod.precioVenta),
         stockDisp:  prod.stock,
         permiteNeg: prod.permiteStockNegativo,
+        unidadMedida: prod.unidadMedida ?? 'UNIDAD',
         cantidad:   1,
         descuento:  0,
       }];
@@ -173,11 +190,14 @@ export default function Ventas() {
   };
 
   const cambiarCantidad = (uid, val) => {
-    const n = Math.max(1, parseInt(val) || 1);
     setCarrito(c => c.map(i => {
       if (i._uid !== uid || i.tipoItem !== 'normal') return i;
+      const esKg = i.unidadMedida === 'KG';
+      const n = esKg
+        ? Math.max(0.001, Math.round((parseFloat(val) || 0) * 1000) / 1000)
+        : Math.max(1, parseInt(val) || 1);
       if (!i.permiteNeg && n > i.stockDisp) {
-        setError('Máx ' + i.stockDisp + ' und.'); return i;
+        setError('Máx ' + i.stockDisp + (esKg ? ' kg.' : ' und.')); return i;
       }
       return { ...i, cantidad: n };
     }));
@@ -200,7 +220,7 @@ export default function Ventas() {
   };
   const limpiarCarrito = ()   => {
     setCarrito([]); setError(''); setDescGlobalInput('');
-    setPagos([{ medioPago: 'Efectivo', monto: '' }]);
+    setPagos([{ medioPago: medioPagoDefault(), monto: '' }]);
   };
 
   
@@ -237,10 +257,12 @@ export default function Ventas() {
   const vuelto      = pagos.length === 1 && pagos[0].medioPago === 'Efectivo'
     ? Math.max(0, totalPagado - totalFinal) : 0;
 
-  const actualizarPago   = (idx, campo, valor) =>
+  const actualizarPago   = (idx, campo, valor) => {
+    if (campo === 'medioPago') localStorage.setItem(MEDIO_PAGO_KEY, valor);
     setPagos(ps => ps.map((p, i) => i === idx ? { ...p, [campo]: valor } : p));
+  };
   const agregarMedioPago = () =>
-    setPagos(ps => [...ps, { medioPago: 'Efectivo', monto: '' }]);
+    setPagos(ps => [...ps, { medioPago: medioPagoDefault(), monto: '' }]);
   const quitarMedioPago  = (idx) => {
     if (pagos.length === 1) return;
     setPagos(ps => ps.filter((_, i) => i !== idx));
@@ -307,7 +329,7 @@ export default function Ventas() {
           .filter(i => i.tipoItem === 'normal')
           .map(i => ({
             idProducto:    i.idProducto,
-            cantidad:      i.cantidad,
+            cantidad:      Number((i.cantidad || 0).toFixed(3)),
             descuentoItem: parseFloat((i.descuento || 0).toFixed(2)),
           })),
         detallesServicio: carrito
@@ -554,21 +576,37 @@ export default function Ventas() {
                   const img       = resolverImagen(prod.imagenUrl);
                   const stockBajo = prod.tipo === 'BIEN_FISICO'
                     && prod.stock <= prod.stockAlert && prod.stock > 0;
+                  const costoProd = parseFloat(prod.cpp) > 0 ? parseFloat(prod.cpp) : parseFloat(prod.precioCosto || 0);
+                  const precioVentaNum = parseFloat(prod.precioVenta) || 0;
+                  const margenPct = precioVentaNum > 0 ? ((precioVentaNum - costoProd) / precioVentaNum) * 100 : 0;
+                  const margenColor = margenPct < 0 ? '#b06060' : margenPct < 20 ? '#e6950a' : '#0d8c6e';
 
                   return (
-                    <button key={prod.idProducto}
-                      onClick={() => agregarAlCarrito(prod)}
-                      disabled={sinStock}
-                      title={sinStock ? 'Sin stock disponible' : prod.nombre}
+                    <div key={prod.idProducto}
+                      onClick={() => !sinStock && agregarAlCarrito(prod)}
+                      onContextMenu={e => { e.preventDefault(); quitarUnaDelCarrito(prod); }}
+                      title={sinStock ? 'Sin stock disponible' : prod.nombre + ' (clic derecho quita 1 del carrito)'}
                       style={{ background: T.bgCard,
                         border: enCarrito > 0 ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
-                        borderRadius:'12px', padding:'10px 8px',
+                        borderRadius: T.radiusLg, padding: 0, overflow:'hidden',
                         cursor: sinStock ? 'not-allowed' : 'pointer',
-                        textAlign:'center', transition:'all 0.15s',
-                        opacity: sinStock ? 0.45 : 1, position:'relative' }}>
+                        textAlign:'center', transition:'box-shadow 0.2s, opacity 0.15s',
+                        opacity: sinStock ? 0.45 : 1, position:'relative',
+                        boxShadow: T.shadow, display:'flex', flexDirection:'column' }}
+                      onMouseEnter={e => { e.currentTarget.style.boxShadow = T.shadowHover; }}
+                      onMouseLeave={e => { e.currentTarget.style.boxShadow = T.shadow; }}>
+
+                      <button onClick={e => { e.stopPropagation(); setModalEditarProd(prod); }}
+                        title="Editar producto"
+                        style={{ position:'absolute', top:'6px', right:'6px', zIndex:1,
+                          width:'22px', height:'22px', borderRadius:'50%', border:`1px solid ${T.border}`,
+                          background: T.bgCard, color: T.textSecond, cursor:'pointer', padding:0,
+                          display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px' }}>
+                        <i className="bi bi-pencil" />
+                      </button>
 
                       {enCarrito > 0 && (
-                        <div style={{ position:'absolute', top:'6px', right:'6px',
+                        <div style={{ position:'absolute', top:'6px', left:'6px', zIndex:1,
                           background: T.gold, color:'#0f0f0f',
                           borderRadius:'50%', width:'20px', height:'20px',
                           fontSize:'11px', fontWeight:800,
@@ -577,43 +615,61 @@ export default function Ventas() {
                         </div>
                       )}
 
-                      {img
-                        ? <img src={img} alt="" style={{ width:52, height:52, objectFit:'contain',
-                            borderRadius:6, marginBottom:6 }} />
-                        : <div style={{ width:52, height:52, borderRadius:8, margin:'0 auto 6px',
-                            background: sinStock ? '#555' : colorCat(prod.categoria?.idCategoria),
-                            display:'flex', alignItems:'center', justifyContent:'center',
-                            fontSize:22, color:'#fff' }}>
+                      { }
+                      <div style={{ height:'70px', flexShrink:0, position:'relative',
+                        background: img ? 'transparent' : colorCat(prod.categoria?.idCategoria)+'22' }}>
+                        {img ? (
+                          <img src={img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                        ) : (
+                          <div style={{ position:'absolute', inset:0, display:'flex',
+                            alignItems:'center', justifyContent:'center',
+                            color: colorCat(prod.categoria?.idCategoria), fontSize:26 }}>
                             <i className="bi bi-box-seam" />
                           </div>
-                      }
+                        )}
+                      </div>
 
-                      <div style={{ fontSize:'11px', fontWeight:600, color: T.textPrimary,
-                        lineHeight:1.2, marginBottom:3, wordBreak:'break-word',
-                        display:'-webkit-box', WebkitLineClamp:2,
-                        WebkitBoxOrient:'vertical', overflow:'hidden' }}>
-                        {prod.nombre}
-                      </div>
-                      {prod.sku && (
-                        <div style={{ fontSize:'9px', color: T.textMuted, marginBottom:2 }}>
-                          {prod.sku}
+                      { }
+                      <div style={{ padding:'8px', flex:1, display:'flex', flexDirection:'column' }}>
+                        <div style={{ fontSize:'11px', fontWeight:600, color: T.textPrimary,
+                          lineHeight:1.2, marginBottom:3, wordBreak:'break-word',
+                          display:'-webkit-box', WebkitLineClamp:2,
+                          WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+                          {prod.nombre}
                         </div>
-                      )}
-                      <div style={{ fontSize:'14px', fontWeight:800, color: T.gold }}>
-                        S/ {parseFloat(prod.precioVenta).toFixed(2)}
-                      </div>
-                      {prod.tipo === 'BIEN_FISICO' && (
-                        <div style={{ fontSize:'10px',
-                          color: sinStock ? '#b06060' : stockBajo ? '#e6950a' : T.textMuted,
-                          fontWeight: (sinStock || stockBajo) ? 700 : 400 }}>
-                          {sinStock ? '✗ Sin stock' : `${prod.stock} und`}
-                          {stockBajo && !sinStock ? ' ⚠' : ''}
+                        {prod.sku && (
+                          <div style={{ fontSize:'9px', color: T.textMuted, marginBottom:2 }}>
+                            {prod.sku}
+                          </div>
+                        )}
+                        <div style={{ fontSize:'14px', fontWeight:800, color: T.gold, marginBottom:4 }}>
+                          S/ {parseFloat(prod.precioVenta).toFixed(2)}
                         </div>
-                      )}
-                      {prod.tipo !== 'BIEN_FISICO' && (
-                        <div style={{ fontSize:'14px', fontWeight:700, color: T.gold, lineHeight:1.4 }}>∞</div>
-                      )}
-                    </button>
+                        <div style={{ display:'flex', justifyContent:'center', flexWrap:'wrap', gap:4, marginTop:'auto' }}>
+                          {prod.tipo === 'BIEN_FISICO' ? (
+                            <>
+                              <span style={{ fontSize:'10px', fontWeight:700, padding:'2px 8px',
+                                borderRadius:'999px',
+                                background: sinStock ? '#b0606022' : stockBajo ? '#e6950a22' : T.bgMuted,
+                                color: sinStock ? '#b06060' : stockBajo ? '#e6950a' : T.textMuted }}>
+                                {sinStock ? '✗ Sin stock' : `${prod.stock} ${prod.unidadMedida==='KG'?'kg':'und'}`}
+                                {stockBajo && !sinStock ? ' ⚠' : ''}
+                              </span>
+                              <span style={{ fontSize:'10px', fontWeight:700, padding:'2px 8px',
+                                borderRadius:'999px', background:T.bgMuted, color:T.textMuted }}>
+                                S/ {costoProd.toFixed(2)}
+                              </span>
+                              <span style={{ fontSize:'10px', fontWeight:700, padding:'2px 8px',
+                                borderRadius:'999px', background: margenColor+'22', color: margenColor }}>
+                                {margenPct.toFixed(0)}% marg.
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ fontSize:'14px', fontWeight:700, color: T.gold, lineHeight:1.4 }}>∞</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -728,9 +784,11 @@ export default function Ventas() {
                           {btn}
                         </button>
                       ))}
-                      <input type="number" value={item.cantidad} min="1"
+                      <input type="number" value={item.cantidad}
+                        min={item.unidadMedida==='KG'?'0.001':'1'}
+                        step={item.unidadMedida==='KG'?'0.001':'1'}
                         onChange={e => cambiarCantidad(item._uid, e.target.value)}
-                        style={{ width:'38px', textAlign:'center', border:`1px solid ${T.border}`,
+                        style={{ width:'48px', textAlign:'center', border:`1px solid ${T.border}`,
                           borderRadius:'6px', padding:'2px', fontSize:'12px', outline:'none',
                           background: T.bgCard, color: T.textPrimary }} />
                     </div>
@@ -1171,6 +1229,15 @@ export default function Ventas() {
             </button>
           </div>
         </div>
+      )}
+
+      {modalEditarProd && (
+        <FormProducto
+          producto={modalEditarProd}
+          categorias={categorias}
+          onClose={() => setModalEditarProd(null)}
+          onGuardado={recargarProductos}
+        />
       )}
     </div>
   );

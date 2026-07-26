@@ -21,6 +21,8 @@ public class DashboardController {
     private final ProductoRepository            productoRepo;
     private final CuentaFinancieraRepository    cuentaRepo;
     private final TransaccionFinancieraRepository transaccionRepo;
+    private final VentaDetalleServicioRepository ventaDetalleServicioRepo;
+    private final CompraRepository              compraRepo;
 
     
     
@@ -40,12 +42,19 @@ public class DashboardController {
 
         int totalVentas = ventas.size();
 
-        
+
         BigDecimal ingresos = ventas.stream()
             .map(v -> v.getTotal() != null ? v.getTotal() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        
+        // El monto transferido en una TRANSFERENCIA (SERVICIO_COMIS) es un movimiento interno
+        // (Plin/Yape <-> efectivo), no una venta real — solo la comisión cobrada lo es. Se descuenta
+        // del total de ingresos para que no infle la ganancia mostrada en el dashboard.
+        BigDecimal montoTransferencias = ventaDetalleServicioRepo.sumMontoTransferenciasEntreFechas(desde, hasta);
+        if (montoTransferencias == null) montoTransferencias = BigDecimal.ZERO;
+        ingresos = ingresos.subtract(montoTransferencias);
+
+
         BigDecimal costos = ventaRepo.sumCostosEntreFechas(desde, hasta);
         if (costos == null) costos = BigDecimal.ZERO;
 
@@ -102,10 +111,14 @@ public class DashboardController {
             .map(c -> c.getSaldoActual() != null ? c.getSaldoActual() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        BigDecimal totalPercepcion = compraRepo.sumPercepcionTotal();
+        if (totalPercepcion == null) totalPercepcion = BigDecimal.ZERO;
+
         Map<String, Object> res = new LinkedHashMap<>();
-        res.put("cuentas",      cuentas);
-        res.put("totalGeneral", total);
-        res.put("periodo",      LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM")));
+        res.put("cuentas",         cuentas);
+        res.put("totalGeneral",    total);
+        res.put("totalPercepcion", totalPercepcion);
+        res.put("periodo",         LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM")));
         return res;
     }
 

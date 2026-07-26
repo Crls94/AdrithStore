@@ -239,6 +239,7 @@ function DashAdmin() {
     const real = tes?.cuentas?.find(c=>c.nombre.toLowerCase().includes(fija.nombre.toLowerCase()));
     return {nombre:fija.nombre, icono:fija.icono, saldo:real?.saldoActual??null};
   });
+  const totalPercepcion = tes?.totalPercepcion ?? null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -382,7 +383,7 @@ function DashAdmin() {
         </div>
 
         { }
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_2fr_6fr] gap-3 lg:gap-4 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1.5fr_2fr] gap-3 lg:gap-4 items-stretch">
 
           { }
           <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-teal-lg"
@@ -408,6 +409,15 @@ function DashAdmin() {
                   </div>
                 </div>
               ))}
+              <div className="rounded-xl p-3 backdrop-blur-md"
+                style={{background:G.glass,border:`1px solid ${G.glassBorder}`}}>
+                <div className="text-[10px] text-white/85 font-semibold uppercase tracking-wide mb-1">
+                  🧾 Percepción
+                </div>
+                <div className={clsx("text-sm font-black break-words",totalPercepcion!==null?"text-white":"text-white/25")}>
+                  {totalPercepcion!==null ? money(totalPercepcion) : "—"}
+                </div>
+              </div>
             </div>
           </div>
 

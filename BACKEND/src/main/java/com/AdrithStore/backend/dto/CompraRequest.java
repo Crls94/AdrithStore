@@ -14,6 +14,7 @@ public class CompraRequest {
     private String        serieComprobante;
     private BigDecimal    percepcion;
     private BigDecimal    descuentoGlobal;
+    private String        medioPago;
 
     
     private LocalDateTime fechaIngreso;
@@ -23,21 +24,21 @@ public class CompraRequest {
     @Data
     public static class DetalleItem {
         private Integer    idProducto;
-        private Integer    cantidad;
-        private BigDecimal costoUnitario;  
-        private BigDecimal precioVenta;    
+        private BigDecimal cantidad;
+        private BigDecimal costoUnitario;
+        private BigDecimal precioVenta;
         private Integer    idUnidad;
         private BigDecimal descuentoPct;
         private LocalDate  vencimiento;
 
-        
-        
-        private Integer    unidadesBonificacion;  
 
-        
-        
-        private Integer    idProductoBonif;       
-        private Integer    cantidadBonif;         
-        private BigDecimal costoBonifTotal;       
+
+        private BigDecimal unidadesBonificacion;
+
+
+
+        private Integer    idProductoBonif;
+        private BigDecimal cantidadBonif;
+        private BigDecimal costoBonifTotal;
     }
 }

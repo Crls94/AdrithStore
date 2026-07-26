@@ -25,7 +25,7 @@ public class VentaDetalle {
     @JsonIgnoreProperties({"hibernateLazyInitializer","handler"})
     private Producto producto;
 
-    @Column(name = "cantidad")          private Integer cantidad;
+    @Column(name = "cantidad", precision = 10, scale = 3) private BigDecimal cantidad;
     @Column(name = "precio_historico",  precision = 10, scale = 2) private BigDecimal precioHistorico;
     @Column(name = "costo_historico",   precision = 10, scale = 4) private BigDecimal costoHistorico;
     

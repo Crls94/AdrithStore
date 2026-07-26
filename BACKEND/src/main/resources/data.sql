@@ -1,7 +1,6 @@
 
 
 
-
 INSERT INTO categorias (nombre, descripcion) VALUES ('Abarrotes', 'Categoría Abarrotes') ON CONFLICT (nombre) DO NOTHING;
 INSERT INTO categorias (nombre, descripcion) VALUES ('Bazar', 'Categoría Bazar') ON CONFLICT (nombre) DO NOTHING;
 INSERT INTO categorias (nombre, descripcion) VALUES ('Bebidas', 'Categoría Bebidas') ON CONFLICT (nombre) DO NOTHING;

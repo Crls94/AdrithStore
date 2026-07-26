@@ -102,7 +102,7 @@ public class SetupController {
         List<Producto> productos = productoRepo.findAll();
         for (Producto p : productos)
             if ("BIEN_FISICO".equals(p.getTipo()) || "CONSUMIBLE".equals(p.getTipo()))
-                p.setStock(0);
+                p.setStock(BigDecimal.ZERO);
         productoRepo.saveAll(productos);
 
         List<CuentaFinanciera> cuentas = cuentaRepo.findAll();

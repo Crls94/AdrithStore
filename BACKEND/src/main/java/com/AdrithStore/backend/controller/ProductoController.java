@@ -5,6 +5,7 @@ import com.AdrithStore.backend.repository.CategoriaRepository;
 import com.AdrithStore.backend.repository.ProductoRepository;
 import com.AdrithStore.backend.service.LogService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
@@ -53,7 +54,7 @@ public class ProductoController {
 
     @GetMapping("/stock-negativo")
     public List<Producto> stockNegativo() {
-        return productoRepo.findByStockLessThan(0);
+        return productoRepo.findByStockLessThan(BigDecimal.ZERO);
     }
 
     @GetMapping("/{id}")
@@ -65,6 +66,7 @@ public class ProductoController {
 
     @PostMapping
     public ResponseEntity<?> crear(@RequestBody Producto producto) {
+        if (producto.getSku() != null && producto.getSku().isBlank()) producto.setSku(null);
         forzarTipoPorCategoria(producto);
         String error = validarProducto(producto);
         if (error != null) return ResponseEntity.badRequest().body(error);
@@ -87,7 +89,16 @@ public class ProductoController {
         if (producto.getCpp() == null || producto.getCpp().compareTo(BigDecimal.ZERO) == 0)
             producto.setCpp(producto.getPrecioCosto());
 
-        return ResponseEntity.ok(productoRepo.save(producto));
+        try {
+            Producto guardado = productoRepo.save(producto);
+            if (guardado.getSku() == null) {
+                guardado.setSku(String.format("PROD-%05d", guardado.getIdProducto()));
+                guardado = productoRepo.save(guardado);
+            }
+            return ResponseEntity.ok(guardado);
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.badRequest().body("El SKU \"" + producto.getSku() + "\" ya está en uso por otro producto.");
+        }
     }
 
     @PutMapping("/{id}")
@@ -109,6 +120,7 @@ public class ProductoController {
             }
         }
 
+        if (datos.getSku() != null && datos.getSku().isBlank()) datos.setSku(null);
         forzarTipoPorCategoria(datos);
         String error = validarProducto(datos);
         if (error != null) return ResponseEntity.badRequest().body(error);
@@ -118,6 +130,7 @@ public class ProductoController {
         p.setTipo(datos.getTipo());
         p.setVisibleEnPos("CONSUMIBLE".equals(datos.getTipo()) ? false : datos.getVisibleEnPos());
         p.setStock(datos.getStock());
+        p.setUnidadMedida(datos.getUnidadMedida());
         p.setPrecioCosto(datos.getPrecioCosto());
         p.setPorcentajeCosto(datos.getPorcentajeCosto());
         p.setPrecioVenta(datos.getPrecioVenta());
@@ -125,11 +138,15 @@ public class ProductoController {
         p.setDescripcion(datos.getDescripcion());
         p.setCategoria(datos.getCategoria());
         p.setPermiteStockNegativo(datos.getPermiteStockNegativo());
-        p.setComisionBase(datos.getComisionBase());
-        p.setComisionCada(datos.getComisionCada());
-        if (datos.getCpp() != null) p.setCpp(datos.getCpp());
+        p.setCpp(datos.getCpp());
+        if (datos.getComisionBase() != null) p.setComisionBase(datos.getComisionBase());
+        if (datos.getComisionCada() != null) p.setComisionCada(datos.getComisionCada());
         if (datos.getImagenUrl() != null) p.setImagenUrl(datos.getImagenUrl());
-        return ResponseEntity.ok(productoRepo.save(p));
+        try {
+            return ResponseEntity.ok(productoRepo.save(p));
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.badRequest().body("El SKU \"" + datos.getSku() + "\" ya está en uso por otro producto.");
+        }
     }
 
     @PatchMapping("/{id}/imagen")
@@ -151,16 +168,20 @@ public class ProductoController {
             return ResponseEntity.badRequest()
                 .body("Solo se puede ajustar stock en BIEN_FISICO y CONSUMIBLE.");
 
-        int delta     = ((Number) req.get("delta")).intValue();
-        String motivo = (String) req.getOrDefault("motivo", "Ajuste manual");
-        int antes     = p.getStock() != null ? p.getStock() : 0;
-        p.setStock(antes + delta);
+        BigDecimal delta  = new BigDecimal(req.get("delta").toString());
+        if (!p.esVentaPorKg() && delta.stripTrailingZeros().scale() > 0)
+            return ResponseEntity.badRequest()
+                .body("Este producto se vende por unidad: el ajuste no puede tener decimales.");
+
+        String motivo     = (String) req.getOrDefault("motivo", "Ajuste manual");
+        BigDecimal antes  = p.getStock() != null ? p.getStock() : BigDecimal.ZERO;
+        p.setStock(antes.add(delta));
         productoRepo.save(p);
 
         logService.log(LogService.STOCK_AJUSTADO, "PRODUCTO", id,
             "Stock: " + antes + " -> " + p.getStock() + " | " + motivo, null);
 
-        if (p.getStock() < 0)
+        if (p.getStock().compareTo(BigDecimal.ZERO) < 0)
             logService.log(LogService.STOCK_NEGATIVO, "PRODUCTO", id,
                 "Stock negativo: " + p.getStock(), null);
 
@@ -178,6 +199,15 @@ public class ProductoController {
     private String validarProducto(Producto p) {
         if (p.getTipo() == null || p.getTipo().isBlank())
             p.setTipo("BIEN_FISICO");
+        if (p.getUnidadMedida() == null || p.getUnidadMedida().isBlank())
+            p.setUnidadMedida("UNIDAD");
+
+        if (!p.esVentaPorKg()) {
+            if (p.getStock() != null && p.getStock().stripTrailingZeros().scale() > 0)
+                return "Este producto se vende por unidad: el stock no puede tener decimales.";
+            if (p.getStockAlert() != null && p.getStockAlert().stripTrailingZeros().scale() > 0)
+                return "Este producto se vende por unidad: la alerta de stock no puede tener decimales.";
+        }
 
         String tipo = p.getTipo();
 

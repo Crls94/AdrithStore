@@ -33,14 +33,16 @@ CREATE TABLE IF NOT EXISTS Producto (
     Tipo                    VARCHAR(20)  NOT NULL DEFAULT 'BIEN_FISICO'
                             CHECK (Tipo IN ('BIEN_FISICO','SERVICIO_PURO','SERVICIO_COMIS','CONSUMIBLE')),
     Visible_En_Pos          BOOLEAN DEFAULT TRUE,  -- CONSUMIBLE lo tiene en FALSE
-    Stock                   INTEGER DEFAULT 0,
+    Stock                   NUMERIC(10,3) DEFAULT 0,
+    Unidad_Medida           VARCHAR(10) NOT NULL DEFAULT 'UNIDAD'
+                            CHECK (Unidad_Medida IN ('UNIDAD','KG')),
     Precio_Costo            DECIMAL(10,4) DEFAULT 0,  -- costo estándar / CPP
     Porcentaje_Costo        DECIMAL(5,2)  DEFAULT NULL,  -- % costo sobre monto (SERVICIO_PURO tipo IMPRESIONES)
     Precio_Venta            DECIMAL(10,2) DEFAULT 0,
     -- Para SERVICIO_COMIS: comisión base y cada cuánto (ej: 1.00 por cada 100)
     Comision_Base           DECIMAL(10,2),
     Comision_Cada           DECIMAL(10,2),
-    Stock_Alert             INTEGER DEFAULT 5,
+    Stock_Alert             NUMERIC(10,3) DEFAULT 5,
     Cpp                     DECIMAL(10,4) DEFAULT 0,
     Permite_Stock_Negativo  BOOLEAN DEFAULT TRUE,
     Imagen_Url              VARCHAR(500)
@@ -78,7 +80,8 @@ CREATE TABLE IF NOT EXISTS Compra (
     Subtotal            DECIMAL(10,2) DEFAULT 0,
     Descuento_Global    DECIMAL(10,2) DEFAULT 0,
     Percepcion          DECIMAL(10,2) DEFAULT 0,
-    Total               DECIMAL(10,2) DEFAULT 0
+    Total               DECIMAL(10,2) DEFAULT 0,
+    Medio_Pago          VARCHAR(20)  -- cuenta usada para pagar (Caja Fisica, Plin, Yape, Tarjeta, Transferencia, Otro); null en compras previas a este campo
 );
 
 -- ── 7. COMPRA_DETALLE ─────────────────────────────────────────────────────
@@ -87,7 +90,7 @@ CREATE TABLE IF NOT EXISTS Compra_Detalle (
     id_Compra           INTEGER NOT NULL REFERENCES Compra(id_Compra),
     id_Producto         INTEGER NOT NULL REFERENCES Producto(id_Producto),
     id_Unidad           INTEGER REFERENCES Producto_Unidad(id_Unidad),
-    Cantidad            INTEGER NOT NULL DEFAULT 1,
+    Cantidad            NUMERIC(10,3) NOT NULL DEFAULT 1,
     Costo_Unitario      DECIMAL(10,4) NOT NULL,
     Costo_Anterior      DECIMAL(10,4),
     Descuento_Pct       DECIMAL(5,2) DEFAULT 0,
@@ -103,11 +106,11 @@ CREATE TABLE IF NOT EXISTS Compra_Ajuste (
     Fecha               TIMESTAMP DEFAULT NOW(),
     Tipo                VARCHAR(30) NOT NULL,
     Motivo              TEXT NOT NULL,
-    Delta_Cantidad      INTEGER DEFAULT 0,
+    Delta_Cantidad      NUMERIC(10,3) DEFAULT 0,
     Costo_Anterior      DECIMAL(10,4),
     Costo_Nuevo         DECIMAL(10,4),
     Cpp_Resultante      DECIMAL(10,4),
-    Impacto_Stock       INTEGER DEFAULT 0
+    Impacto_Stock       NUMERIC(10,3) DEFAULT 0
 );
 
 -- ── 9. VENTA ─────────────────────────────────────────────────────────────
@@ -134,7 +137,7 @@ CREATE TABLE IF NOT EXISTS Venta_Detalle (
     id_Venta            INTEGER NOT NULL REFERENCES Venta(id_Venta),
     id_Producto         INTEGER NOT NULL REFERENCES Producto(id_Producto),
     id_Unidad           INTEGER REFERENCES Producto_Unidad(id_Unidad),
-    Cantidad            INTEGER NOT NULL,
+    Cantidad            NUMERIC(10,3) NOT NULL,
     Precio_Historico    DECIMAL(10,2) NOT NULL,  -- precio sin descuento
     Costo_Historico     DECIMAL(10,4) NOT NULL,
     Descuento_Aplicado  DECIMAL(10,2) DEFAULT 0,
@@ -239,8 +242,10 @@ CREATE TABLE IF NOT EXISTS Cierre_Diario (
     Observacion    TEXT,
     Cerrado_Por    VARCHAR(50),
     Cerrado_En     TIMESTAMP DEFAULT NOW(),
-    Estado         VARCHAR(20) DEFAULT 'cerrado',
-    UNIQUE (Fecha_Cierre, id_Cuenta)
+    Estado         VARCHAR(20) DEFAULT 'cerrado'
+    -- Sin UNIQUE(Fecha_Cierre, id_Cuenta): se permiten varios cierres por cuenta
+    -- el mismo día, para reconciliar con más frecuencia (cada uno usa el saldo
+    -- del sistema al momento como base, así que corrige cierres previos con error).
 );
 
 -- ── 17. EVENTO_LOG ────────────────────────────────────────────────────────

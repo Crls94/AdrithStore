@@ -8,9 +8,7 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "cierre_diario", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"fecha_cierre", "id_cuenta"})
-})
+@Table(name = "cierre_diario")
 public class CierreDiario {
 
     @Id

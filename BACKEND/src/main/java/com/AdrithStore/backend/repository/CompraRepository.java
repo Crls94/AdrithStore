@@ -59,6 +59,9 @@ public interface CompraRepository extends JpaRepository<Compra, Integer> {
     BigDecimal sumPercepcion(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
                              @Param("idProveedor") Integer idProveedor, @Param("estado") String estado);
 
+    @Query("SELECT COALESCE(SUM(c.percepcion), 0) FROM Compra c WHERE c.estado = 'confirmado'")
+    BigDecimal sumPercepcionTotal();
+
     @Query("""
         SELECT COALESCE(SUM(c.total), 0)
         FROM Compra c

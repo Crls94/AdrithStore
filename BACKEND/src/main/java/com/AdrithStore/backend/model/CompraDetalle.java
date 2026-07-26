@@ -31,8 +31,8 @@ public class CompraDetalle {
     @JoinColumn(name = "id_unidad")
     private ProductoUnidad unidad;
 
-    @Column(name = "cantidad")
-    private Integer cantidad;
+    @Column(name = "cantidad", precision = 10, scale = 3)
+    private BigDecimal cantidad;
 
     @Column(name = "costo_unitario", precision = 10, scale = 4)
     private BigDecimal costoUnitario;

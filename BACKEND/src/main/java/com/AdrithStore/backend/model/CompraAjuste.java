@@ -36,8 +36,8 @@ public class CompraAjuste {
     @Column(name = "motivo", nullable = false)
     private String motivo;
 
-    @Column(name = "delta_cantidad")
-    private Integer deltaCantidad = 0;
+    @Column(name = "delta_cantidad", precision = 10, scale = 3)
+    private BigDecimal deltaCantidad = BigDecimal.ZERO;
 
     @Column(name = "costo_anterior", precision = 10, scale = 4)
     private BigDecimal costoAnterior;
@@ -48,6 +48,6 @@ public class CompraAjuste {
     @Column(name = "cpp_resultante", precision = 10, scale = 4)
     private BigDecimal cppResultante;
 
-    @Column(name = "impacto_stock")
-    private Integer impactoStock = 0;
+    @Column(name = "impacto_stock", precision = 10, scale = 3)
+    private BigDecimal impactoStock = BigDecimal.ZERO;
 }

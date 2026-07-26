@@ -116,8 +116,11 @@ public class ImagenController {
             Path path = Path.of(uploadDir, nombre);
             if (!Files.exists(path)) return ResponseEntity.notFound().build();
             byte[] bytes = Files.readAllBytes(path);
+            // Cacheable "para siempre": cada subida devuelve una URL nueva (?v=timestamp),
+            // así que esta URL exacta nunca cambia de contenido una vez servida.
             return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_JPEG)
+                .cacheControl(org.springframework.http.CacheControl.maxAge(java.time.Duration.ofDays(365)).cachePublic().immutable())
                 .body(bytes);
         } catch (Exception e) {
             return ResponseEntity.notFound().build();
@@ -147,6 +150,9 @@ public class ImagenController {
             .outputQuality(0.78)
             .toFile(destino.toFile());
 
-        return "/api/uploads/imagen/" + nombre;
+        // El nombre de archivo es determinístico (prod-{id}.jpg), así que sin un parámetro
+        // que cambie en cada subida, el navegador reutiliza la imagen vieja cacheada bajo
+        // la misma URL en vez de pedir la nueva.
+        return "/api/uploads/imagen/" + nombre + "?v=" + System.currentTimeMillis();
     }
 }

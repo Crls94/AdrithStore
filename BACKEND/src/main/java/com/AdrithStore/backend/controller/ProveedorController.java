@@ -40,7 +40,7 @@ public class ProveedorController {
             p.setEmitePercepcion(datos.getEmitePercepcion());
             p.setTelefono(datos.getTelefono());
             p.setContacto(datos.getContacto());
-            p.setEmail(datos.getEmail());
+            if (datos.getEmail() != null) p.setEmail(datos.getEmail());
             return ResponseEntity.ok(proveedorRepo.save(p));
         }).orElse(ResponseEntity.notFound().build());
     }

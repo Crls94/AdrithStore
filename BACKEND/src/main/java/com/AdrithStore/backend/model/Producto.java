@@ -38,8 +38,11 @@ public class Producto {
     @Column(name = "visible_en_pos")
     private Boolean visibleEnPos = true;
 
-    @Column(name = "stock")
-    private Integer stock = 0;
+    @Column(name = "stock", precision = 10, scale = 3)
+    private BigDecimal stock = BigDecimal.ZERO;
+
+    @Column(name = "unidad_medida", length = 10, nullable = false)
+    private String unidadMedida = "UNIDAD";
 
     @Column(name = "precio_costo", precision = 10, scale = 4)
     private BigDecimal precioCosto = BigDecimal.ZERO;
@@ -58,8 +61,8 @@ public class Producto {
     @Column(name = "comision_cada", precision = 10, scale = 2)
     private BigDecimal comisionCada;
 
-    @Column(name = "stock_alert")
-    private Integer stockAlert = 5;
+    @Column(name = "stock_alert", precision = 10, scale = 3)
+    private BigDecimal stockAlert = BigDecimal.valueOf(5);
 
     @Column(name = "cpp", precision = 10, scale = 4)
     private BigDecimal cpp = BigDecimal.ZERO;
@@ -79,6 +82,7 @@ public class Producto {
     public boolean esServicioPuro()  { return "SERVICIO_PURO".equals(tipo);  }
     public boolean esServicioComis() { return "SERVICIO_COMIS".equals(tipo); }
     public boolean esConsumible()    { return "CONSUMIBLE".equals(tipo);     }
+    public boolean esVentaPorKg()    { return "KG".equals(unidadMedida);     }
 
     
     public BigDecimal calcularComisionSugerida(BigDecimal montoOperacion) {
