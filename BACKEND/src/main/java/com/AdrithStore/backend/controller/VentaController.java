@@ -22,13 +22,14 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class VentaController {
 
-    private final VentaRepository     ventaRepo;
-    private final VentaPagoRepository pagoRepo;
-    private final ProductoRepository  productoRepo;
-    private final ClienteRepository   clienteRepo;
-    private final UsuarioRepository   usuarioRepo;
-    private final TesoreriaService    tesoreriaService;
-    private final LogService          logService;
+    private final VentaRepository                ventaRepo;
+    private final VentaPagoRepository            pagoRepo;
+    private final VentaDetalleServicioRepository detalleServicioRepo;
+    private final ProductoRepository             productoRepo;
+    private final ClienteRepository              clienteRepo;
+    private final UsuarioRepository              usuarioRepo;
+    private final TesoreriaService               tesoreriaService;
+    private final LogService                     logService;
 
     @GetMapping
     @Transactional(readOnly = true)
@@ -42,7 +43,7 @@ public class VentaController {
         return ventaRepo.findAllConPagosOrderByFechaDesc();
     }
 
-    // Ventas filtradas por usuario — para dashboard vendedor
+    
     @GetMapping("/por-usuario/{idUsuario}")
     @Transactional(readOnly = true)
     public List<Venta> porUsuario(@PathVariable Integer idUsuario) {
@@ -55,8 +56,10 @@ public class VentaController {
 
         if (req.getIdCliente()  == null) return ResponseEntity.badRequest().body("idCliente requerido.");
         if (req.getIdUsuario()  == null) return ResponseEntity.badRequest().body("idUsuario requerido.");
-        if (req.getDetalles()   == null || req.getDetalles().isEmpty())
-            return ResponseEntity.badRequest().body("Agrega al menos un producto.");
+        boolean sinDetalles    = req.getDetalles()   == null || req.getDetalles().isEmpty();
+        boolean sinServicios   = req.getDetallesServicio() == null || req.getDetallesServicio().isEmpty();
+        if (sinDetalles && sinServicios)
+            return ResponseEntity.badRequest().body("Agrega al menos un producto o servicio.");
         if (req.getPagos()      == null || req.getPagos().isEmpty())
             return ResponseEntity.badRequest().body("Agrega al menos una forma de pago.");
 
@@ -81,23 +84,27 @@ public class VentaController {
             Producto p = productoRepo.findById(d.getIdProducto()).orElse(null);
             if (p == null) continue;
 
-            int cantidad = d.getCantidad() != null ? d.getCantidad() : 1;
+            BigDecimal cantidad = d.getCantidad() != null ? d.getCantidad() : BigDecimal.ONE;
+
+            if (!p.esVentaPorKg() && cantidad.stripTrailingZeros().scale() > 0)
+                return ResponseEntity.badRequest()
+                    .body("Este producto se vende solo en unidades enteras: " + p.getNombre());
 
             if ("BIEN_FISICO".equals(p.getTipo()) || "CONSUMIBLE".equals(p.getTipo())) {
-                if (p.getStock() < cantidad && !Boolean.TRUE.equals(p.getPermiteStockNegativo()))
+                if (p.getStock().compareTo(cantidad) < 0 && !Boolean.TRUE.equals(p.getPermiteStockNegativo()))
                     return ResponseEntity.badRequest()
                         .body("Stock insuficiente: " + p.getNombre() + " (disponible: " + p.getStock() + ")");
-                p.setStock(p.getStock() - cantidad);
+                p.setStock(p.getStock().subtract(cantidad));
                 productoRepo.save(p);
             }
 
             BigDecimal precio      = p.getPrecioVenta() != null ? p.getPrecioVenta() : BigDecimal.ZERO;
-            // Descuento por ítem — no puede superar el precio unitario × cantidad
+
             BigDecimal dscItem     = d.getDescuentoItem() != null ? d.getDescuentoItem() : BigDecimal.ZERO;
-            BigDecimal maxDscItem  = precio.multiply(BigDecimal.valueOf(cantidad));
+            BigDecimal maxDscItem  = precio.multiply(cantidad);
             if (dscItem.compareTo(maxDscItem) > 0) dscItem = maxDscItem;
 
-            BigDecimal subtotal = precio.multiply(BigDecimal.valueOf(cantidad)).subtract(dscItem);
+            BigDecimal subtotal = precio.multiply(cantidad).subtract(dscItem);
             totalBruto = totalBruto.add(subtotal);
 
             VentaDetalle det = new VentaDetalle();
@@ -111,19 +118,39 @@ public class VentaController {
             venta.getDetalles().add(det);
         }
 
-        if (venta.getDetalles().isEmpty()) return ResponseEntity.badRequest().body("Ningún producto fue encontrado.");
+        if (venta.getDetalles().isEmpty() && sinServicios)
+            return ResponseEntity.badRequest().body("Ningún producto fue encontrado.");
 
-        // Descuento global — monto fijo (ej: redondeo 20.10 → 20.00 = descuento 0.10)
+        
+        BigDecimal totalServicios = BigDecimal.ZERO;
+        if (req.getDetallesServicio() != null) {
+            for (VentaRequest.DetalleServicioItem dsi : req.getDetallesServicio()) {
+                if (dsi.getMonto() == null || dsi.getMonto().compareTo(BigDecimal.ZERO) <= 0)
+                    return ResponseEntity.badRequest().body("El monto del servicio debe ser mayor a 0.");
+                if (dsi.getComision() != null && dsi.getComision().compareTo(BigDecimal.ZERO) > 0) {
+                    if (dsi.getOrigen() == null || dsi.getOrigen().isBlank())
+                        return ResponseEntity.badRequest().body("Origen requerido para transferencia.");
+                    if (dsi.getDestino() == null || dsi.getDestino().isBlank())
+                        return ResponseEntity.badRequest().body("Destino requerido para transferencia.");
+                }
+                BigDecimal sub = dsi.getMonto();
+                if (dsi.getComision() != null) sub = sub.add(dsi.getComision());
+                totalServicios = totalServicios.add(sub);
+            }
+        }
+
+        
         BigDecimal dscGlobal = req.getDescuentoGlobal() != null ? req.getDescuentoGlobal() : BigDecimal.ZERO;
-        if (dscGlobal.compareTo(totalBruto) > 0) dscGlobal = totalBruto; // no puede ser mayor al total
-        BigDecimal totalFinal = totalBruto.subtract(dscGlobal).max(BigDecimal.ZERO);
+        if (dscGlobal.compareTo(totalBruto.add(totalServicios)) > 0)
+            dscGlobal = totalBruto.add(totalServicios);
+        BigDecimal totalFinal = totalBruto.add(totalServicios).subtract(dscGlobal).max(BigDecimal.ZERO);
 
         venta.setDescuentoGlobal(dscGlobal);
         venta.setTotal(totalFinal);
         venta.setSubtotal(totalFinal.divide(BigDecimal.valueOf(1.18), 2, RoundingMode.HALF_UP));
         venta.setIgv(totalFinal.subtract(venta.getSubtotal()));
 
-        // Validar pago suficiente
+        
         BigDecimal totalPagado = req.getPagos().stream()
             .map(p -> p.getMonto() != null ? p.getMonto() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -132,6 +159,29 @@ public class VentaController {
                 .body("Pago insuficiente: pagado S/ " + totalPagado + ", total S/ " + totalFinal);
 
         Venta guardada = ventaRepo.save(venta);
+
+        
+        if (req.getDetallesServicio() != null) {
+            for (VentaRequest.DetalleServicioItem dsi : req.getDetallesServicio()) {
+                VentaDetalleServicio vds = new VentaDetalleServicio();
+                vds.setVenta(guardada);
+                productoRepo.findById(dsi.getIdProducto()).ifPresent(vds::setProducto);
+                vds.setDescripcion(dsi.getDescripcion());
+                vds.setMonto(dsi.getMonto());
+                vds.setCosto(dsi.getCosto());
+                vds.setComision(dsi.getComision());
+                vds.setOrigen(dsi.getOrigen());
+                vds.setDestino(dsi.getDestino());
+                BigDecimal sub = dsi.getMonto();
+                if (dsi.getComision() != null) sub = sub.add(dsi.getComision());
+                vds.setSubtotal(sub);
+                detalleServicioRepo.save(vds);
+
+                String nombreUsuario = guardada.getUsuario() != null
+                    ? guardada.getUsuario().getNombres() : "pos";
+                tesoreriaService.procesarCambioDigital(guardada, vds, nombreUsuario);
+            }
+        }
 
         for (VentaRequest.PagoItem pi : req.getPagos()) {
             if (pi.getMonto() == null || pi.getMonto().compareTo(BigDecimal.ZERO) <= 0) continue;
@@ -162,7 +212,29 @@ public class VentaController {
         ));
     }
 
-    // ── ANULAR VENTA ─────────────────────────────────────────────────────
+    
+    @PostMapping("/{id}/detalle-servicio")
+    @Transactional
+    public ResponseEntity<?> agregarDetalleServicio(@PathVariable Integer id,
+                                                     @RequestBody VentaDetalleServicio item) {
+        return ventaRepo.findById(id).map(v -> {
+            item.setVenta(v);
+            item.setIdVentaDetalleServicio(null);
+            if (item.getMonto() == null) item.setMonto(BigDecimal.ZERO);
+            if (item.getSubtotal() == null)
+                item.setSubtotal(item.getMonto().add(item.getComision() != null ? item.getComision() : BigDecimal.ZERO));
+            VentaDetalleServicio guardado = detalleServicioRepo.save(item);
+            return ResponseEntity.ok(guardado);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/detalle-servicio")
+    @Transactional(readOnly = true)
+    public List<VentaDetalleServicio> listarDetalleServicio(@PathVariable Integer id) {
+        return detalleServicioRepo.findByVenta_IdVenta(id);
+    }
+
+    
     @PatchMapping("/{id}/anular")
     @Transactional
     public ResponseEntity<?> anular(@PathVariable Integer id,
@@ -174,11 +246,11 @@ public class VentaController {
             if (!"confirmado".equals(v.getEstado()))
                 return ResponseEntity.badRequest().body("La venta ya fue anulada.");
 
-            // Revertir stock de cada producto
+            
             for (VentaDetalle det : v.getDetalles()) {
                 Producto p = det.getProducto();
                 if (p != null && ("BIEN_FISICO".equals(p.getTipo()) || "CONSUMIBLE".equals(p.getTipo()))) {
-                    p.setStock(p.getStock() + det.getCantidad());
+                    p.setStock(p.getStock().add(det.getCantidad()));
                     productoRepo.save(p);
                 }
             }
@@ -213,8 +285,9 @@ public class VentaController {
         private String     tipoComprobante;
         private String     serieComprobante;
         private BigDecimal descuentoGlobal;
-        private List<PagoItem>    pagos;
-        private List<DetalleItem> detalles;
+        private List<PagoItem>           pagos;
+        private List<DetalleItem>        detalles;
+        private List<DetalleServicioItem> detallesServicio;
 
         @Data public static class PagoItem {
             private String     medioPago;
@@ -222,8 +295,18 @@ public class VentaController {
         }
         @Data public static class DetalleItem {
             private Integer    idProducto;
-            private Integer    cantidad;
-            private BigDecimal descuentoItem; // monto fijo descontado del ítem
+            private BigDecimal cantidad;
+            private BigDecimal descuentoItem;
+        }
+        @Data public static class DetalleServicioItem {
+            private Integer    idProducto;
+            private String     descripcion;
+            private BigDecimal monto;
+            private BigDecimal costo;
+            private BigDecimal comision;
+            private String     origen;
+            private String     destino;
+            private BigDecimal subtotal;
         }
     }
 }

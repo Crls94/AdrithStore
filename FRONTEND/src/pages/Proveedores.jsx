@@ -64,7 +64,7 @@ export default function Proveedores() {
         </button>
       </div>
 
-      {/* Búsqueda */}
+      { }
       <div className="rounded-2xl px-5 py-3.5 mb-3" style={cardStyle}>
         <div className="relative max-w-sm">
           <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: T.textMuted }} />
@@ -74,7 +74,7 @@ export default function Proveedores() {
         </div>
       </div>
 
-      {/* Tabla */}
+      { }
       <div className="overflow-hidden rounded-2xl" style={cardStyle}>
         {cargando ? (
           <div className="flex justify-center p-12"><div className="spinner-border" style={{ color: T.gold }} /></div>
@@ -146,7 +146,7 @@ export default function Proveedores() {
         )}
       </div>
 
-      {/* Modal */}
+      { }
       {modalAbierto && (
         <div className="fixed inset-0 flex items-center justify-center p-4 z-[2000]" style={{ background:'rgba(0,0,0,0.75)' }}>
           <div className="w-full max-w-md rounded-2xl overflow-hidden"

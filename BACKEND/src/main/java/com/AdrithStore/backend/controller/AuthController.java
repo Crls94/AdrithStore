@@ -24,11 +24,11 @@ public class AuthController {
     private final CuentaFinancieraRepository  cuentaRepo;
     private final SistemaConfigRepository     sistemaConfigRepo;
 
-    // ── Estado del sistema ────────────────────────────────────────────────
+    
     @GetMapping("/estado")
     public Map<String, Object> estado() {
         boolean hayUsuarios = usuarioRepo.count() > 0;
-        // Leer configuración del sistema (tabla sistema_config, fila única id=1)
+        
         var cfg = sistemaConfigRepo.findById(1).orElse(null);
         boolean configurado  = cfg != null && Boolean.TRUE.equals(cfg.getConfigurado());
         String nombreNegocio = cfg != null && cfg.getNombreNegocio() != null
@@ -45,7 +45,7 @@ public class AuthController {
         return cuentaRepo.findByActivaTrue();
     }
 
-    // ── Primer admin ──────────────────────────────────────────────────────
+    
     @PostMapping("/primer-admin")
     public ResponseEntity<?> primerAdmin(@RequestBody PrimerAdminReq req) {
         if (usuarioRepo.count() > 0)
@@ -67,7 +67,7 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("mensaje", "Administrador creado."));
     }
 
-    // ── Login ─────────────────────────────────────────────────────────────
+    
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginReq req) {
         Optional<Usuario> opt = usuarioRepo.findByUsername(req.getUsername().trim().toLowerCase());
@@ -76,18 +76,18 @@ public class AuthController {
         Usuario u = opt.get();
         if (!Boolean.TRUE.equals(u.getActivo()))
             return ResponseEntity.status(403).body("Cuenta desactivada. Contacta al administrador.");
-        // Clientes no pueden iniciar sesión en el sistema POS
+        
         if ("CLIENTE".equals(u.getRol()))
             return ResponseEntity.status(403).body("Los clientes no acceden al sistema. Consulta a tu administrador.");
         if (!PasswordUtil.verificar(req.getPassword(), u.getPasswordHash()))
             return ResponseEntity.status(401).body("Usuario o contraseña incorrectos.");
 
-        u.setPasswordHash(""); // nunca enviamos el hash al frontend
+        u.setPasswordHash(""); 
         return ResponseEntity.ok(u);
     }
 
-    // ── Recuperar contraseña ──────────────────────────────────────────────
-    // Valida dni + telefono + username y si coinciden permite cambiar la clave
+    
+    
     @PostMapping("/recuperar/verificar")
     public ResponseEntity<?> verificarIdentidad(@RequestBody RecuperarVerifReq req) {
         if (req.getUsername() == null || req.getDni() == null || req.getTelefono() == null)
@@ -105,7 +105,7 @@ public class AuthController {
         if (!Boolean.TRUE.equals(u.getActivo()))
             return ResponseEntity.status(403).body("Cuenta desactivada. Contacta al administrador.");
 
-        // Devolvemos un token simple: idUsuario hasheado (para el siguiente paso)
+        
         return ResponseEntity.ok(Map.of(
             "idUsuario", u.getIdUsuario(),
             "nombres",   u.getNombres()
@@ -127,7 +127,7 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("mensaje", "Contraseña actualizada correctamente."));
     }
 
-    // ── DTOs ─────────────────────────────────────────────────────────────
+    
     @Data static class LoginReq         { private String username, password; }
     @Data static class PrimerAdminReq   { private String username, password, nombres, apellidos, dni; }
     @Data static class RecuperarVerifReq{ private String username, dni, telefono; }

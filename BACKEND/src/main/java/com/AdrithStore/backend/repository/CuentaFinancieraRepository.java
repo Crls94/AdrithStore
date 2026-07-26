@@ -14,13 +14,13 @@ public interface CuentaFinancieraRepository extends JpaRepository<CuentaFinancie
 
     List<CuentaFinanciera> findByActivaTrue();
 
-    // Retorna Optional — falla si hay más de 1 resultado (usar solo cuando la BD está limpia)
+    
     Optional<CuentaFinanciera> findByNombreIgnoreCase(String nombre);
 
-    // Retorna List — seguro aunque haya duplicados (usar en Setup y TesoreriaService)
+    
     List<CuentaFinanciera> findAllByNombreIgnoreCase(String nombre);
 
-    // Para recalcular saldos con lock para evitar race conditions
+    
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM CuentaFinanciera c WHERE c.activa = true")
     List<CuentaFinanciera> findAllForUpdate();

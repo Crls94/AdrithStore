@@ -19,7 +19,7 @@ public class TransaccionFinanciera {
     @Column(name = "fecha")
     private LocalDateTime fecha = LocalDateTime.now();
 
-    // APERTURA | VENTA | COMPRA | GASTO | CAMBIO_DIGITAL | AJUSTE | TRANSFERENCIA
+    
     @Column(name = "tipo_mov", length = 30)
     private String tipoMov;
 
@@ -31,21 +31,21 @@ public class TransaccionFinanciera {
     @Column(name = "monto", precision = 10, scale = 2)
     private BigDecimal monto;
 
-    // +1 = entrada, -1 = salida
+    
     @Column(name = "signo")
     private Integer signo;
 
     @Column(name = "concepto")
     private String concepto;
 
-    // FK opcionales a Venta y Compra (solo el ID para evitar carga lazy)
+    
     @Column(name = "id_venta")
     private Integer idVenta;
 
     @Column(name = "id_compra")
     private Integer idCompra;
 
-    // 'YYYY-MM' para filtrar por mes
+    
     @Column(name = "periodo", length = 7)
     private String periodo;
 

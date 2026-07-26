@@ -30,7 +30,7 @@ public class Compra {
     @Column(name = "fecha")
     private LocalDateTime fecha;
 
-    // confirmado | anulado | borrador
+    
     @Column(name = "estado")
     private String estado = "confirmado";
 
@@ -48,6 +48,9 @@ public class Compra {
 
     @Column(name = "total", precision = 10, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
+
+    @Column(name = "medio_pago")
+    private String medioPago;
 
     @OneToMany(mappedBy = "compra", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JsonIgnoreProperties("compra")

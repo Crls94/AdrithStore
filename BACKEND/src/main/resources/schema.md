@@ -33,13 +33,16 @@ CREATE TABLE IF NOT EXISTS Producto (
     Tipo                    VARCHAR(20)  NOT NULL DEFAULT 'BIEN_FISICO'
                             CHECK (Tipo IN ('BIEN_FISICO','SERVICIO_PURO','SERVICIO_COMIS','CONSUMIBLE')),
     Visible_En_Pos          BOOLEAN DEFAULT TRUE,  -- CONSUMIBLE lo tiene en FALSE
-    Stock                   INTEGER DEFAULT 0,
+    Stock                   NUMERIC(10,3) DEFAULT 0,
+    Unidad_Medida           VARCHAR(10) NOT NULL DEFAULT 'UNIDAD'
+                            CHECK (Unidad_Medida IN ('UNIDAD','KG')),
     Precio_Costo            DECIMAL(10,4) DEFAULT 0,  -- costo estándar / CPP
+    Porcentaje_Costo        DECIMAL(5,2)  DEFAULT NULL,  -- % costo sobre monto (SERVICIO_PURO tipo IMPRESIONES)
     Precio_Venta            DECIMAL(10,2) DEFAULT 0,
     -- Para SERVICIO_COMIS: comisión base y cada cuánto (ej: 1.00 por cada 100)
     Comision_Base           DECIMAL(10,2),
     Comision_Cada           DECIMAL(10,2),
-    Stock_Alert             INTEGER DEFAULT 5,
+    Stock_Alert             NUMERIC(10,3) DEFAULT 5,
     Cpp                     DECIMAL(10,4) DEFAULT 0,
     Permite_Stock_Negativo  BOOLEAN DEFAULT TRUE,
     Imagen_Url              VARCHAR(500)
@@ -77,7 +80,8 @@ CREATE TABLE IF NOT EXISTS Compra (
     Subtotal            DECIMAL(10,2) DEFAULT 0,
     Descuento_Global    DECIMAL(10,2) DEFAULT 0,
     Percepcion          DECIMAL(10,2) DEFAULT 0,
-    Total               DECIMAL(10,2) DEFAULT 0
+    Total               DECIMAL(10,2) DEFAULT 0,
+    Medio_Pago          VARCHAR(20)  -- cuenta usada para pagar (Caja Fisica, Plin, Yape, Tarjeta, Transferencia, Otro); null en compras previas a este campo
 );
 
 -- ── 7. COMPRA_DETALLE ─────────────────────────────────────────────────────
@@ -86,7 +90,7 @@ CREATE TABLE IF NOT EXISTS Compra_Detalle (
     id_Compra           INTEGER NOT NULL REFERENCES Compra(id_Compra),
     id_Producto         INTEGER NOT NULL REFERENCES Producto(id_Producto),
     id_Unidad           INTEGER REFERENCES Producto_Unidad(id_Unidad),
-    Cantidad            INTEGER NOT NULL DEFAULT 1,
+    Cantidad            NUMERIC(10,3) NOT NULL DEFAULT 1,
     Costo_Unitario      DECIMAL(10,4) NOT NULL,
     Costo_Anterior      DECIMAL(10,4),
     Descuento_Pct       DECIMAL(5,2) DEFAULT 0,
@@ -102,11 +106,11 @@ CREATE TABLE IF NOT EXISTS Compra_Ajuste (
     Fecha               TIMESTAMP DEFAULT NOW(),
     Tipo                VARCHAR(30) NOT NULL,
     Motivo              TEXT NOT NULL,
-    Delta_Cantidad      INTEGER DEFAULT 0,
+    Delta_Cantidad      NUMERIC(10,3) DEFAULT 0,
     Costo_Anterior      DECIMAL(10,4),
     Costo_Nuevo         DECIMAL(10,4),
     Cpp_Resultante      DECIMAL(10,4),
-    Impacto_Stock       INTEGER DEFAULT 0
+    Impacto_Stock       NUMERIC(10,3) DEFAULT 0
 );
 
 -- ── 9. VENTA ─────────────────────────────────────────────────────────────
@@ -133,7 +137,7 @@ CREATE TABLE IF NOT EXISTS Venta_Detalle (
     id_Venta            INTEGER NOT NULL REFERENCES Venta(id_Venta),
     id_Producto         INTEGER NOT NULL REFERENCES Producto(id_Producto),
     id_Unidad           INTEGER REFERENCES Producto_Unidad(id_Unidad),
-    Cantidad            INTEGER NOT NULL,
+    Cantidad            NUMERIC(10,3) NOT NULL,
     Precio_Historico    DECIMAL(10,2) NOT NULL,  -- precio sin descuento
     Costo_Historico     DECIMAL(10,4) NOT NULL,
     Descuento_Aplicado  DECIMAL(10,2) DEFAULT 0,
@@ -143,7 +147,23 @@ CREATE TABLE IF NOT EXISTS Venta_Detalle (
     Subtotal            DECIMAL(10,2) NOT NULL    -- precio final con descuento
 );
 
--- ── 11. VENTA_PAGO ────────────────────────────────────────────────────────
+-- ── 11. VENTA_DETALLE_SERVICIO ─────────────────────────────────────────────
+-- Items de servicio (SERVICIO_PURO y SERVICIO_COMIS) directamente ligados a Venta
+-- Cada fila es un item individual (no se agrupan por cantidad)
+CREATE TABLE IF NOT EXISTS Venta_Detalle_Servicio (
+    id_Venta_Detalle_Servicio  SERIAL PRIMARY KEY,
+    id_Venta                   INTEGER NOT NULL REFERENCES Venta(id_Venta),
+    id_Producto                INTEGER NOT NULL REFERENCES Producto(id_Producto),
+    Descripcion                TEXT,
+    Monto                      DECIMAL(10,2) NOT NULL DEFAULT 0,  -- monto cobrado / operación
+    Costo                      DECIMAL(10,4) DEFAULT 0,           -- costo del servicio
+    Comision                   DECIMAL(10,2) DEFAULT 0,           -- solo SERVICIO_COMIS
+    Origen                     VARCHAR(100),                      -- cuenta origen (solo TRANSFERENCIA)
+    Destino                    VARCHAR(100),                      -- cuenta destino (solo TRANSFERENCIA)
+    Subtotal                   DECIMAL(10,2) NOT NULL DEFAULT 0   -- Monto + Comision (o solo Monto)
+);
+
+-- ── 12. VENTA_PAGO ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS Venta_Pago (
     id_Pago     SERIAL PRIMARY KEY,
     id_Venta    INTEGER NOT NULL REFERENCES Venta(id_Venta) ON DELETE CASCADE,
@@ -151,7 +171,7 @@ CREATE TABLE IF NOT EXISTS Venta_Pago (
     Monto       DECIMAL(10,2) NOT NULL
 );
 
--- ── 12. CUENTA_FINANCIERA ─────────────────────────────────────────────────
+-- ── 13. CUENTA_FINANCIERA ─────────────────────────────────────────────────
 -- Registro de cajas, billeteras digitales y cuentas bancarias
 CREATE TABLE IF NOT EXISTS Cuenta_Financiera (
     id_Cuenta      SERIAL PRIMARY KEY,
@@ -160,10 +180,11 @@ CREATE TABLE IF NOT EXISTS Cuenta_Financiera (
                    CHECK (Tipo IN ('EFECTIVO','DIGITAL','BANCO')),
     Descripcion    TEXT,
     Saldo_Actual   DECIMAL(12,2) DEFAULT 0,  -- calculado por TesoreriaService.recalcular()
+    Fondo_Caja     DECIMAL(12,2) DEFAULT 0,  -- monto a dejar al cerrar el día (cierre de caja)
     Activa         BOOLEAN DEFAULT TRUE
 );
 
--- ── 13. PERIODO_CONTABLE ──────────────────────────────────────────────────
+-- ── 14. PERIODO_CONTABLE ──────────────────────────────────────────────────
 -- Apertura mensual: establece el saldo inicial de cada cuenta para el mes
 CREATE TABLE IF NOT EXISTS Periodo_Contable (
     id_Periodo     SERIAL PRIMARY KEY,
@@ -174,7 +195,7 @@ CREATE TABLE IF NOT EXISTS Periodo_Contable (
     Notas          TEXT
 );
 
--- ── 14. TRANSACCION_FINANCIERA ────────────────────────────────────────────
+-- ── 15. TRANSACCION_FINANCIERA ────────────────────────────────────────────
 -- El libro mayor: cada movimiento de dinero en cualquier cuenta
 -- tipo_mov:
 --   APERTURA         → saldo inicial del período
@@ -184,14 +205,17 @@ CREATE TABLE IF NOT EXISTS Periodo_Contable (
 --   CAMBIO_DIGITAL   → flujo de cambio Plin/Yape (par de TX por transacción)
 --   AJUSTE           → corrección manual por el administrador
 --   TRANSFERENCIA    → movimiento entre cuentas propias
+--   RETIRO           → retiro de ganancia del día al cerrar caja (deja fondo)
 CREATE TABLE IF NOT EXISTS Transaccion_Financiera (
     id_Transaccion  SERIAL PRIMARY KEY,
     Fecha           TIMESTAMP DEFAULT NOW(),
     Tipo_Mov        VARCHAR(30) NOT NULL
-                    CHECK (Tipo_Mov IN (
-                        'APERTURA','VENTA','COMPRA','GASTO',
-                        'CAMBIO_DIGITAL','AJUSTE','TRANSFERENCIA'
-                    )),
+                    CONSTRAINT ck_transaccion_tipo_mov CHECK (
+                        Tipo_Mov IN (
+                            'APERTURA','VENTA','COMPRA','GASTO',
+                            'CAMBIO_DIGITAL','AJUSTE','TRANSFERENCIA','RETIRO'
+                        )
+                    ),
     id_Cuenta       INTEGER NOT NULL REFERENCES Cuenta_Financiera(id_Cuenta),
     Monto           DECIMAL(10,2) NOT NULL CHECK (Monto >= 0),
     Signo           SMALLINT NOT NULL CHECK (Signo IN (1,-1)),
@@ -203,7 +227,28 @@ CREATE TABLE IF NOT EXISTS Transaccion_Financiera (
     Creada_Por      VARCHAR(50)
 );
 
--- ── 15. EVENTO_LOG ────────────────────────────────────────────────────────
+-- ── 16. CIERRE_DIARIO ─────────────────────────────────────────────────────
+-- Registro de cierre diario por cuenta: captura arqueo, diferencia y retiro
+CREATE TABLE IF NOT EXISTS Cierre_Diario (
+    id_Cierre      SERIAL PRIMARY KEY,
+    Fecha_Cierre   DATE NOT NULL,
+    id_Cuenta      INTEGER NOT NULL REFERENCES Cuenta_Financiera(id_Cuenta),
+    Saldo_Sistema  DECIMAL(12,2) NOT NULL,     -- lo que dice el sistema
+    Saldo_Contado  DECIMAL(12,2) NOT NULL,     -- lo que contó el cajero
+    Diferencia     DECIMAL(12,2) NOT NULL,     -- Contado - Sistema (negativo = faltante)
+    Fondo_Dejado   DECIMAL(12,2) NOT NULL,     -- Fondo_Caja configurado
+    Retiro         DECIMAL(12,2) NOT NULL,     -- Contado - Fondo_Dejado
+    Ajuste_Registrado BOOLEAN DEFAULT FALSE,   -- si se generó AJUSTE por diferencia
+    Observacion    TEXT,
+    Cerrado_Por    VARCHAR(50),
+    Cerrado_En     TIMESTAMP DEFAULT NOW(),
+    Estado         VARCHAR(20) DEFAULT 'cerrado'
+    -- Sin UNIQUE(Fecha_Cierre, id_Cuenta): se permiten varios cierres por cuenta
+    -- el mismo día, para reconciliar con más frecuencia (cada uno usa el saldo
+    -- del sistema al momento como base, así que corrige cierres previos con error).
+);
+
+-- ── 17. EVENTO_LOG ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS Evento_Log (
     id_Evento       SERIAL PRIMARY KEY,
     Fecha           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

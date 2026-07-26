@@ -2,8 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Variables de color para páginas internas (theme.js → CSS vars) ─── */
-/* Las páginas que aún usan T.gold, T.bgCard etc. leen estas vars      */
+ 
+ 
 :root {
   --c-bg:          #FAFAF8;
   --c-bg-card:     #FFFFFF;
@@ -22,7 +22,7 @@
   --c-shadow-modal:0 24px 60px rgba(0,0,0,0.3);
 }
 
-/* ── DARK MODE ──────────────────────────────────────────────────────── */
+ 
 .dark {
   --c-bg:          #0D1210;
   --c-bg-card:     #162018;
@@ -41,14 +41,27 @@
   --c-shadow-modal:0 24px 60px rgba(0,0,0,0.60);
 }
 
-/* ── Dark mode en Tailwind — sobreescribir colores custom ─────────────  */
+ 
 .dark body {
   background-color: var(--c-bg);
   color: var(--c-text);
 }
 
-/* Scrollbar suave */
+ 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(13,94,79,0.25); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(13,94,79,0.45); }
+
+ 
+ 
+ 
+ 
+.print-only { display: none; }
+
+@media print {
+  header, .no-print { display: none !important; }
+  .screen-only { display: none !important; }
+  .print-only { display: block !important; }
+  body, #root, main { overflow: visible !important; height: auto !important; }
+}

@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api/axiosConfig";
 import { useAuth } from "../auth/AuthContext";
-
-const API = "http://192.168.18.28:8080/api";
 
 const C = {
   emerald:   "#0D5E4F",
@@ -26,7 +24,7 @@ export default function MiPerfil() {
 
   useEffect(() => {
     if (!usuario?.idUsuario) { setCargDatos(false); return; }
-    axios.get(`${API}/usuarios/${usuario.idUsuario}`)
+    api.get(`/usuarios/${usuario.idUsuario}`)
       .then(r => setForm({
         nombres:   r.data.nombres   || "",
         apellidos: r.data.apellidos || "",
@@ -47,7 +45,7 @@ export default function MiPerfil() {
     if (!form.nombres.trim()) return setError("El nombre es obligatorio.");
     setCarg(true);
     try {
-      await axios.put(`${API}/usuarios/${usuario?.idUsuario}`, form);
+      await api.put(`/usuarios/${usuario?.idUsuario}`, form);
       await recargarPerfil();
       setExito("Datos actualizados correctamente.");
     } catch (e) {
@@ -62,7 +60,7 @@ export default function MiPerfil() {
     if (pass.nueva.length < 6)          return setError("Mínimo 6 caracteres.");
     setCarg(true);
     try {
-      await axios.patch(`${API}/usuarios/${usuario?.idUsuario}/password`, {
+      await api.patch(`/usuarios/${usuario?.idUsuario}/password`, {
         passwordActual: pass.actual,
         passwordNueva:  pass.nueva,
       });
@@ -103,7 +101,7 @@ export default function MiPerfil() {
       fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
       <div style={{ maxWidth:520, margin:"0 auto" }}>
 
-        {/* Hero card */}
+        { }
         <div style={{
           background:`linear-gradient(135deg, ${C.emerald}, ${C.teal})`,
           borderRadius:18, padding:"28px 24px", marginBottom:24,
@@ -131,7 +129,7 @@ export default function MiPerfil() {
           )}
         </div>
 
-        {/* Tabs */}
+        { }
         <div style={{ display:"flex", gap:8, marginBottom:20 }}>
           {[["datos","👤 Mis datos"],["password","🔑 Contraseña"]].map(([k,l]) => (
             <button key={k} onClick={() => { setTab(k); setError(""); setExito(""); }}

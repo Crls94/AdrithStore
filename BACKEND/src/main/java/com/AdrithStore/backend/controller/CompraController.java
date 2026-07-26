@@ -4,8 +4,11 @@ import com.AdrithStore.backend.dto.CompraRequest;
 import com.AdrithStore.backend.model.*;
 import com.AdrithStore.backend.repository.*;
 import com.AdrithStore.backend.service.LogService;
+import com.AdrithStore.backend.service.TesoreriaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -25,6 +28,7 @@ public class CompraController {
     private final ProductoRepository     productoRepo;
     private final CompraAjusteRepository ajusteRepo;
     private final LogService             logService;
+    private final TesoreriaService       tesoreriaService;
 
     @GetMapping
     public List<Compra> listar() {
@@ -38,8 +42,9 @@ public class CompraController {
             .orElse(ResponseEntity.notFound().build());
     }
 
-    // ── POST: crear compra ────────────────────────────────────────
+    
     @PostMapping
+    @Transactional
     public ResponseEntity<?> crear(@RequestBody CompraRequest req) {
 
         Proveedor proveedor = proveedorRepo.findById(req.getIdProveedor()).orElse(null);
@@ -50,11 +55,12 @@ public class CompraController {
         compra.setProveedor(proveedor);
         compra.setTipoComprobante(req.getTipoComprobante());
         compra.setSerieComprobante(req.getSerieComprobante());
-        // Regla de fecha: si viene fecha del frontend la usa, si no usa ahora
+        
         compra.setFecha(req.getFechaIngreso() != null ? req.getFechaIngreso() : LocalDateTime.now());
         compra.setEstado("confirmado");
         compra.setPercepcion(req.getPercepcion()      != null ? req.getPercepcion()      : BigDecimal.ZERO);
         compra.setDescuentoGlobal(req.getDescuentoGlobal() != null ? req.getDescuentoGlobal() : BigDecimal.ZERO);
+        compra.setMedioPago(req.getMedioPago() != null ? req.getMedioPago() : "Efectivo");
 
         List<CompraDetalle> detalles = new ArrayList<>();
         BigDecimal totalGeneral      = BigDecimal.ZERO;
@@ -63,78 +69,78 @@ public class CompraController {
             Producto producto = productoRepo.findById(item.getIdProducto()).orElse(null);
             if (producto == null) continue;
 
-            // ── Calcular cantidad real y costo real según bonificación ──
-            int cantidadFacturada = item.getCantidad();
-            int unidadesBonif     = item.getUnidadesBonificacion() != null ? item.getUnidadesBonificacion() : 0;
-            int cantidadTotal     = cantidadFacturada + unidadesBonif; // total que entra al almacén
+
+            BigDecimal cantidadFacturada = item.getCantidad();
+            BigDecimal unidadesBonif     = item.getUnidadesBonificacion() != null ? item.getUnidadesBonificacion() : BigDecimal.ZERO;
+            BigDecimal cantidadTotal     = cantidadFacturada.add(unidadesBonif);
 
             BigDecimal costoTotalLote = item.getCostoUnitario()
-                .multiply(BigDecimal.valueOf(cantidadFacturada))
+                .multiply(cantidadFacturada)
                 .setScale(4, RoundingMode.HALF_UP);
 
-            // Costo unitario real = costo total / cantidad total (incluyendo bonificadas)
-            BigDecimal costoUnitarioReal = cantidadTotal > 0
-                ? costoTotalLote.divide(BigDecimal.valueOf(cantidadTotal), 4, RoundingMode.HALF_UP)
+
+            BigDecimal costoUnitarioReal = cantidadTotal.compareTo(BigDecimal.ZERO) > 0
+                ? costoTotalLote.divide(cantidadTotal, 4, RoundingMode.HALF_UP)
                 : item.getCostoUnitario();
 
             BigDecimal cppAnterior = producto.getCpp() != null && producto.getCpp().compareTo(BigDecimal.ZERO) > 0
                 ? producto.getCpp() : producto.getPrecioCosto();
 
-            // ── Si hay bonificación de PRODUCTO DISTINTO ──────────────
-            // Distribuir una porción del costo al producto regalado
-            BigDecimal costoLoteAjustado = costoTotalLote; // puede reducirse si hay bonif distinto
+            
+            
+            BigDecimal costoLoteAjustado = costoTotalLote;
             if (item.getIdProductoBonif() != null && item.getCantidadBonif() != null
-                    && item.getCantidadBonif() > 0) {
+                    && item.getCantidadBonif().compareTo(BigDecimal.ZERO) > 0) {
 
                 Producto prodBonif = productoRepo.findById(item.getIdProductoBonif()).orElse(null);
                 if (prodBonif != null) {
-                    // Costo del regalo: usar el ingresado por el usuario o el CPP existente
+                    BigDecimal cantidadBonif = item.getCantidadBonif();
                     BigDecimal cppBonif;
                     BigDecimal costoBonifTotal;
                     if (item.getCostoBonifTotal() != null && item.getCostoBonifTotal().compareTo(BigDecimal.ZERO) > 0) {
-                        // El usuario ingresó el costo total del regalo (producto sin CPP previo)
+
                         costoBonifTotal = item.getCostoBonifTotal().setScale(4, RoundingMode.HALF_UP);
-                        cppBonif = item.getCantidadBonif() > 0
-                            ? costoBonifTotal.divide(BigDecimal.valueOf(item.getCantidadBonif()), 4, RoundingMode.HALF_UP)
+                        cppBonif = cantidadBonif.compareTo(BigDecimal.ZERO) > 0
+                            ? costoBonifTotal.divide(cantidadBonif, 4, RoundingMode.HALF_UP)
                             : costoBonifTotal;
                     } else {
-                        // Usar CPP existente del producto regalado
+
                         cppBonif = prodBonif.getCpp() != null && prodBonif.getCpp().compareTo(BigDecimal.ZERO) > 0
                             ? prodBonif.getCpp() : prodBonif.getPrecioCosto();
                         if (cppBonif == null || cppBonif.compareTo(BigDecimal.ZERO) == 0) {
-                            // Sin CPP y sin costo ingresado: no hacer distribución, solo sumar stock
+
                             cppBonif = BigDecimal.ZERO;
                         }
                         costoBonifTotal = cppBonif
-                            .multiply(BigDecimal.valueOf(item.getCantidadBonif()))
+                            .multiply(cantidadBonif)
                             .setScale(4, RoundingMode.HALF_UP);
                     }
 
-                    // Restar del costo del producto pagado
+
                     costoLoteAjustado = costoTotalLote.subtract(costoBonifTotal);
                     if (costoLoteAjustado.compareTo(BigDecimal.ZERO) < 0)
                         costoLoteAjustado = BigDecimal.ZERO;
 
-                    // Calcular nuevo CPP del producto bonificado
-                    int stockBonifActual = prodBonif.getStock() != null ? prodBonif.getStock() : 0;
-                    int stockBonifNuevo  = stockBonifActual + item.getCantidadBonif();
+
+                    BigDecimal stockBonifActual = prodBonif.getStock() != null ? prodBonif.getStock() : BigDecimal.ZERO;
+                    BigDecimal stockBonifNuevo  = stockBonifActual.add(cantidadBonif);
                     BigDecimal cppBonifAnterior = prodBonif.getCpp() != null ? prodBonif.getCpp() : prodBonif.getPrecioCosto();
 
-                    BigDecimal cppBonifNuevo = stockBonifNuevo > 0
-                        ? cppBonifAnterior.multiply(BigDecimal.valueOf(stockBonifActual))
-                            .add(cppBonif.multiply(BigDecimal.valueOf(item.getCantidadBonif())))
-                            .divide(BigDecimal.valueOf(stockBonifNuevo), 4, RoundingMode.HALF_UP)
+                    BigDecimal cppBonifNuevo = stockBonifNuevo.compareTo(BigDecimal.ZERO) > 0
+                        ? cppBonifAnterior.multiply(stockBonifActual)
+                            .add(cppBonif.multiply(cantidadBonif))
+                            .divide(stockBonifNuevo, 4, RoundingMode.HALF_UP)
                         : cppBonif;
 
-                    // Crear detalle para el producto bonificado
+
                     CompraDetalle detBonif = new CompraDetalle();
                     detBonif.setCompra(compra);
                     detBonif.setProducto(prodBonif);
-                    detBonif.setCantidad(item.getCantidadBonif());
+                    detBonif.setCantidad(cantidadBonif);
                     detBonif.setCostoUnitario(cppBonif);
                     detBonif.setCostoAnterior(cppBonifAnterior);
                     detBonif.setSubtotal(costoBonifTotal);
-                    // Subtotal NO suma al total de la factura (es costo distribuido, no pagado extra)
+
                     detalles.add(detBonif);
 
                     prodBonif.setStock(stockBonifNuevo);
@@ -144,35 +150,35 @@ public class CompraController {
 
                     logService.log(LogService.STOCK_AJUSTADO, "PRODUCTO", prodBonif.getIdProducto(),
                         "Bonif. distinta desde compra | " + prodBonif.getNombre()
-                            + " +" + item.getCantidadBonif() + " und. | costo dist: " + costoBonifTotal,
+                            + " +" + cantidadBonif + " und. | costo dist: " + costoBonifTotal,
                         null);
                 }
             }
 
-            // ── Recalcular costoUnitarioReal con costoLoteAjustado ────
-            costoUnitarioReal = cantidadTotal > 0
-                ? costoLoteAjustado.divide(BigDecimal.valueOf(cantidadTotal), 4, RoundingMode.HALF_UP)
+
+            costoUnitarioReal = cantidadTotal.compareTo(BigDecimal.ZERO) > 0
+                ? costoLoteAjustado.divide(cantidadTotal, 4, RoundingMode.HALF_UP)
                 : item.getCostoUnitario();
 
             CompraDetalle det = new CompraDetalle();
             det.setCompra(compra);
             det.setProducto(producto);
-            det.setCantidad(cantidadTotal);      // stock total que entra
+            det.setCantidad(cantidadTotal);
             det.setCostoUnitario(costoUnitarioReal);
             det.setCostoAnterior(cppAnterior);
             det.setVencimiento(item.getVencimiento());
             det.setDescuentoPct(item.getDescuentoPct() != null ? item.getDescuentoPct() : BigDecimal.ZERO);
-            det.setSubtotal(costoTotalLote);     // lo que realmente pagué en factura
+            det.setSubtotal(costoTotalLote);
             totalGeneral = totalGeneral.add(costoTotalLote);
             detalles.add(det);
 
-            // ── Nuevo CPP ─────────────────────────────────────────────
-            int stockActual = producto.getStock() != null ? producto.getStock() : 0;
-            int nuevoStock  = stockActual + cantidadTotal;
-            BigDecimal cppNuevo = nuevoStock > 0
-                ? cppAnterior.multiply(BigDecimal.valueOf(Math.max(0, stockActual)))
-                    .add(costoUnitarioReal.multiply(BigDecimal.valueOf(cantidadTotal)))
-                    .divide(BigDecimal.valueOf(nuevoStock), 4, RoundingMode.HALF_UP)
+
+            BigDecimal stockActual = producto.getStock() != null ? producto.getStock() : BigDecimal.ZERO;
+            BigDecimal nuevoStock  = stockActual.add(cantidadTotal);
+            BigDecimal cppNuevo = nuevoStock.compareTo(BigDecimal.ZERO) > 0
+                ? cppAnterior.multiply(stockActual.max(BigDecimal.ZERO))
+                    .add(costoUnitarioReal.multiply(cantidadTotal))
+                    .divide(nuevoStock, 4, RoundingMode.HALF_UP)
                 : costoUnitarioReal;
 
             producto.setStock(nuevoStock);
@@ -184,7 +190,7 @@ public class CompraController {
 
             productoRepo.save(producto);
 
-            if (unidadesBonif > 0)
+            if (unidadesBonif.compareTo(BigDecimal.ZERO) > 0)
                 logService.log(LogService.STOCK_AJUSTADO, "PRODUCTO", producto.getIdProducto(),
                     "Bonif. mismo producto | " + producto.getNombre()
                         + " | facturadas: " + cantidadFacturada + " bonif: " + unidadesBonif
@@ -206,11 +212,37 @@ public class CompraController {
                 + " | fecha: " + compra.getFecha()
                 + " | S/ " + guardada.getTotal(), null);
 
+        try {
+            tesoreriaService.registrar("COMPRA", mapearCuenta(guardada.getMedioPago()),
+                guardada.getTotal(), -1,
+                "Compra #" + guardada.getIdCompra() + " — " + proveedor.getEmpresa(),
+                null, guardada.getIdCompra(), "compras");
+        } catch (Exception e) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            System.err.println("[CompraController] Tesorería: " + e.getMessage());
+            return ResponseEntity.badRequest().body(
+                "No se pudo descontar el pago de tesorería (" + e.getMessage()
+                    + "). La compra no fue registrada, corrige el medio de pago o la cuenta e intenta de nuevo.");
+        }
+
         return ResponseEntity.ok(guardada);
     }
 
-    // ── PATCH: anular con CPP ponderado inverso ───────────────────
+    private String mapearCuenta(String medioPago) {
+        if (medioPago == null) return "Caja Fisica";
+        return switch (medioPago.toLowerCase()) {
+            case "plin"           -> "Plin";
+            case "yape"           -> "Yape";
+            case "tarjeta"        -> "Tarjeta";
+            case "transferencia"  -> "Transferencia";
+            case "otro"           -> "Otro";
+            default               -> "Caja Fisica";
+        };
+    }
+
+    
     @PatchMapping("/{id}/anular")
+    @Transactional
     public ResponseEntity<?> anular(@PathVariable Integer id,
                                     @RequestBody AnulacionRequest req) {
         Compra compra = compraRepo.findById(id).orElse(null);
@@ -223,22 +255,22 @@ public class CompraController {
         if (compra.getDetalles() != null) {
             for (CompraDetalle det : compra.getDetalles()) {
                 Producto prod = det.getProducto();
-                int stockActual  = prod.getStock()   != null ? prod.getStock()   : 0;
-                int cantAnulada  = det.getCantidad()  != null ? det.getCantidad()  : 0;
-                int stockNuevo   = stockActual - cantAnulada;
+                BigDecimal stockActual  = prod.getStock()   != null ? prod.getStock()   : BigDecimal.ZERO;
+                BigDecimal cantAnulada  = det.getCantidad()  != null ? det.getCantidad()  : BigDecimal.ZERO;
+                BigDecimal stockNuevo   = stockActual.subtract(cantAnulada);
                 BigDecimal cppActual = prod.getCpp() != null ? prod.getCpp() : prod.getPrecioCosto();
                 BigDecimal cppNuevo;
 
-                if (stockNuevo > 0) {
-                    BigDecimal valorTotal   = cppActual.multiply(BigDecimal.valueOf(stockActual));
-                    BigDecimal valorAnulado = det.getCostoUnitario().multiply(BigDecimal.valueOf(cantAnulada));
+                if (stockNuevo.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal valorTotal   = cppActual.multiply(stockActual);
+                    BigDecimal valorAnulado = det.getCostoUnitario().multiply(cantAnulada);
                     BigDecimal valorRest    = valorTotal.subtract(valorAnulado);
                     if (valorRest.compareTo(BigDecimal.ZERO) < 0) valorRest = BigDecimal.ZERO;
-                    cppNuevo = valorRest.divide(BigDecimal.valueOf(stockNuevo), 4, RoundingMode.HALF_UP);
+                    cppNuevo = valorRest.divide(stockNuevo, 4, RoundingMode.HALF_UP);
                 } else {
                     cppNuevo = det.getCostoAnterior() != null ? det.getCostoAnterior() : BigDecimal.ZERO;
                 }
-                prod.setStock(Math.max(0, stockNuevo));
+                prod.setStock(stockNuevo.max(BigDecimal.ZERO));
                 prod.setCpp(cppNuevo);
                 prod.setPrecioCosto(cppNuevo);
                 productoRepo.save(prod);
@@ -249,10 +281,26 @@ public class CompraController {
         Compra guardada = compraRepo.save(compra);
         logService.log(LogService.COMPRA_ANULADA, "COMPRA", id,
             "Compra #" + id + " anulada. " + req.getMotivo(), null);
+
+        if (compra.getMedioPago() != null) {
+            try {
+                tesoreriaService.registrar("COMPRA_ANULADA", mapearCuenta(compra.getMedioPago()),
+                    guardada.getTotal(), 1,
+                    "Anulación compra #" + id + " — " + req.getMotivo(),
+                    null, id, "compras");
+            } catch (Exception e) {
+                TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                System.err.println("[CompraController] Tesorería: " + e.getMessage());
+                return ResponseEntity.badRequest().body(
+                    "No se pudo revertir el pago en tesorería (" + e.getMessage()
+                        + "). La anulación no fue aplicada, intenta de nuevo.");
+            }
+        }
+
         return ResponseEntity.ok(guardada);
     }
 
-    // ── POST: ajuste Plan B ───────────────────────────────────────
+    
     @PostMapping("/{id}/ajuste")
     public ResponseEntity<?> ajuste(@PathVariable Integer id,
                                     @RequestBody AjusteRequest req) {
@@ -268,23 +316,24 @@ public class CompraController {
         ajuste.setCompraOriginal(compra); ajuste.setProducto(producto);
         ajuste.setFecha(LocalDateTime.now()); ajuste.setTipo(req.getTipo());
         ajuste.setMotivo(req.getMotivo()); ajuste.setCostoAnterior(cppAnterior);
-        ajuste.setDeltaCantidad(req.getDeltaCantidad() != null ? req.getDeltaCantidad() : 0);
+        ajuste.setDeltaCantidad(req.getDeltaCantidad() != null ? req.getDeltaCantidad() : BigDecimal.ZERO);
         ajuste.setImpactoStock(ajuste.getDeltaCantidad());
 
         BigDecimal cppNuevo = cppAnterior;
         if ("COSTO".equals(req.getTipo()) && req.getCostoNuevo() != null) {
-            int stockActual = producto.getStock() != null ? producto.getStock() : 0;
-            if (stockActual > 0 && req.getCantidadOriginal() != null && req.getCantidadOriginal() > 0) {
-                int cantResto = Math.max(0, stockActual - req.getCantidadOriginal());
-                cppNuevo = cppAnterior.multiply(BigDecimal.valueOf(cantResto))
-                    .add(req.getCostoNuevo().multiply(BigDecimal.valueOf(req.getCantidadOriginal())))
-                    .divide(BigDecimal.valueOf(stockActual), 4, RoundingMode.HALF_UP);
+            BigDecimal stockActual = producto.getStock() != null ? producto.getStock() : BigDecimal.ZERO;
+            if (stockActual.compareTo(BigDecimal.ZERO) > 0 && req.getCantidadOriginal() != null
+                    && req.getCantidadOriginal().compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal cantResto = stockActual.subtract(req.getCantidadOriginal()).max(BigDecimal.ZERO);
+                cppNuevo = cppAnterior.multiply(cantResto)
+                    .add(req.getCostoNuevo().multiply(req.getCantidadOriginal()))
+                    .divide(stockActual, 4, RoundingMode.HALF_UP);
             } else { cppNuevo = req.getCostoNuevo(); }
             producto.setCpp(cppNuevo); producto.setPrecioCosto(cppNuevo);
             ajuste.setCostoNuevo(req.getCostoNuevo()); ajuste.setCppResultante(cppNuevo);
         } else if ("CANTIDAD".equals(req.getTipo()) || "DEVOLUCION".equals(req.getTipo())) {
-            int delta = ajuste.getDeltaCantidad();
-            producto.setStock(producto.getStock() + delta);
+            BigDecimal delta = ajuste.getDeltaCantidad();
+            producto.setStock(producto.getStock().add(delta));
             ajuste.setCppResultante(cppAnterior);
         }
         productoRepo.save(producto);
@@ -304,6 +353,6 @@ public class CompraController {
     @lombok.Data public static class AnulacionRequest { private String motivo; }
     @lombok.Data public static class AjusteRequest {
         private Integer idProducto; private String tipo; private String motivo;
-        private Integer deltaCantidad; private BigDecimal costoNuevo; private Integer cantidadOriginal;
+        private BigDecimal deltaCantidad; private BigDecimal costoNuevo; private BigDecimal cantidadOriginal;
     }
 }

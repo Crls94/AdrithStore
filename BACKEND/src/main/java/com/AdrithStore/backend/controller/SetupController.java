@@ -57,10 +57,10 @@ public class SetupController {
             periodoRepo.save(pc);
         }
 
-        // ── Saldos — findFirst evita NonUniqueResultException si hay duplicados ──
+        
         if (req.getSaldos() != null) {
             for (SetupRequest.SaldoCuenta sc : req.getSaldos()) {
-                // findAllByNombreIgnoreCase retorna List → tomamos el primero
+                
                 List<CuentaFinanciera> coincidencias =
                     cuentaRepo.findAllByNombreIgnoreCase(sc.getNombreCuenta());
 
@@ -102,7 +102,7 @@ public class SetupController {
         List<Producto> productos = productoRepo.findAll();
         for (Producto p : productos)
             if ("BIEN_FISICO".equals(p.getTipo()) || "CONSUMIBLE".equals(p.getTipo()))
-                p.setStock(0);
+                p.setStock(BigDecimal.ZERO);
         productoRepo.saveAll(productos);
 
         List<CuentaFinanciera> cuentas = cuentaRepo.findAll();

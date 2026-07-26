@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { T, inputStyle, labelStyle, btnPrimary, cardStyle } from '../theme';
 import api from '../api/axiosConfig';
+import { imprimirComprobanteCompra } from '../utils/comprobantePdf';
 
 const fmt      = (n) => 'S/ ' + parseFloat(n ?? 0).toFixed(2);
 const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-PE', {
   day: '2-digit', month: '2-digit', year: 'numeric',
 }) : '--';
 
-const FORM_VACIO       = { idProveedor: '', tipoComprobante: 'Factura', serieComprobante: 'F001', percepcion: '0', descuentoGlobal: '0', fechaIngreso: '' };
-// Fecha vacía = hoy al confirmar (backend aplica now() si null)
-const PROD_NUEVO_VACIO = { nombre: '', sku: '', idCategoria: '', precioVenta: '', descripcion: '', cantidadCompra: '', costoTotal: '' };
+const FORM_VACIO       = { idProveedor: '', tipoComprobante: 'Factura', serieComprobante: 'F001', percepcion: '0', descuentoGlobal: '0', fechaIngreso: '', medioPago: 'Efectivo' };
+
+const MEDIOS_PAGO = ['Efectivo', 'Plin', 'Yape', 'Tarjeta', 'Transferencia', 'Otro'];
+
+const PROD_NUEVO_VACIO = { nombre: '', sku: '', idCategoria: '', precioVenta: '', descripcion: '', unidadMedida: 'UNIDAD', cantidadCompra: '', costoTotal: '' };
 
 const inp = { width: '100%', padding: '7px 10px', border: `1px solid ${T.border}`, borderRadius: '8px', fontSize: '13px', outline: 'none', background: T.bgInput, color: T.textPrimary };
 const lbl = { display: 'block', fontSize: '10px', fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' };
@@ -31,6 +34,7 @@ export default function Compras() {
   const [proveedores, setProveedores] = useState([]);
   const [productos,   setProductos]   = useState([]);
   const [categorias,  setCategorias]  = useState([]);
+  const [cuentas,     setCuentas]     = useState([]);
   const [cargando,    setCargando]    = useState(true);
 
   const [vistaActiva,       setVistaActiva]       = useState('lista');
@@ -41,7 +45,7 @@ export default function Compras() {
   const [error,             setError]             = useState('');
   const [exito,             setExito]             = useState('');
 
-  // Form nueva compra
+  
   const [form,           setForm]           = useState(FORM_VACIO);
   const [detalle,        setDetalle]        = useState([]);
   const [buscProd,       setBuscProd]       = useState('');
@@ -52,35 +56,36 @@ export default function Compras() {
   const [creandoProd,    setCreandoProd]    = useState(false);
   const [errorProd,      setErrorProd]      = useState('');
 
-  // Busqueda de producto bonificado distinto por item
-  const [buscBonifMap,  setBuscBonifMap]  = useState({}); // {idProducto: texto}
+  
+  const [buscBonifMap,  setBuscBonifMap]  = useState({}); 
 
-  // Modal editar producto desde compras
+  
   const [modalEditProd,  setModalEditProd]  = useState(null);
   const [editProdForm,   setEditProdForm]   = useState({});
   const [guardandoProd,  setGuardandoProd]  = useState(false);
   const [errorEditProd,  setErrorEditProd]  = useState('');
 
-  // Modal anulacion
-  const [modalAnular,   setModalAnular]   = useState(null); // id compra
+  
+  const [modalAnular,   setModalAnular]   = useState(null); 
   const [motivoAnular,  setMotivoAnular]  = useState('');
   const [anulandoId,    setAnulandoId]    = useState(null);
 
-  // Modal ajuste (Plan B)
-  const [modalAjuste,       setModalAjuste]       = useState(null); // {compra, detalle}
+  
+  const [modalAjuste,       setModalAjuste]       = useState(null); 
   const [ajusteTipo,        setAjusteTipo]        = useState('COSTO');
   const [ajusteMotivo,      setAjusteMotivo]      = useState('');
   const [ajusteCostoNuevo,  setAjusteCostoNuevo]  = useState('');
   const [ajusteDelta,       setAjusteDelta]       = useState('');
   const [ajusteIdProducto,  setAjusteIdProducto]  = useState('');
-  const [ajustes,           setAjustes]           = useState({}); // {idCompra: [ajustes]}
+  const [ajustes,           setAjustes]           = useState({}); 
   const [guardandoAjuste,   setGuardandoAjuste]   = useState(false);
   const [errorAjuste,       setErrorAjuste]       = useState('');
 
   useEffect(() => {
-    Promise.all([api.get('/compras'), api.get('/proveedores'), api.get('/productos'), api.get('/categorias')])
-      .then(([c, p, pr, cat]) => {
+    Promise.all([api.get('/compras'), api.get('/proveedores'), api.get('/productos'), api.get('/categorias'), api.get('/tesoreria/cuentas')])
+      .then(([c, p, pr, cat, cta]) => {
         setCompras(c.data); setProveedores(p.data); setProductos(pr.data); setCategorias(cat.data);
+        setCuentas(Array.isArray(cta.data) ? cta.data : []);
       }).finally(() => setCargando(false));
   }, []);
 
@@ -93,7 +98,7 @@ export default function Compras() {
     });
   };
 
-  // ── Buscador de productos ─────────────────────────────────────
+  
   const handleBuscProd = (e) => {
     const val = e.target.value; setBuscProd(val);
     if (val.trim().length < 1) { setProdsFiltrados([]); setMostrarDrop(false); return; }
@@ -109,6 +114,7 @@ export default function Compras() {
     setDetalle(d => {
       if (d.find(i => i.idProducto === prod.idProducto)) return d;
       return [...d, { idProducto: prod.idProducto, nombre: prod.nombre, sku: prod.sku ?? '',
+        unidadMedida: prod.unidadMedida ?? 'UNIDAD',
         precioVenta: parseFloat(prod.precioVenta ?? 0).toFixed(2),
         cantidad: 1, costoTotal: '', costoUnitario: '', descuentoPct: '0',
         unidadesBonif: '0', idProductoBonif: '', cantidadBonif: '0', esNuevo: false }];
@@ -119,9 +125,10 @@ export default function Compras() {
     if (!prodNuevoForm.nombre.trim())   { setErrorProd('El nombre es obligatorio.'); return; }
     if (!prodNuevoForm.idCategoria)     { setErrorProd('Selecciona una categoria.'); return; }
     if (!prodNuevoForm.precioVenta)     { setErrorProd('El precio de venta es obligatorio.'); return; }
-    const cantidad   = parseInt(prodNuevoForm.cantidadCompra);
+    const esKg       = prodNuevoForm.unidadMedida === 'KG';
+    const cantidad   = esKg ? parseFloat(prodNuevoForm.cantidadCompra) : parseInt(prodNuevoForm.cantidadCompra);
     const costoTotal = parseFloat(prodNuevoForm.costoTotal);
-    if (!cantidad || cantidad < 1)      { setErrorProd('Ingresa la cantidad que compraste.'); return; }
+    if (!cantidad || cantidad <= 0)     { setErrorProd('Ingresa la cantidad que compraste.'); return; }
     if (!costoTotal || costoTotal <= 0) { setErrorProd('Ingresa el costo total pagado.'); return; }
     const costoUnitario = (costoTotal / cantidad).toFixed(4);
     setCreandoProd(true); setErrorProd('');
@@ -130,11 +137,12 @@ export default function Compras() {
         nombre: prodNuevoForm.nombre.trim(), sku: prodNuevoForm.sku.trim() || null,
         descripcion: prodNuevoForm.descripcion.trim() || null,
         precioVenta: parseFloat(prodNuevoForm.precioVenta), precioCosto: parseFloat(costoUnitario),
+        unidadMedida: prodNuevoForm.unidadMedida,
         stock: 0, stockAlert: 5, categoria: { idCategoria: parseInt(prodNuevoForm.idCategoria) },
       });
       const creado = res.data;
       setDetalle(d => [...d, { idProducto: creado.idProducto, nombre: creado.nombre,
-        sku: creado.sku ?? '', cantidad, costoTotal: String(parseFloat(prodNuevoForm.costoTotal)),
+        sku: creado.sku ?? '', unidadMedida: creado.unidadMedida ?? 'UNIDAD', cantidad, costoTotal: String(parseFloat(prodNuevoForm.costoTotal)),
         costoUnitario, descuentoPct: '0', unidadesBonif: '0', idProductoBonif: '', cantidadBonif: '0', esNuevo: true }]);
       await recargarProductos();
       setProdNuevoForm(PROD_NUEVO_VACIO); setModoAgregar(null); setErrorProd('');
@@ -142,7 +150,7 @@ export default function Compras() {
     finally  { setCreandoProd(false); }
   };
 
-  // Abrir modal editar producto desde compras
+  
   const abrirEditProd = (prod) => {
     setModalEditProd(prod);
     setEditProdForm({
@@ -166,18 +174,21 @@ export default function Compras() {
         sku:         editProdForm.sku.trim() || null,
         precioVenta: parseFloat(editProdForm.precioVenta) || 0,
         precioCosto: parseFloat(editProdForm.precioCosto) || 0,
-        stockAlert:  parseInt(editProdForm.stockAlert) || 5,
+        stockAlert:  (modalEditProd.unidadMedida==='KG' ? parseFloat(editProdForm.stockAlert) : parseInt(editProdForm.stockAlert)) || 5,
+        unidadMedida: modalEditProd.unidadMedida,
         descripcion: editProdForm.descripcion.trim() || null,
         stock:       modalEditProd.stock,
         cpp:         modalEditProd.cpp,
+        tipo:        modalEditProd.tipo,
+        permiteStockNegativo: modalEditProd.permiteStockNegativo,
         categoria:   { idCategoria: parseInt(editProdForm.idCategoria) || modalEditProd.categoria?.idCategoria },
       };
       await api.put('/productos/' + modalEditProd.idProducto, payload);
-      // Actualizar en la lista local sin recargar todo
+      
       setProductos(ps => ps.map(p =>
         p.idProducto === modalEditProd.idProducto ? { ...p, ...payload, categoria: p.categoria } : p
       ));
-      // Actualizar en el detalle si ya está en carrito
+      
       setDetalle(d => d.map(i =>
         i.idProducto === modalEditProd.idProducto
           ? { ...i, nombre: payload.nombre, precioVenta: String(payload.precioVenta) }
@@ -193,7 +204,7 @@ export default function Compras() {
 
   const subtotalCompra = detalle.reduce((a, i) => {
     const dsc  = parseFloat(i.descuentoPct) / 100 || 0;
-    const cant = parseInt(i.cantidad) || 0;
+    const cant = (i.unidadMedida === 'KG' ? parseFloat(i.cantidad) : parseInt(i.cantidad)) || 0;
     const usaTotal = i.costoTotal !== '' && i.costoTotal !== undefined;
     const costoBase = usaTotal
       ? (parseFloat(i.costoTotal) || 0)
@@ -204,12 +215,28 @@ export default function Compras() {
   const descuentoNum   = parseFloat(form.descuentoGlobal) || 0;
   const totalCompra    = subtotalCompra + percepcionNum - descuentoNum;
 
-  // ── Registrar compra ─────────────────────────────────────────
+
+  const mapearCuentaNombre = (medioPago) => {
+    switch ((medioPago || '').toLowerCase()) {
+      case 'plin':          return 'Plin';
+      case 'yape':           return 'Yape';
+      case 'tarjeta':        return 'Tarjeta';
+      case 'transferencia':  return 'Transferencia';
+      case 'otro':            return 'Otro';
+      default:                return 'Caja Fisica';
+    }
+  };
+  const cuentaCompra       = cuentas.find(c => c.nombre === mapearCuentaNombre(form.medioPago));
+  const saldoDisponibleCompra = cuentaCompra ? parseFloat(cuentaCompra.saldoActual || 0) : null;
+  const totalSuperaSaldo   = saldoDisponibleCompra !== null && totalCompra > saldoDisponibleCompra;
+
+
   const handleGuardar = async () => {
     if (!form.idProveedor)    { setError('Selecciona un proveedor.'); return; }
+    if (!form.medioPago)      { setError('Selecciona el medio de pago de la compra.'); return; }
     if (detalle.length === 0) { setError('Agrega al menos un producto.'); return; }
     const invalido = detalle.find(i => {
-      const cant = parseInt(i.cantidad);
+      const cant = i.unidadMedida === 'KG' ? parseFloat(i.cantidad) : parseInt(i.cantidad);
       const tieneTotal = i.costoTotal !== '' && i.costoTotal !== undefined;
       const costoOk = tieneTotal ? parseFloat(i.costoTotal) > 0 : parseFloat(i.costoUnitario) > 0;
       return !cant || !costoOk;
@@ -221,41 +248,40 @@ export default function Compras() {
         idProveedor: parseInt(form.idProveedor), tipoComprobante: form.tipoComprobante,
         serieComprobante: form.serieComprobante, percepcion: percepcionNum,
         descuentoGlobal: parseFloat(form.descuentoGlobal) || 0,
+        medioPago: form.medioPago,
         fechaIngreso: form.fechaIngreso ? new Date(form.fechaIngreso).toISOString().replace('Z', '') : null,
         detalles: detalle.map(i => {
-          const cant = parseInt(i.cantidad) || 1;
-          // Si el usuario ingresó costoTotal, calcular costoUnitario
+          const esKg = i.unidadMedida === 'KG';
+          const cant = (esKg ? parseFloat(i.cantidad) : parseInt(i.cantidad)) || 1;
+
           const costoUnit = (i.costoTotal !== '' && i.costoTotal !== undefined)
             ? parseFloat(i.costoTotal) / cant
             : parseFloat(i.costoUnitario) || 0;
+          const bonifEsKg = i.idProductoBonif
+            ? productos.find(p => p.idProducto === parseInt(i.idProductoBonif))?.unidadMedida === 'KG'
+            : false;
           return {
             idProducto:            i.idProducto,
             cantidad:              cant,
             costoUnitario:         parseFloat(costoUnit.toFixed(4)),
             descuentoPct:          parseFloat(i.descuentoPct) || 0,
             precioVenta:           i.precioVenta ? parseFloat(i.precioVenta) : null,
-            unidadesBonificacion:  parseInt(i.unidadesBonif) || 0,
+            unidadesBonificacion:  (esKg ? parseFloat(i.unidadesBonif) : parseInt(i.unidadesBonif)) || 0,
             idProductoBonif:       i.idProductoBonif ? parseInt(i.idProductoBonif) : null,
-            cantidadBonif:         i.idProductoBonif ? parseInt(i.cantidadBonif) || 0 : null,
-            // Costo del producto bonificado: costoBonifTotal ingresado o CPP existente * cantidad
+            cantidadBonif:         i.idProductoBonif ? (bonifEsKg ? parseFloat(i.cantidadBonif) : parseInt(i.cantidadBonif)) || 0 : null,
+
             costoBonifTotal:       i.idProductoBonif && i.costoBonifTotal ? parseFloat(i.costoBonifTotal) : null,
           };
         }),
       });
-      // Actualizar precio de venta de productos que el usuario modificó en esta compra
-      const actualizaciones = detalle
-        .filter(i => i.precioVenta !== undefined && i.precioVenta !== '' && !i.esNuevo)
-        .map(i => api.put('/productos/' + i.idProducto, {
-          idProducto: i.idProducto, precioVenta: parseFloat(i.precioVenta),
-        }).catch(() => {})); // silenciar errores individuales
-      if (actualizaciones.length > 0) await Promise.all(actualizaciones);
       setExito('Compra registrada. Stock, CPP y precios de venta actualizados.');
       setForm(FORM_VACIO); setDetalle([]); recargarCompras(); recargarProductos(); setVistaActiva('lista');
-    } catch { setError('Error al registrar la compra.'); }
-    finally  { setGuardando(false); }
+    } catch (e) {
+      setError(typeof e.response?.data === 'string' ? e.response.data : 'Error al registrar la compra.');
+    } finally { setGuardando(false); }
   };
 
-  // ── Anular compra ─────────────────────────────────────────────
+  
   const handleAnular = async () => {
     if (!motivoAnular.trim()) { return; }
     setAnulandoId(modalAnular);
@@ -269,7 +295,7 @@ export default function Compras() {
     } finally { setAnulandoId(null); }
   };
 
-  // ── Nota de ajuste Plan B ─────────────────────────────────────
+  
   const abrirAjuste = (compra) => {
     setModalAjuste(compra);
     setAjusteTipo('COSTO'); setAjusteMotivo(''); setAjusteCostoNuevo('');
@@ -288,8 +314,9 @@ export default function Compras() {
     }
     setGuardandoAjuste(true); setErrorAjuste('');
 
-    // Buscar la cantidad original de ese producto en la compra
+
     const detItem = modalAjuste.detalles?.find(d => String(d.producto?.idProducto) === ajusteIdProducto);
+    const esKgAjuste = detItem?.producto?.unidadMedida === 'KG';
 
     try {
       await api.post(`/compras/${modalAjuste.idCompra}/ajuste`, {
@@ -297,7 +324,7 @@ export default function Compras() {
         tipo:             ajusteTipo,
         motivo:           ajusteMotivo,
         costoNuevo:       ajusteTipo === 'COSTO' ? parseFloat(ajusteCostoNuevo) : null,
-        deltaCantidad:    (ajusteTipo !== 'COSTO') ? parseInt(ajusteDelta) : null,
+        deltaCantidad:    (ajusteTipo !== 'COSTO') ? (esKgAjuste ? parseFloat(ajusteDelta) : parseInt(ajusteDelta)) : null,
         cantidadOriginal: detItem?.cantidad ?? null,
       });
       setExito(`Ajuste aplicado correctamente. CPP actualizado.`);
@@ -309,7 +336,7 @@ export default function Compras() {
     } finally { setGuardandoAjuste(false); }
   };
 
-  // ── Filtrado historial ────────────────────────────────────────
+  
   const comprasFiltradas = compras.filter(c => {
     const matchTxt = busquedaHistorial.trim() === '' ||
       String(c.idCompra).includes(busquedaHistorial) ||
@@ -318,9 +345,11 @@ export default function Compras() {
     return matchTxt && matchEst;
   });
 
+  const cantidadCompraNum = prodNuevoForm.unidadMedida === 'KG'
+    ? parseFloat(prodNuevoForm.cantidadCompra) : parseInt(prodNuevoForm.cantidadCompra);
   const costoUnitarioPreview = prodNuevoForm.cantidadCompra && prodNuevoForm.costoTotal &&
-    parseInt(prodNuevoForm.cantidadCompra) > 0 && parseFloat(prodNuevoForm.costoTotal) > 0
-    ? (parseFloat(prodNuevoForm.costoTotal) / parseInt(prodNuevoForm.cantidadCompra)).toFixed(2) : null;
+    cantidadCompraNum > 0 && parseFloat(prodNuevoForm.costoTotal) > 0
+    ? (parseFloat(prodNuevoForm.costoTotal) / cantidadCompraNum).toFixed(2) : null;
 
   if (cargando) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
@@ -330,7 +359,7 @@ export default function Compras() {
 
   return (
     <div>
-      {/* Header */}
+      { }
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
           <h5 style={{ margin: 0, fontWeight: 700, color: T.textPrimary, fontSize: '18px' }}>Compras</h5>
@@ -363,7 +392,7 @@ export default function Compras() {
         </div>
       )}
 
-      {/* ══ VISTA NUEVA COMPRA ══ */}
+      { }
       {vistaActiva === 'nueva' && (
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -514,6 +543,13 @@ export default function Compras() {
                       <label style={lbl}>Precio venta al cliente (S/) *</label>
                       <input type="number" step="0.01" min="0" value={prodNuevoForm.precioVenta} onChange={e => setProdNuevoForm(f => ({ ...f, precioVenta: e.target.value }))} placeholder="0.00" style={inp} />
                     </div>
+                    <div className="col-6">
+                      <label style={lbl}>Se vende por</label>
+                      <select value={prodNuevoForm.unidadMedida} onChange={e => setProdNuevoForm(f => ({ ...f, unidadMedida: e.target.value }))} style={inp}>
+                        <option value="UNIDAD">Unidad</option>
+                        <option value="KG">Kilogramo</option>
+                      </select>
+                    </div>
                     <div className="col-12">
                       <label style={lbl}>Descripcion</label>
                       <input value={prodNuevoForm.descripcion} onChange={e => setProdNuevoForm(f => ({ ...f, descripcion: e.target.value }))} placeholder="Opcional" style={inp} />
@@ -527,7 +563,8 @@ export default function Compras() {
                     </div>
                     <div className="col-5">
                       <label style={lbl}>Cantidad comprada *</label>
-                      <input type="number" min="1" value={prodNuevoForm.cantidadCompra} onChange={e => setProdNuevoForm(f => ({ ...f, cantidadCompra: e.target.value }))} placeholder="12" style={{ ...inp, textAlign: 'center' }} />
+                      <input type="number" min={prodNuevoForm.unidadMedida==='KG'?'0.001':'1'} step={prodNuevoForm.unidadMedida==='KG'?'0.001':'1'}
+                        value={prodNuevoForm.cantidadCompra} onChange={e => setProdNuevoForm(f => ({ ...f, cantidadCompra: e.target.value }))} placeholder="12" style={{ ...inp, textAlign: 'center' }} />
                     </div>
                     <div className="col-7">
                       <label style={lbl}>Costo total pagado (S/) *</label>
@@ -537,7 +574,7 @@ export default function Compras() {
                       <div className="col-12">
                         <div style={{ background: '#6aad7e18', borderRadius: '8px', padding: '8px 12px', fontSize: '12px', color: '#4a8a5e', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
                           <span>Costo unitario calculado:</span>
-                          <span style={{ fontSize: '14px', fontWeight: 800 }}>S/ {costoUnitarioPreview} / und.</span>
+                          <span style={{ fontSize: '14px', fontWeight: 800 }}>S/ {costoUnitarioPreview} / {prodNuevoForm.unidadMedida==='KG'?'kg':'und.'}</span>
                         </div>
                       </div>
                     )}
@@ -566,7 +603,7 @@ export default function Compras() {
             )}
           </div>
 
-          {/* Derecha: detalle + totales */}
+          { }
           <div style={{ flex: '0 0 360px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ ...cardStyle, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -586,7 +623,8 @@ export default function Compras() {
               ) : (
                 <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                   {detalle.map(item => {
-                    const subtotalItem = (parseFloat(item.costoUnitario) || 0) * (parseInt(item.cantidad) || 0);
+                    const itemEsKg = item.unidadMedida === 'KG';
+                    const subtotalItem = (parseFloat(item.costoUnitario) || 0) * ((itemEsKg ? parseFloat(item.cantidad) : parseInt(item.cantidad)) || 0);
                     return (
                       <div key={item.idProducto} style={{ padding: '12px 16px', borderBottom: `1px solid ${T.border}` }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
@@ -598,7 +636,7 @@ export default function Compras() {
                             {item.sku && <small style={{ fontFamily: 'monospace', color: T.textMuted, fontSize: '11px' }}>{item.sku}</small>}
                           </div>
                           <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
-                            {/* Editar producto */}
+                            { }
                             <button
                               onClick={() => {
                                 const prod = productos.find(p => p.idProducto === item.idProducto);
@@ -610,7 +648,7 @@ export default function Compras() {
                                 fontSize: '12px', color: T.gold }}>
                               <i className="bi bi-pencil" />
                             </button>
-                            {/* Quitar del detalle */}
+                            { }
                             <button onClick={() => quitarItem(item.idProducto)}
                               style={{ background: 'none', border: 'none', color: '#b06060',
                                 cursor: 'pointer', fontSize: '17px', padding: 0 }}>
@@ -619,7 +657,7 @@ export default function Compras() {
                           </div>
                         </div>
                         {(() => {
-                          const cant     = parseInt(item.cantidad) || 0;
+                          const cant     = (itemEsKg ? parseFloat(item.cantidad) : parseInt(item.cantidad)) || 0;
                           const dsc      = parseFloat(item.descuentoPct) / 100 || 0;
                           const usaTotal = item.costoTotal !== '' && item.costoTotal !== undefined;
                           const costoT   = usaTotal ? parseFloat(item.costoTotal) || 0 : (parseFloat(item.costoUnitario) || 0) * cant;
@@ -627,11 +665,11 @@ export default function Compras() {
                           const subItem  = costoT * (1 - dsc);
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              {/* Fila 1: cantidad + costo total + dscto */}
+                              { }
                               <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
                                 <div style={{ flex: '0 0 72px' }}>
                                   <label style={{ ...lbl, marginBottom: '2px' }}>Cantidad</label>
-                                  <input type="number" min="1" value={item.cantidad}
+                                  <input type="number" min={itemEsKg?'0.001':'1'} step={itemEsKg?'0.001':'1'} value={item.cantidad}
                                     onChange={e => actualizarItem(item.idProducto, 'cantidad', e.target.value)}
                                     style={{ ...inp, textAlign: 'center' }} />
                                 </div>
@@ -651,7 +689,7 @@ export default function Compras() {
                                     style={{ ...inp, textAlign: 'center', color: parseFloat(item.descuentoPct) > 0 ? '#d68c0d' : T.textPrimary }} />
                                 </div>
                               </div>
-                              {/* Fila 2: preview costo unitario + precio venta + subtotal */}
+                              { }
                               {costoT > 0 && cant > 0 && (
                                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                   <div style={{ background: '#6a9ac415', border: '1px solid #6a9ac440',
@@ -669,7 +707,7 @@ export default function Compras() {
                                   </div>
                                 </div>
                               )}
-                              {/* Fila 3: precio venta editable */}
+                              { }
                               {!item.esNuevo && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                   <label style={{ ...lbl, marginBottom: 0, whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -690,36 +728,36 @@ export default function Compras() {
                                 </div>
                               )}
 
-                              {/* Fila 4: Bonificaciones */}
+                              { }
                               <div style={{ borderTop: '1px dashed ' + T.border, paddingTop: '8px', marginTop: '4px' }}>
                                 <div style={{ fontSize: '10px', fontWeight: 700, color: T.textMuted,
                                   textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>
                                   Bonificacion (opcional)
                                 </div>
-                                {/* Mismo producto: unidades extra gratis */}
+                                { }
                                 <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', marginBottom: '6px' }}>
                                   <div style={{ flex: 1 }}>
                                     <label style={{ ...lbl, marginBottom: '2px', color: '#6aad7e' }}>
                                       Unidades bonif. (mismo producto)
                                     </label>
-                                    <input type="number" min="0" value={item.unidadesBonif ?? '0'}
+                                    <input type="number" min="0" step={itemEsKg?'0.001':'1'} value={item.unidadesBonif ?? '0'}
                                       onChange={e => actualizarItem(item.idProducto, 'unidadesBonif', e.target.value)}
                                       style={{ ...inp, textAlign: 'center' }} />
                                   </div>
-                                  {parseInt(item.unidadesBonif) > 0 && costoT > 0 && (
+                                  {(itemEsKg ? parseFloat(item.unidadesBonif) : parseInt(item.unidadesBonif)) > 0 && costoT > 0 && (
                                     <div style={{ flexShrink: 0, fontSize: '11px', fontWeight: 700, color: '#6aad7e',
                                       background: '#6aad7e15', padding: '5px 10px', borderRadius: '8px',
                                       whiteSpace: 'nowrap', paddingBottom: '7px' }}>
-                                      Costo real: S/ {(costoT / (cant + parseInt(item.unidadesBonif))).toFixed(4)}/und
+                                      Costo real: S/ {(costoT / (cant + (itemEsKg ? parseFloat(item.unidadesBonif) : parseInt(item.unidadesBonif)))).toFixed(4)}/und
                                     </div>
                                   )}
                                 </div>
-                                {/* Producto distinto: regalo de otro producto — con buscador */}
+                                { }
                                 <div>
                                   <label style={{ ...lbl, marginBottom: '4px', color: '#9a7ec4' }}>
                                     Producto bonificado distinto
                                   </label>
-                                  {/* Buscador con filtro */}
+                                  { }
                                   {!item.idProductoBonif && (
                                     <div style={{ position: 'relative' }}>
                                       <i className="bi bi-search" style={{ position: 'absolute', left: '10px',
@@ -731,7 +769,7 @@ export default function Compras() {
                                         style={{ ...inp, paddingLeft: '30px', fontSize: '12px' }} />
                                     </div>
                                   )}
-                                  {/* Lista filtrada */}
+                                  { }
                                   {!item.idProductoBonif && (buscBonifMap[item.idProducto] ?? '').length > 0 && (
                                     <div style={{ maxHeight: '140px', overflowY: 'auto', background: T.bgCard,
                                       border: '1px solid ' + T.border, borderRadius: '8px', marginTop: '4px' }}>
@@ -758,7 +796,7 @@ export default function Compras() {
                                               <small style={{ color: T.textMuted }}>{pr.sku ?? '--'}</small>
                                             </div>
                                             <span style={{ color: '#9a7ec4', fontSize: '11px', fontWeight: 700, flexShrink: 0, marginLeft: '6px' }}>
-                                              CPP: {parseFloat(pr.cpp ?? pr.precioCosto ?? 0).toFixed(2)}
+                                              CPP: {(parseFloat(pr.cpp) > 0 ? parseFloat(pr.cpp) : parseFloat(pr.precioCosto || 0)).toFixed(2)}
                                             </span>
                                           </div>
                                         ))}
@@ -770,14 +808,15 @@ export default function Compras() {
                                       )}
                                     </div>
                                   )}
-                                  {/* Producto seleccionado — mostrar controles */}
+                                  { }
                                   {item.idProductoBonif && (() => {
                                     const prodB = productos.find(pr => String(pr.idProducto) === String(item.idProductoBonif));
                                     if (!prodB) return null;
-                                    const cppBActual = parseFloat(prodB.cpp ?? prodB.precioCosto ?? 0);
+                                    const cppBActual = parseFloat(prodB.cpp) > 0 ? parseFloat(prodB.cpp) : parseFloat(prodB.precioCosto || 0);
                                     const sinCpp = cppBActual <= 0;
+                                    const bonifEsKg = prodB.unidadMedida === 'KG';
                                     const costoBonifTotalNum = parseFloat(item.costoBonifTotal || 0);
-                                    const cantBonif = parseInt(item.cantidadBonif || 1);
+                                    const cantBonif = (bonifEsKg ? parseFloat(item.cantidadBonif) : parseInt(item.cantidadBonif)) || 1;
                                     const costoUnitBonif = cantBonif > 0 && costoBonifTotalNum > 0
                                       ? costoBonifTotalNum / cantBonif : cppBActual;
                                     return (
@@ -799,7 +838,7 @@ export default function Compras() {
                                         <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
                                           <div style={{ flex: 1 }}>
                                             <label style={{ ...lbl, marginBottom: '2px' }}>Cant. regalada</label>
-                                            <input type="number" min="1" value={item.cantidadBonif ?? '1'}
+                                            <input type="number" min={bonifEsKg?'0.001':'1'} step={bonifEsKg?'0.001':'1'} value={item.cantidadBonif ?? '1'}
                                               onChange={e => actualizarItem(item.idProducto, 'cantidadBonif', e.target.value)}
                                               style={{ ...inp, textAlign: 'center' }} />
                                           </div>
@@ -814,7 +853,7 @@ export default function Compras() {
                                               style={{ ...inp, borderColor: sinCpp && !item.costoBonifTotal ? '#d64545' : T.border }} />
                                           </div>
                                         </div>
-                                        {/* Preview distribución */}
+                                        { }
                                         <div style={{ marginTop: '6px', fontSize: '11px', color: '#9a7ec4', fontWeight: 600 }}>
                                           Se distribuye S/ {(costoUnitBonif * cantBonif).toFixed(2)} al regalo
                                           ({cantBonif} und × S/ {costoUnitBonif.toFixed(4)}/und).
@@ -857,6 +896,28 @@ export default function Compras() {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '20px', color: T.textPrimary, borderTop: `1px solid ${T.border}`, paddingTop: '12px', marginBottom: '16px' }}>
                 <span>TOTAL</span><span style={{ color: T.gold }}>{fmt(totalCompra)}</span>
               </div>
+
+              <div style={{ marginBottom: '10px' }}>
+                <label style={lbl}>Medio de pago *</label>
+                <select value={form.medioPago} onChange={e => setForm(f => ({ ...f, medioPago: e.target.value }))} style={inp}>
+                  {MEDIOS_PAGO.map(m => <option key={m}>{m}</option>)}
+                </select>
+                <div style={{ fontSize: '11px', color: T.textMuted, marginTop: '4px' }}>
+                  Cuenta de la que sale el pago{cuentaCompra ? ` (${cuentaCompra.nombre})` : ''} · Saldo disponible:{' '}
+                  <strong style={{ color: T.textPrimary }}>
+                    {saldoDisponibleCompra !== null ? fmt(saldoDisponibleCompra) : '--'}
+                  </strong>
+                </div>
+              </div>
+
+              {totalSuperaSaldo && (
+                <div style={{ background: '#d68c0d15', border: '1px solid #d68c0d40', borderRadius: '10px',
+                  padding: '9px 12px', marginBottom: '12px', fontSize: '12px', color: '#b8720a' }}>
+                  <i className="bi bi-exclamation-triangle me-1" />
+                  El total supera el saldo disponible en {cuentaCompra?.nombre ?? form.medioPago}.
+                </div>
+              )}
+
               <button onClick={handleGuardar} disabled={guardando || detalle.length === 0}
                 style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none',
                   background: detalle.length === 0 ? T.bgMuted : `linear-gradient(135deg, ${T.gold}, ${T.goldDark})`,
@@ -870,10 +931,10 @@ export default function Compras() {
         </div>
       )}
 
-      {/* ══ VISTA HISTORIAL ══ */}
+      { }
       {vistaActiva === 'lista' && (
         <>
-          {/* Busqueda + filtro estado */}
+          { }
           <div style={{ ...cardStyle, padding: '14px 20px', marginBottom: '12px' }}>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ position: 'relative', flex: '1 1 220px', minWidth: '200px' }}>
@@ -936,6 +997,7 @@ export default function Compras() {
                       <small style={{ color: T.textMuted }}>
                         <i className="bi bi-calendar3 me-1" />{fmtFecha(c.fecha)}
                         {c.tipoComprobante && ` · ${c.tipoComprobante} ${c.serieComprobante ?? ''}`}
+                        {c.medioPago && ` · ${c.medioPago}`}
                         {ajustesDeEsta.length > 0 && (
                           <span style={{ marginLeft: '8px', color: '#d68c0d', fontWeight: 600 }}>
                             <i className="bi bi-pencil-square me-1" />{ajustesDeEsta.length} ajuste{ajustesDeEsta.length > 1 ? 's' : ''}
@@ -954,11 +1016,11 @@ export default function Compras() {
                       style={{ color: T.textMuted, fontSize: '14px', flexShrink: 0 }} />
                   </div>
 
-                  {/* Panel expandible */}
+                  { }
                   {expandida === c.idCompra && (
                     <div style={{ background: T.bgMuted, padding: '16px 20px', borderBottom: `1px solid ${T.border}` }}>
 
-                      {/* Motivo anulacion si aplica */}
+                      { }
                       {c.estado === 'anulado' && c.motivo && (
                         <div style={{ background: '#d6454512', border: '1px solid #d6454530', borderRadius: '10px',
                           padding: '10px 14px', marginBottom: '12px', fontSize: '13px', color: '#d64545' }}>
@@ -967,7 +1029,7 @@ export default function Compras() {
                         </div>
                       )}
 
-                      {/* Tabla de detalle */}
+                      { }
                       <div style={{ background: T.bgCard, borderRadius: '12px', overflow: 'hidden', border: `1px solid ${T.border}`, marginBottom: '12px' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                           <thead>
@@ -1011,7 +1073,7 @@ export default function Compras() {
                         </table>
                       </div>
 
-                      {/* Ajustes aplicados */}
+                      { }
                       {ajustesDeEsta.length > 0 && (
                         <div style={{ marginBottom: '12px' }}>
                           <div style={{ fontSize: '12px', fontWeight: 700, color: '#d68c0d',
@@ -1039,7 +1101,17 @@ export default function Compras() {
                         </div>
                       )}
 
-                      {/* Botones de accion */}
+                      { }
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                        <button onClick={() => imprimirComprobanteCompra(c)}
+                          style={{ padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
+                            background: '#1A73E815', border: '1px solid #1A73E840', color: '#1A73E8',
+                            display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <i className="bi bi-printer" /> Imprimir comprobante PDF
+                        </button>
+                      </div>
+
+                      { }
                       {c.estado === 'confirmado' && (
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           <button onClick={() => abrirAjuste(c)}
@@ -1065,7 +1137,7 @@ export default function Compras() {
         </>
       )}
 
-      {/* ══ MODAL ANULAR ══ */}
+      { }
       {modalAnular && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 3000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -1115,7 +1187,7 @@ export default function Compras() {
         </div>
       )}
 
-      {/* ══ MODAL AJUSTE PLAN B ══ */}
+      { }
       {modalAjuste && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 3000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -1133,14 +1205,14 @@ export default function Compras() {
               </button>
             </div>
             <div style={{ padding: '24px', overflowY: 'auto' }}>
-              {/* Info Plan B */}
+              { }
               <div style={{ background: '#6a9ac415', border: '1px solid #6a9ac440', borderRadius: '10px',
                 padding: '10px 14px', marginBottom: '16px', fontSize: '12px', color: '#6a9ac4' }}>
                 <i className="bi bi-info-circle me-2" />
                 <strong>Plan B:</strong> Esta nota NO modifica la compra original. Registra la correccion y actualiza el CPP del producto sobre el stock actual, preservando el historial de ventas pasadas.
               </div>
 
-              {/* Tipo de ajuste */}
+              { }
               <label style={lbl}>Tipo de ajuste</label>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
                 {AJUSTE_TIPOS.map(t => (
@@ -1157,20 +1229,20 @@ export default function Compras() {
                 ))}
               </div>
 
-              {/* Producto afectado */}
+              { }
               <div style={{ marginBottom: '14px' }}>
                 <label style={lbl}>Producto afectado</label>
                 <select value={ajusteIdProducto} onChange={e => setAjusteIdProducto(e.target.value)} style={inp}>
                   <option value="">Seleccionar producto...</option>
                   {(modalAjuste.detalles ?? []).map(d => (
                     <option key={d.producto?.idProducto} value={d.producto?.idProducto}>
-                      {d.producto?.nombre} — compraste {d.cantidad} und. a {fmt(d.costoUnitario)} c/u
+                      {d.producto?.nombre} — compraste {d.cantidad} {d.producto?.unidadMedida==='KG'?'kg':'und.'} a {fmt(d.costoUnitario)} c/u
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Campos segun tipo */}
+              { }
               {ajusteTipo === 'COSTO' && (
                 <div style={{ marginBottom: '14px' }}>
                   <label style={lbl}>Costo unitario correcto (S/)</label>
@@ -1184,12 +1256,15 @@ export default function Compras() {
                 </div>
               )}
 
-              {(ajusteTipo === 'CANTIDAD' || ajusteTipo === 'DEVOLUCION') && (
+              {(ajusteTipo === 'CANTIDAD' || ajusteTipo === 'DEVOLUCION') && (() => {
+                const ajusteEsKg = modalAjuste.detalles?.find(d => String(d.producto?.idProducto) === ajusteIdProducto)
+                  ?.producto?.unidadMedida === 'KG';
+                return (
                 <div style={{ marginBottom: '14px' }}>
                   <label style={lbl}>
-                    {ajusteTipo === 'DEVOLUCION' ? 'Unidades devueltas (negativo)' : 'Diferencia de unidades (+/-)'}
+                    {ajusteTipo === 'DEVOLUCION' ? (ajusteEsKg ? 'Kg devueltos (negativo)' : 'Unidades devueltas (negativo)') : 'Diferencia (+/-)'}
                   </label>
-                  <input type="number" value={ajusteDelta} onChange={e => setAjusteDelta(e.target.value)}
+                  <input type="number" step={ajusteEsKg?'0.001':'1'} value={ajusteDelta} onChange={e => setAjusteDelta(e.target.value)}
                     placeholder={ajusteTipo === 'DEVOLUCION' ? 'Ej: -5' : 'Ej: -2 o +3'}
                     style={inp} />
                   <small style={{ color: T.textMuted, fontSize: '11px', marginTop: '4px', display: 'block' }}>
@@ -1198,9 +1273,10 @@ export default function Compras() {
                       : 'Diferencia entre factura y recepcion fisica. Negativo si recibisite menos.'}
                   </small>
                 </div>
-              )}
+                );
+              })()}
 
-              {/* Motivo */}
+              { }
               <div style={{ marginBottom: '4px' }}>
                 <label style={lbl}>Motivo / descripcion *</label>
                 <textarea value={ajusteMotivo} onChange={e => setAjusteMotivo(e.target.value)}
@@ -1238,7 +1314,7 @@ export default function Compras() {
           </div>
         </div>
       )}
-      {/* ══ Modal editar producto desde compras ══ */}
+      { }
       {modalEditProd && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
           zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -1297,7 +1373,7 @@ export default function Compras() {
                 </div>
                 <div className="col-6">
                   <label style={lbl}>Stock minimo (alerta)</label>
-                  <input type="number" min="0" value={editProdForm.stockAlert ?? 5}
+                  <input type="number" min="0" step={modalEditProd.unidadMedida==='KG'?'0.001':'1'} value={editProdForm.stockAlert ?? 5}
                     onChange={e => setEditProdForm(f => ({ ...f, stockAlert: e.target.value }))}
                     style={inp} />
                 </div>
@@ -1308,7 +1384,7 @@ export default function Compras() {
                     rows={2} placeholder="Descripcion opcional..."
                     style={{ ...inp, resize: 'none' }} />
                 </div>
-                {/* Info del CPP actual */}
+                { }
                 <div className="col-12">
                   <div style={{ background: T.bgMuted, borderRadius: '8px', padding: '10px 14px',
                     fontSize: '12px', color: T.textMuted, border: '1px solid ' + T.border }}>

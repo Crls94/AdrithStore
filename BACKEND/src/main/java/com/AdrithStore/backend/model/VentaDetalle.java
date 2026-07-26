@@ -25,10 +25,10 @@ public class VentaDetalle {
     @JsonIgnoreProperties({"hibernateLazyInitializer","handler"})
     private Producto producto;
 
-    @Column(name = "cantidad")          private Integer cantidad;
+    @Column(name = "cantidad", precision = 10, scale = 3) private BigDecimal cantidad;
     @Column(name = "precio_historico",  precision = 10, scale = 2) private BigDecimal precioHistorico;
     @Column(name = "costo_historico",   precision = 10, scale = 4) private BigDecimal costoHistorico;
-    // descuento por ítem: monto fijo descontado del precio (ej: 0.20 sobre un ítem de 0.20)
+    
     @Column(name = "descuento_item",    precision = 10, scale = 2) private BigDecimal descuentoItem = BigDecimal.ZERO;
     @Column(name = "subtotal",          precision = 10, scale = 2) private BigDecimal subtotal;
 }

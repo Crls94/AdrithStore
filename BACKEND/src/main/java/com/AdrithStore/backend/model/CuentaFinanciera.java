@@ -17,7 +17,7 @@ public class CuentaFinanciera {
     @Column(name = "nombre", nullable = false)
     private String nombre;
 
-    // EFECTIVO | DIGITAL | BANCO
+    
     @Column(name = "tipo", length = 20)
     private String tipo;
 
@@ -26,6 +26,9 @@ public class CuentaFinanciera {
 
     @Column(name = "saldo_actual", precision = 12, scale = 2)
     private BigDecimal saldoActual = BigDecimal.ZERO;
+
+    @Column(name = "fondo_caja", precision = 12, scale = 2)
+    private BigDecimal fondoCaja = BigDecimal.ZERO;
 
     @Column(name = "activa")
     private Boolean activa = true;

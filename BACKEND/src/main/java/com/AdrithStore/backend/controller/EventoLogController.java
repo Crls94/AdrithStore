@@ -1,14 +1,21 @@
 package com.AdrithStore.backend.controller;
 
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.AdrithStore.backend.model.EventoLog;
 import com.AdrithStore.backend.repository.EventoLogRepository;
 import com.AdrithStore.backend.service.LogService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/eventos")
@@ -19,20 +26,20 @@ public class EventoLogController {
     private final EventoLogRepository logRepo;
     private final LogService          logService;
 
-    // ── GET /api/eventos ─────────────────────────────────────────────────
+    
     @GetMapping
     public List<EventoLog> listar() {
         return logRepo.findTop100ByOrderByFechaDesc();
     }
 
-    // ── GET /api/eventos/todos ────────────────────────────────────────────
+    
     @GetMapping("/todos")
     public List<EventoLog> todos() {
         return logRepo.findAllByOrderByFechaDesc();
     }
 
-    // ── POST /api/eventos/sistema-iniciado ────────────────────────────────
-    // Llamado por el frontend después del setup para registrar el inicio
+    
+    
     @PostMapping("/sistema-iniciado")
     public ResponseEntity<?> sistemaIniciado(@RequestBody Map<String, String> req) {
         String nombre = req.getOrDefault("nombreNegocio", "AdrithStore");

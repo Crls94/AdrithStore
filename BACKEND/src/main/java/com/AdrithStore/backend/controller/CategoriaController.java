@@ -10,7 +10,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/categorias")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")   // ← permite cualquier origen (red local + producción)
+@CrossOrigin(origins = "*")   
 public class CategoriaController {
 
     private final CategoriaRepository categoriaRepo;
@@ -42,8 +42,8 @@ public class CategoriaController {
     public ResponseEntity<?> actualizar(@PathVariable Integer id,
                                         @RequestBody Categoria datos) {
         return categoriaRepo.findById(id).map(c -> {
-            c.setNombre(datos.getNombre());
-            c.setDescripcion(datos.getDescripcion());
+            if (datos.getNombre() != null) c.setNombre(datos.getNombre());
+            if (datos.getDescripcion() != null) c.setDescripcion(datos.getDescripcion());
             try {
                 return ResponseEntity.ok((Object) categoriaRepo.save(c));
             } catch (Exception e) {

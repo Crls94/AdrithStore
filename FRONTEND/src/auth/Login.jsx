@@ -20,7 +20,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error,    setError]    = useState("");
   const [cargando, setCargando] = useState(false);
-  // vista: "login" | "sin-cuenta" 
+  
   const [vista,    setVista]    = useState("login");
 
   const handleLogin = async () => {
@@ -65,7 +65,7 @@ export default function Login() {
       fontFamily: "'Inter','DM Sans','Segoe UI',system-ui,sans-serif",
       position: "relative", overflow: "hidden",
     }}>
-      {/* Detalles de fondo */}
+      { }
       <div style={{ position:"absolute", top:-100, right:-100, width:400, height:400,
         borderRadius:"50%", background:"radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 65%)",
         pointerEvents:"none" }} />
@@ -73,7 +73,7 @@ export default function Login() {
         borderRadius:"50%", background:`radial-gradient(circle, rgba(224,122,47,0.08) 0%, transparent 70%)`,
         pointerEvents:"none" }} />
 
-      {/* Tarjeta */}
+      { }
       <div style={{
         width: "100%", maxWidth: 400,
         background: "rgba(255,255,255,0.97)",
@@ -83,7 +83,7 @@ export default function Login() {
         border: "1px solid rgba(255,255,255,0.6)",
         position: "relative",
       }}>
-        {/* Logo + nombre — siempre visible */}
+        { }
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{
             width: 56, height: 56, borderRadius: 16, margin: "0 auto 16px",
@@ -100,7 +100,7 @@ export default function Login() {
           </p>
         </div>
 
-        {/* ── VISTA: LOGIN ─────────────────────────────────────────── */}
+        { }
         {vista === "login" && <>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display:"block", fontSize:12, fontWeight:700,
@@ -126,7 +126,7 @@ export default function Login() {
               onFocus={inpFocus} onBlur={inpBlur} />
           </div>
 
-          {/* Link recuperar contraseña */}
+          { }
           <div style={{ textAlign: "right", marginBottom: 16 }}>
             <button onClick={() => navigate("/recuperar")} style={{
               background: "none", border: "none", cursor: "pointer",
@@ -159,7 +159,7 @@ export default function Login() {
             {cargando ? "Ingresando..." : "Iniciar sesión"}
           </button>
 
-          {/* Link sin cuenta */}
+          { }
           <div style={{ textAlign: "center", marginTop: 20 }}>
             <button onClick={() => setVista("sin-cuenta")} style={{
               background: "none", border: "none", cursor: "pointer",
@@ -171,7 +171,7 @@ export default function Login() {
           </div>
         </>}
 
-        {/* ── VISTA: SIN CUENTA ────────────────────────────────────── */}
+        { }
         {vista === "sin-cuenta" && (
           <div style={{ textAlign: "center" }}>
             <div style={{

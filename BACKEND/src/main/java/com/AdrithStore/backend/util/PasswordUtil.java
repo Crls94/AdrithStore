@@ -4,16 +4,12 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-/**
- * Hash de contraseñas sin dependencia de Spring Security.
- * Usa SHA-256 con salt aleatorio. Compatible con BCrypt en migración futura.
- * Formato almacenado: SHA256:{salt_base64}:{hash_base64}
- */
+ 
 public class PasswordUtil {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    /** Genera el hash con salt para almacenar en BD */
+     
     public static String hashear(String password) {
         byte[] salt = new byte[16];
         RANDOM.nextBytes(salt);
@@ -23,7 +19,7 @@ public class PasswordUtil {
             + Base64.getEncoder().encodeToString(hash);
     }
 
-    /** Verifica una contraseña contra el hash almacenado */
+     
     public static boolean verificar(String password, String hashGuardado) {
         if (hashGuardado == null || !hashGuardado.startsWith("SHA256:")) return false;
         String[] partes = hashGuardado.split(":");

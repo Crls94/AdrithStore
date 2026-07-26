@@ -6,5 +6,5 @@ import org.springframework.stereotype.Repository;
  
 @Repository
 public interface SistemaConfigRepository extends JpaRepository<SistemaConfig, Integer> {
-    // findById(1) siempre retorna la config global
+    
 }

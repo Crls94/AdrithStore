@@ -1,10 +1,10 @@
-// theme.js — Paleta unificada AdrithStore
-// Desde el Lote 4 los valores apuntan a CSS variables definidas en index.css
-// Eso permite que dark mode cambie todos los colores automáticamente
-// sin modificar cada página individualmente
+
+
+
+
 
 export const T = {
-  // Fondos
+  
   bgPage:     "var(--c-bg)",
   bgCard:     "var(--c-bg-card)",
   bgMuted:    "var(--c-bg-muted)",
@@ -12,30 +12,30 @@ export const T = {
   bgHeader:   "var(--c-bg-header)",
   bgCardHover:"var(--c-bg-muted)",
 
-  // Texto
+  
   textPrimary:"var(--c-text)",
   textSecond: "var(--c-text-sec)",
   textMuted:  "var(--c-text-muted)",
 
-  // Bordes y sombras
+  
   border:     "var(--c-border)",
   shadow:     "var(--c-shadow)",
   shadowHover:"var(--c-shadow-h)",
   shadowModal:"var(--c-shadow-modal)",
 
-  // Acento (naranja → en pages internas era "gold")
+  
   gold:       "var(--c-gold)",
   goldLight:  "var(--c-gold)",
-  goldDark:   "#0D5E4F",        // hover del botón principal → verde
+  goldDark:   "#0D5E4F",        
   goldBg:     "var(--c-gold-bg)",
   goldBorder: "var(--c-gold-border)",
 
-  // Border radius
+  
   radius:     "10px",
   radiusLg:   "14px",
 };
 
-// Estilos reutilizables — los componentes los importan directamente
+
 export const inputStyle = {
   width: "100%",
   padding: "9px 13px",

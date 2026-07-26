@@ -11,7 +11,7 @@ public class SistemaConfig {
 
     @Id
     @Column(name = "id")
-    private Integer id = 1; // siempre 1 — tabla de fila única
+    private Integer id = 1; 
 
     @Column(name = "configurado")
     private Boolean configurado = false;

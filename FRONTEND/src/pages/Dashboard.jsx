@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import clsx from "clsx";
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine, XAxis, LabelList } from "recharts";
 import { useAuth } from "../auth/AuthContext";
-
-const API = "http://192.168.18.28:8080/api/dashboard";
+import api from "../api/axiosConfig";
 
 const G = {
   hero:       "linear-gradient(135deg, #061A18 0%, #0A3D3A 45%, #0D5E4F 100%)",
@@ -17,7 +15,7 @@ const G = {
 
 const money = (n) => `S/ ${parseFloat(n || 0).toFixed(2)}`;
 
-// buildChartData agrupa por: hoy→hora, año→mes, resto→día
+
 function buildChartData(ventas, periodo) {
   if (!ventas || ventas.length === 0) return [];
   const ahora = new Date();
@@ -46,15 +44,6 @@ function buildChartData(ventas, periodo) {
     .slice(-30);
 }
 
-function useReloj() {
-  const [t,setT] = useState(new Date());
-  useEffect(()=>{
-    const id = setInterval(()=>setT(new Date()),1000);
-    return ()=>clearInterval(id);
-  },[]);
-  return t;
-}
-
 function AnimNum({ to, prefix="", suffix="", dec=0 }) {
   const [v,setV] = useState(0);
   useEffect(()=>{
@@ -65,45 +54,6 @@ function AnimNum({ to, prefix="", suffix="", dec=0 }) {
     return ()=>clearInterval(id);
   },[to]);
   return <>{prefix}{dec>0?v.toFixed(dec):Math.floor(v)}{suffix}</>;
-}
-
-function AvatarMenu({usuario,items,onLogout}) {
-  const navigate=useNavigate();
-  const [open,setOpen]=useState(false);
-  const ref=useRef(null);
-  useEffect(()=>{
-    const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",h);
-    return ()=>document.removeEventListener("mousedown",h);
-  },[]);
-  return (
-    <div className="relative" ref={ref}>
-      <button onClick={()=>setOpen(v=>!v)}
-        className="flex items-center gap-2 bg-transparent border-none cursor-pointer hover:opacity-75 transition-opacity p-1 rounded-xl">
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-          style={{background:"linear-gradient(135deg,#0D5E4F,#E07A2F)"}}>
-          {(usuario?.nombres?.[0]||"?").toUpperCase()}
-        </div>
-        <span className="text-sm font-semibold text-ink leading-tight">
-          {usuario?.nombres?.split(" ")[0]}
-        </span>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-11 w-48 bg-white rounded-2xl shadow-xl border border-brand/10 overflow-hidden z-[100]">
-          {items.map(m=>(
-            <button key={m.ruta} onClick={()=>{setOpen(false);navigate(m.ruta);}}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-ink border-b border-brand/10 bg-transparent hover:bg-surface transition-colors text-left cursor-pointer">
-              {m.icon} {m.label}
-            </button>
-          ))}
-          <button onClick={()=>{setOpen(false);onLogout();}}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-700 bg-transparent hover:bg-red-50 transition-colors text-left cursor-pointer">
-            🚪 Cerrar Sesión
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 const ACCESOS = [
@@ -125,7 +75,7 @@ function SectionLabel({children, dark=true}) {
   );
 }
 
-// ── VendedorPicker ────────────────────────────────────────────────────────
+
 function VendedorPicker({ filtroVendedor, setFiltroVendedor, usuarios }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -168,15 +118,15 @@ function VendedorPicker({ filtroVendedor, setFiltroVendedor, usuarios }) {
   );
 }
 
-// ── SparkLine ─────────────────────────────────────────────────────────────
+
 function SparkLine({ data, gradId }) {
   if (data.length === 0) {
     return (
       <div className="h-20 flex items-center justify-center text-white/25 text-xs">
         Sin datos para graficar
       </div>
-    );
-  }
+  );
+}
   return (
     <ResponsiveContainer width="100%" height={180}>
       <AreaChart data={data} margin={{top:22,right:25,left:25,bottom:0}}>
@@ -214,7 +164,7 @@ function SparkLine({ data, gradId }) {
   );
 }
 
-// Botones de período para el encabezado del gráfico
+
 const PERIODOS_BOTONES = [
   {k:"hoy",    l:"Día"},
   {k:"semana", l:"Semana"},
@@ -227,15 +177,14 @@ export default function Dashboard() {
   return esAdmin() ? <DashAdmin/> : <DashVendedor/>;
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// DASH ADMIN
-// ═════════════════════════════════════════════════════════════════════════
-function DashAdmin() {
-  const {usuario,esAdmin,logout} = useAuth();
-  const navigate = useNavigate();
-  const ahora    = useReloj();
 
-  // periodo controla stats + gráfico + consultas
+
+
+function DashAdmin() {
+  const {usuario,esAdmin} = useAuth();
+  const navigate = useNavigate();
+
+  
   const [periodo,        setPeriodo]        = useState("hoy");
   const [stats,          setStats]          = useState(null);
   const [tes,            setTes]            = useState(null);
@@ -244,11 +193,8 @@ function DashAdmin() {
   const [filtroVendedor, setFiltroVendedor] = useState("");
   const [usuarios,       setUsuarios]       = useState([]);
 
-  const horaStr = ahora.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"});
-  const fechaStr = ahora.toLocaleDateString("es-PE",{weekday:"long",day:"numeric",month:"long"});
-
   useEffect(()=>{
-    axios.get(`${API.replace("/api/dashboard","")}/api/usuarios`)
+    api.get('/usuarios')
       .then(r=>setUsuarios(Array.isArray(r.data)?r.data.filter(u=>u.activo):[]))
       .catch(()=>{});
   },[]);
@@ -257,9 +203,9 @@ function DashAdmin() {
     const params = new URLSearchParams({periodo});
     if (filtroVendedor) params.append("idUsuario",filtroVendedor);
     Promise.all([
-      axios.get(`${API}/stats?${params.toString()}`),
-      axios.get(`${API}/resumen-tesoreria`),
-      axios.get(`${API.replace("/api/dashboard","")}/api/ventas${filtroVendedor?"/por-usuario/"+filtroVendedor:"/todas"}`),
+      api.get(`/dashboard/stats?${params.toString()}`),
+      api.get('/dashboard/resumen-tesoreria'),
+      api.get(`/ventas${filtroVendedor?"/por-usuario/"+filtroVendedor:"/todas"}`),
     ]).then(([s,t,v])=>{
       setStats(s.data);
       setTes(t.data);
@@ -278,7 +224,7 @@ function DashAdmin() {
   const stockBajo = stats?.productosStockBajo||0;
   const chartData = useMemo(()=>buildChartData(rechartVentas,periodo),[rechartVentas,periodo]);
 
-  // Label legible del período activo
+  
   const periodoLabel = PERIODOS_BOTONES.find(p=>p.k===periodo)?.l ?? periodo;
 
   const CUENTAS_FIJAS = [
@@ -293,67 +239,27 @@ function DashAdmin() {
     const real = tes?.cuentas?.find(c=>c.nombre.toLowerCase().includes(fija.nombre.toLowerCase()));
     return {nombre:fija.nombre, icono:fija.icono, saldo:real?.saldoActual??null};
   });
-
-  const menuItems = [
-    {label:"Mi Perfil",  icon:"👤",ruta:"/perfil"},
-    {label:"Usuarios",   icon:"👥",ruta:"/usuarios",      admin:true},
-    {label:"Sistema",    icon:"⚙️",ruta:"/admin-sistema", admin:true},
-    {label:"Log Eventos",icon:"📝",ruta:"/eventos",       admin:true},
-  ].filter(m=>!m.admin||esAdmin());
+  const totalPercepcion = tes?.totalPercepcion ?? null;
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-surface font-sans text-ink">
+    <div className="flex flex-col gap-3">
 
-      {/* HEADER */}
-      <header className="flex-shrink-0 h-14 flex items-center justify-between px-4 lg:px-7
-        border-b border-brand/10 bg-canvas sticky top-0 z-[90]">
-        <div className="flex items-center gap-2">
-          <img src="/icons/logo.png" alt=""
-            className="w-8 h-8 object-contain rounded-lg"
-            onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
-          <div className="w-8 h-8 rounded-lg items-center justify-center text-base hidden flex-shrink-0"
-            style={{background:G.kpi}}>🏪</div>
-          <span className="font-black text-sm tracking-tight text-ink">Adrith</span>
-        </div>
-        <div className="text-center flex-1 mx-2">
-          <div className="text-sm font-extrabold text-brand tracking-wide leading-tight">{horaStr}</div>
-          <div className="text-[10px] text-gray-500 capitalize leading-tight">{fechaStr}</div>
-        </div>
-        <AvatarMenu usuario={usuario} items={menuItems}
-          onLogout={()=>{logout();navigate("/login");}}/>
-      </header>
-
-      {/* BODY */}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-3 lg:p-5 lg:gap-4">
-
-        {/* Accesos rápidos */}
-        <div className="flex items-center justify-center gap-1.5 flex-shrink-0">
-          {ACCESOS.map(a=>(
-            <button key={a.ruta} onClick={()=>navigate(a.ruta)} title={a.label}
-              className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer
-                bg-white border border-brand/15 hover:bg-brand hover:border-brand
-                text-brand hover:text-white transition-all duration-150">
-              <i className={`bi ${a.icon} text-sm`}/>
-            </button>
-          ))}
-        </div>
-
-        {/* ══ HERO CARD ═════════════════════════════════════════════════ */}
+      { }
         <div className="flex-shrink-0 rounded-3xl p-5 lg:p-6 relative overflow-hidden shadow-teal-lg"
           style={{background:G.hero}}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full pointer-events-none"
             style={{background:"radial-gradient(circle,rgba(255,255,255,0.05)0%,transparent 65%)"}}/>
 
-          {/* ── MOBILE: flex-col ── */}
+          { }
           <div className="flex flex-col gap-4 lg:hidden">
 
-            {/* Vendedor centrado */}
+            { }
             <div className="flex justify-center">
               <VendedorPicker filtroVendedor={filtroVendedor}
                 setFiltroVendedor={setFiltroVendedor} usuarios={usuarios}/>
             </div>
 
-            {/* Ingresos */}
+            { }
             <div>
               <div className="text-[10px] text-white/70 font-bold uppercase tracking-widest mb-1">
                 {periodoLabel} — Ingresos
@@ -363,7 +269,7 @@ function DashAdmin() {
               </div>
             </div>
 
-            {/* Mini tabla 2×2 */}
+            { }
             <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               {[
                 {l:"Ventas",      v:String(stats?.totalVentas||0)},
@@ -378,7 +284,7 @@ function DashAdmin() {
               ))}
             </div>
 
-            {/* Gráfico mobile + botones período */}
+            { }
             <div className="border-t border-white/10 pt-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[10px] text-white/70 font-bold uppercase tracking-wider">
@@ -400,19 +306,19 @@ function DashAdmin() {
             </div>
           </div>
 
-          {/* ── DESKTOP: grid 2 cols [35% / 65%] ── */}
+          { }
           <div className="hidden lg:grid lg:grid-cols-[35%_65%] lg:gap-6">
 
-            {/* COL IZQUIERDA */}
+            { }
             <div className="flex flex-col gap-3 border-r border-white/10 pr-6">
 
-              {/* Fila 1: Vendedor centrado */}
+              { }
               <div className="flex justify-center">
                 <VendedorPicker filtroVendedor={filtroVendedor}
                   setFiltroVendedor={setFiltroVendedor} usuarios={usuarios}/>
               </div>
 
-              {/* Fila 2: Ingresos */}
+              { }
               <div className="border-b border-white/10 pb-3">
                 <div className="text-[10px] text-white/70 font-bold uppercase tracking-widest mb-1">
                   {periodoLabel} — Ingresos
@@ -422,7 +328,7 @@ function DashAdmin() {
                 </div>
               </div>
 
-              {/* Fila 3: Ventas | Ticket prom */}
+              { }
               <div className="grid grid-cols-2 gap-x-4 border-b border-white/10 pb-3">
                 {[
                   {l:"Ventas",      v:String(stats?.totalVentas||0)},
@@ -435,7 +341,7 @@ function DashAdmin() {
                 ))}
               </div>
 
-              {/* Fila 4: Ganancia | Saldo total */}
+              { }
               <div className="grid grid-cols-2 gap-x-4">
                 {[
                   {l:"Ganancia",    v:money(ingresos-costos), accent:false},
@@ -449,7 +355,7 @@ function DashAdmin() {
               </div>
             </div>
 
-            {/* COL DERECHA: gráfico + botones período */}
+            { }
             <div className="flex flex-col">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[11px] text-white/75 font-bold uppercase tracking-wider">
@@ -476,10 +382,10 @@ function DashAdmin() {
           </div>
         </div>
 
-        {/* ══ FILA A: Cuentas | Métricas | Últimas Ventas ══════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_2fr_6fr] gap-3 lg:gap-4 items-stretch">
+        { }
+        <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1.5fr_2fr] gap-3 lg:gap-4 items-stretch">
 
-          {/* Cuentas */}
+          { }
           <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-teal-lg"
             style={{background:G.accounts}}>
             <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full pointer-events-none"
@@ -503,10 +409,19 @@ function DashAdmin() {
                   </div>
                 </div>
               ))}
+              <div className="rounded-xl p-3 backdrop-blur-md"
+                style={{background:G.glass,border:`1px solid ${G.glassBorder}`}}>
+                <div className="text-[10px] text-white/85 font-semibold uppercase tracking-wide mb-1">
+                  🧾 Percepción
+                </div>
+                <div className={clsx("text-sm font-black break-words",totalPercepcion!==null?"text-white":"text-white/25")}>
+                  {totalPercepcion!==null ? money(totalPercepcion) : "—"}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Métricas */}
+          { }
           <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-brand-md"
             style={{background:G.kpi}}>
             <SectionLabel>Métricas del período</SectionLabel>
@@ -541,7 +456,7 @@ function DashAdmin() {
             </div>
           </div>
 
-          {/* Últimas Ventas */}
+          { }
           <div className="bg-white rounded-2xl p-4 lg:p-5 border border-brand/10 shadow-sm flex flex-col">
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <SectionLabel dark={false}>Últimas Ventas</SectionLabel>
@@ -594,19 +509,16 @@ function DashAdmin() {
             </div>
           </div>
         </div>
-
-      </div>
     </div>
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// DASH VENDEDOR
-// ═════════════════════════════════════════════════════════════════════════
+
+
+
 function DashVendedor() {
-  const {usuario,logout} = useAuth();
+  const {usuario} = useAuth();
   const navigate = useNavigate();
-  const ahora    = useReloj();
   const [stats,  setStats]  = useState(null);
   const [ventas, setVentas] = useState([]);
   const [periodo,setPeriodo]= useState("hoy");
@@ -619,36 +531,21 @@ function DashVendedor() {
 
   useEffect(()=>{
     if(!usuario?.idUsuario) return;
-    axios.get(`${API}/stats?periodo=${periodo}&idUsuario=${usuario.idUsuario}`)
+    api.get(`/dashboard/stats?periodo=${periodo}&idUsuario=${usuario.idUsuario}`)
       .then(r=>setStats(r.data)).catch(()=>setStats({}));
-    axios.get(`${API.replace("/api/dashboard","")}/api/ventas/por-usuario/${usuario.idUsuario}`)
+    api.get(`/ventas/por-usuario/${usuario.idUsuario}`)
       .then(r=>setVentas(Array.isArray(r.data)?r.data.slice(0,20):[]))
       .catch(()=>setVentas([]));
   },[periodo,usuario?.idUsuario]);
 
   const chartData = useMemo(()=>buildChartData(ventas,periodo),[ventas,periodo]);
-  const h      = ahora.getHours();
+  const h = new Date().getHours();
   const saludo = h<12?"Buenos días":h<18?"Buenas tardes":"Buenas noches";
-  const horaStr= ahora.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"});
-  const menuItems = [{label:"Mi Perfil",icon:"👤",ruta:"/perfil"}];
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-surface font-sans">
-      <header className="flex-shrink-0 h-14 flex items-center justify-between px-4 lg:px-7
-        border-b border-brand/10 bg-canvas sticky top-0 z-[90]">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
-            style={{background:G.kpi}}>🏪</div>
-          <span className="font-black text-sm tracking-tight text-ink">Adrith</span>
-        </div>
-        <span className="font-extrabold text-base text-brand tracking-wide">{horaStr}</span>
-        <AvatarMenu usuario={usuario} items={menuItems}
-          onLogout={()=>{logout();navigate("/login");}}/>
-      </header>
+    <div className="flex flex-col gap-3">
 
-      <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-3 lg:p-5 lg:gap-4">
-
-        {/* Filtro período */}
+      { }
         <div className="flex-shrink-0 flex gap-2 justify-center flex-wrap">
           {periodos.map(p=>(
             <button key={p.k} onClick={()=>setPeriodo(p.k)}
@@ -659,7 +556,7 @@ function DashVendedor() {
           ))}
         </div>
 
-        {/* HERO CARD */}
+        { }
         <div className="flex-shrink-0 rounded-3xl p-5 lg:p-6 relative overflow-hidden shadow-teal-lg"
           style={{background:G.hero}}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full pointer-events-none"
@@ -698,7 +595,7 @@ function DashVendedor() {
           </div>
         </div>
 
-        {/* Accesos + Mis Últimas Ventas */}
+        { }
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-3 lg:gap-4 items-stretch">
           <div className="bg-white rounded-2xl p-4 lg:p-5 border border-brand/10 shadow-sm">
             <SectionLabel dark={false}>Accesos Rápidos</SectionLabel>
@@ -762,8 +659,6 @@ function DashVendedor() {
             </div>
           </div>
         </div>
-
-      </div>
     </div>
   );
 }

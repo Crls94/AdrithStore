@@ -1,6 +1,8 @@
 package com.AdrithStore.backend.repository;
 
 import com.AdrithStore.backend.model.TransaccionFinanciera;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -25,7 +27,7 @@ public interface TransaccionFinancieraRepository extends JpaRepository<Transacci
     @Query("SELECT t FROM TransaccionFinanciera t WHERE t.idVenta = :idVenta")
     List<TransaccionFinanciera> findByVentaId(@Param("idVenta") Integer idVenta);
 
-    // Saldo total de una cuenta usando signo +1/-1
+    
     @Query("""
         SELECT COALESCE(SUM(t.monto * t.signo), 0)
         FROM TransaccionFinanciera t
@@ -33,8 +35,8 @@ public interface TransaccionFinancieraRepository extends JpaRepository<Transacci
     """)
     Optional<BigDecimal> calcularSaldoTotal(@Param("idCuenta") Integer idCuenta);
 
-    // Gastos operativos del período (tipoMov='GASTO', signo=-1)
-    // El modelo tiene tipoMov (no 'tipo') y signo -1 para salidas
+    
+    
     @Query("""
         SELECT COALESCE(SUM(t.monto), 0)
         FROM TransaccionFinanciera t
@@ -68,4 +70,26 @@ public interface TransaccionFinancieraRepository extends JpaRepository<Transacci
     );
 
     List<TransaccionFinanciera> findByFechaAfterOrderByFechaDesc(LocalDateTime desde);
+
+    
+
+    @Query("""
+        SELECT t FROM TransaccionFinanciera t
+        WHERE t.fecha BETWEEN :desde AND :hasta
+          AND (:tipoMov IS NULL OR t.tipoMov = :tipoMov)
+          AND (:idCuenta IS NULL OR t.cuenta.idCuenta = :idCuenta)
+    """)
+    Page<TransaccionFinanciera> buscarPaginado(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
+                                                @Param("tipoMov") String tipoMov, @Param("idCuenta") Integer idCuenta,
+                                                Pageable pageable);
+
+    @Query("""
+        SELECT COALESCE(SUM(t.monto * t.signo), 0)
+        FROM TransaccionFinanciera t
+        WHERE t.fecha BETWEEN :desde AND :hasta
+          AND (:tipoMov IS NULL OR t.tipoMov = :tipoMov)
+          AND (:idCuenta IS NULL OR t.cuenta.idCuenta = :idCuenta)
+    """)
+    BigDecimal sumTotales(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
+                          @Param("tipoMov") String tipoMov, @Param("idCuenta") Integer idCuenta);
 }

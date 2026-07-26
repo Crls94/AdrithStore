@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-
-const API = "http://192.168.18.28:8080/api";
+import api from "../api/axiosConfig";
+import { getProductos } from "../api/productosApi";
 
 const C = {
   emerald:"#0D5E4F", teal:"#0A3D3A", tealDark:"#061A18",
@@ -25,6 +24,7 @@ const TIPO_MOV_LABEL = {
   VENTA:       { label:"Venta",        color:"#2E7D32", bg:"#E8F5E9", icon:"💰" },
   GASTO:       { label:"Gasto",        color:"#C62828", bg:"#FFEBEE", icon:"💸" },
   COMPRA:      { label:"Compra",       color:"#B84D00", bg:"#FFF3E0", icon:"🚚" },
+  COMPRA_ANULADA: { label:"Compra anulada", color:"#2E7D32", bg:"#E8F5E9", icon:"↩️" },
   AJUSTE:      { label:"Ajuste",       color:"#0D5E4F", bg:"#E8F5F2", icon:"⚙️" },
   INICIAL:     { label:"Saldo inicial",color:"#555",    bg:"#F5F5F5", icon:"🏦" },
 };
@@ -47,11 +47,11 @@ export default function Tesoreria() {
   const [cuentas,     setCuentas]     = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [cargando,    setCargando]    = useState(true);
-  const [tab,         setTab]         = useState("resumen"); // resumen | movimientos | registrar
+  const [tab,         setTab]         = useState("resumen"); 
   const [filtroTipo,  setFiltroTipo]  = useState("");
   const [filtroCuenta,setFiltroCuenta]= useState("");
 
-  // Form de gasto manual
+  
   const [formGasto, setFormGasto] = useState({
     concepto:"", tipo:"Servicios (luz, agua, internet)", monto:"", cuenta:"Caja Fisica",
   });
@@ -59,11 +59,27 @@ export default function Tesoreria() {
   const [exito,      setExito]      = useState("");
   const [errorGasto, setErrorGasto] = useState("");
 
+  const [fechaCierre, setFechaCierre] = useState(() => new Date().toISOString().split('T')[0]);
+  const [previewCierre, setPreviewCierre] = useState([]);
+  const [cierreCargando, setCierreCargando] = useState(false);
+  const [ejecutandoCierre, setEjecutandoCierre] = useState(false);
+  const [cierreExito, setCierreExito] = useState("");
+  const [cierreError, setCierreError] = useState("");
+  const [saldoContadoInput, setSaldoContadoInput] = useState({});
+  const [fondoInput,      setFondoInput]      = useState({});
+  const [editandoFondoId, setEditandoFondoId] = useState(null);
+  const [guardandoFondo,  setGuardandoFondo]  = useState(false);
+
+  const [productosInv,     setProductosInv]     = useState([]);
+  const [cargandoInv,      setCargandoInv]       = useState(false);
+  const [busquedaInv,      setBusquedaInv]       = useState("");
+  const [categoriasAbiertas, setCategoriasAbiertas] = useState({});
+
   const cargarDatos = () => {
     setCargando(true);
     Promise.all([
-      axios.get(`${API}/tesoreria/cuentas`),
-      axios.get(`${API}/tesoreria/movimientos?dias=30`),
+      api.get('/tesoreria/cuentas'),
+      api.get('/tesoreria/movimientos?dias=30'),
     ]).then(([c, m]) => {
       setCuentas(Array.isArray(c.data) ? c.data : []);
       setMovimientos(Array.isArray(m.data) ? m.data : []);
@@ -72,17 +88,63 @@ export default function Tesoreria() {
   };
 
   useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => { if (tab === "cierre") cargarPreview(fechaCierre); }, [tab]);
+  useEffect(() => { if (tab === "inventario") cargarInventario(); }, [tab]);
+
+  const cargarInventario = () => {
+    setCargandoInv(true);
+    getProductos()
+      .then(r => setProductosInv(Array.isArray(r.data) ? r.data : []))
+      .catch(() => {})
+      .finally(() => setCargandoInv(false));
+  };
+
+
+  const categoriasInv = useMemo(() => {
+    const soloStock = productosInv.filter(p =>
+      p.tipo === "BIEN_FISICO" || p.tipo === "CONSUMIBLE");
+    const filtrados = busquedaInv.trim()
+      ? soloStock.filter(p =>
+          p.nombre?.toLowerCase().includes(busquedaInv.toLowerCase()) ||
+          p.sku?.toLowerCase().includes(busquedaInv.toLowerCase()))
+      : soloStock;
+
+    const grupos = {};
+    for (const p of filtrados) {
+      const nombreCat = p.categoria?.nombre || "Sin categoría";
+      const stock     = parseFloat(p.stock || 0);
+      const costoUnit = parseFloat(p.cpp) > 0 ? parseFloat(p.cpp) : parseFloat(p.precioCosto || 0);
+      const costoInvertido = stock * costoUnit;
+      const valorMerc      = stock * parseFloat(p.precioVenta || 0);
+      if (!grupos[nombreCat]) grupos[nombreCat] = { nombre: nombreCat, productos: [], costo: 0, valor: 0 };
+      grupos[nombreCat].productos.push({ ...p, stock, costoUnit, costoInvertido, valorMerc });
+      grupos[nombreCat].costo += costoInvertido;
+      grupos[nombreCat].valor += valorMerc;
+    }
+    return Object.values(grupos)
+      .map(g => ({ ...g, productos: g.productos.sort((a,b) => a.nombre.localeCompare(b.nombre)) }))
+      .sort((a,b) => a.nombre.localeCompare(b.nombre));
+  }, [productosInv, busquedaInv]);
+
+  const totalesInv = useMemo(() => categoriasInv.reduce((acc, g) => ({
+    costo: acc.costo + g.costo,
+    valor: acc.valor + g.valor,
+    productos: acc.productos + g.productos.length,
+  }), { costo:0, valor:0, productos:0 }), [categoriasInv]);
+
+  const toggleCategoria = (nombre) =>
+    setCategoriasAbiertas(s => ({ ...s, [nombre]: !s[nombre] }));
 
   const totalSaldo = cuentas.reduce((s, c) => s + parseFloat(c.saldoActual || 0), 0);
 
-  // Movimientos filtrados
+  
   const movFiltrados = movimientos.filter(m => {
     const okTipo   = !filtroTipo    || m.tipoMov === filtroTipo;
     const okCuenta = !filtroCuenta  || m.cuenta?.nombre?.toLowerCase().includes(filtroCuenta.toLowerCase());
     return okTipo && okCuenta;
   });
 
-  // ── Registrar gasto manual ──────────────────────────────────────────────
+  
   const handleRegistrarGasto = async () => {
     setErrorGasto("");
     if (!formGasto.concepto.trim()) { setErrorGasto("El concepto es obligatorio."); return; }
@@ -91,7 +153,7 @@ export default function Tesoreria() {
     }
     setGuardando(true);
     try {
-      await axios.post(`${API}/tesoreria/gasto`, {
+      await api.post('/tesoreria/gasto', {
         concepto: formGasto.concepto.trim(),
         tipo:     formGasto.tipo,
         monto:    parseFloat(formGasto.monto),
@@ -106,6 +168,60 @@ export default function Tesoreria() {
       setErrorGasto(typeof msg === "string" ? msg : "Error al registrar el gasto.");
     } finally { setGuardando(false); }
   };
+
+  const cargarPreview = async (fecha) => {
+    setCierreCargando(true);
+    setCierreError("");
+    try {
+      const res = await api.get(`/tesoreria/cierre/preview?fecha=${fecha}`);
+      const data = Array.isArray(res.data) ? res.data : [];
+      setPreviewCierre(data);
+      const inputs = {};
+      data.forEach(c => { inputs[c.idCuenta] = c.saldoSistema; });
+      setSaldoContadoInput(inputs);
+    } catch (e) {}
+    finally { setCierreCargando(false); }
+  };
+
+  const handleGuardarFondo = async (idCuenta) => {
+    const val = parseFloat(fondoInput[idCuenta]);
+    if (isNaN(val) || val < 0) { setCierreError("El fondo debe ser un número mayor o igual a 0."); return; }
+    setCierreError(""); setGuardandoFondo(true);
+    try {
+      await api.put(`/tesoreria/cierre/cuentas/${idCuenta}/fondo`, { fondoCaja: val });
+      setPreviewCierre(list => list.map(c => c.idCuenta === idCuenta ? { ...c, fondoCaja: val } : c));
+      setCuentas(list => list.map(c => c.idCuenta === idCuenta ? { ...c, fondoCaja: val } : c));
+      setEditandoFondoId(null);
+    } catch (e) {
+      setCierreError(e.response?.data ?? "Error al guardar el fondo.");
+    } finally { setGuardandoFondo(false); }
+  };
+
+  const handleEjecutarCierre = async () => {
+    setCierreError("");
+    const items = previewCierre.map(c => ({
+      idCuenta: c.idCuenta,
+      saldoContado: parseFloat(saldoContadoInput[c.idCuenta] ?? c.saldoSistema),
+      observacion: "",
+    }));
+    if (items.length === 0) return;
+    setEjecutandoCierre(true);
+    try {
+      const res = await api.post('/tesoreria/cierre/ejecutar', {
+        fecha: fechaCierre, items, usuario: "admin",
+      });
+      setCierreExito(res.data.mensaje || "✅ Cierre ejecutado");
+      setTimeout(() => setCierreExito(""), 4000);
+      cargarPreview(fechaCierre);
+      cargarDatos();
+    } catch (e) {
+      setCierreError(e.response?.data?.error || "Error al ejecutar cierre");
+    } finally { setEjecutandoCierre(false); }
+  };
+
+  const cuentaSeleccionada = cuentas.find(c => c.nombre === formGasto.cuenta);
+  const saldoDisponible = cuentaSeleccionada?.saldoActual ?? 0;
+  const montoSuperaSaldo = parseFloat(formGasto.monto || 0) > parseFloat(saldoDisponible);
 
   const inp = {
     width:"100%", padding:"10px 14px", borderRadius:10,
@@ -126,7 +242,7 @@ export default function Tesoreria() {
       fontFamily:"'Inter','DM Sans','Segoe UI',sans-serif" }}>
       <div style={{ maxWidth:1100, margin:"0 auto" }}>
 
-        {/* ── HEADER ────────────────────────────────────────────────── */}
+        { }
         <div style={{ display:"flex", justifyContent:"space-between",
           alignItems:"flex-start", marginBottom:24 }}>
           <div>
@@ -145,7 +261,7 @@ export default function Tesoreria() {
             </p>
           </div>
 
-          {/* Saldo total */}
+          { }
           <div style={{ textAlign:"right" }}>
             <div style={{ fontSize:12, color:"#888", marginBottom:4 }}>Saldo total</div>
             <div style={{ fontSize:32, fontWeight:900, color: C.tangerine }}>
@@ -154,7 +270,7 @@ export default function Tesoreria() {
           </div>
         </div>
 
-        {/* ── TARJETAS DE CUENTAS ───────────────────────────────────── */}
+        { }
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",
           gap:12, marginBottom:24 }}>
           {cuentas.map(c => (
@@ -178,15 +294,16 @@ export default function Tesoreria() {
           ))}
         </div>
 
-        {/* ── TABS ──────────────────────────────────────────────────── */}
+        { }
         <div style={{ display:"flex", gap:4, marginBottom:20,
           borderBottom:`2px solid ${C.border}`, paddingBottom:0 }}>
           {[
             { k:"resumen",    l:"📊 Resumen" },
             { k:"movimientos",l:"📋 Movimientos" },
             { k:"registrar",  l:"➕ Registrar gasto" },
-            // Solo diseño — sin funcionalidad aún
-            { k:"cierre",     l:"🔒 Cierre de caja", disabled:true },
+            
+            { k:"cierre",     l:"🔒 Cierre de caja" },
+            { k:"inventario", l:"📦 Inventario" },
             { k:"reportes",   l:"📄 Reportes",        disabled:true },
           ].map(t => (
             <button key={t.k}
@@ -206,10 +323,10 @@ export default function Tesoreria() {
           ))}
         </div>
 
-        {/* ══ TAB: RESUMEN ═══════════════════════════════════════════ */}
+        { }
         {tab === "resumen" && (
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-            {/* Últimos movimientos */}
+            { }
             <div style={{ background:"#fff", borderRadius:16, padding:20,
               border:`1px solid ${C.border}`, gridColumn:"1 / -1" }}>
               <h3 style={{ margin:"0 0 16px", fontSize:15, fontWeight:800, color: C.charcoal }}>
@@ -258,10 +375,10 @@ export default function Tesoreria() {
           </div>
         )}
 
-        {/* ══ TAB: MOVIMIENTOS ═══════════════════════════════════════ */}
+        { }
         {tab === "movimientos" && (
           <div>
-            {/* Filtros */}
+            { }
             <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
               <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
                 style={{ ...inp, width:"auto", padding:"8px 12px" }}>
@@ -291,7 +408,7 @@ export default function Tesoreria() {
 
             <div style={{ background:"#fff", borderRadius:16,
               border:`1px solid ${C.border}`, overflow:"hidden" }}>
-              {/* Header tabla */}
+              { }
               <div style={{ display:"grid",
                 gridTemplateColumns:"44px 1fr 140px 120px 100px",
                 padding:"10px 16px", background: C.softGray,
@@ -342,7 +459,7 @@ export default function Tesoreria() {
           </div>
         )}
 
-        {/* ══ TAB: REGISTRAR GASTO ══════════════════════════════════ */}
+        { }
         {tab === "registrar" && (
           <div style={{ maxWidth:520 }}>
             <div style={{ background:"#fff", borderRadius:16, padding:28,
@@ -407,8 +524,18 @@ export default function Tesoreria() {
                       <option key={n}>{n}</option>
                     ))}
                   </select>
+                  <div style={{ fontSize:12, color:"#666", marginTop:4 }}>
+                    Saldo disponible: <strong>{money(saldoDisponible)}</strong>
+                  </div>
                 </div>
               </div>
+
+              {montoSuperaSaldo && formGasto.monto && (
+                <div style={{ background:"#FFF3E0", border:"1px solid rgba(224,122,47,0.3)",
+                  borderRadius:10, padding:"10px 14px", fontSize:13, color:"#B84D00", marginBottom:16 }}>
+                  ⚠️ El monto supera el saldo disponible en {formGasto.cuenta}.
+                </div>
+              )}
 
               {errorGasto && (
                 <div style={{ background:"#FFEBEE", border:"1px solid rgba(198,40,40,0.2)",
@@ -434,35 +561,313 @@ export default function Tesoreria() {
               </p>
             </div>
 
-            {/* Tarjetas de diseño — sin funcionalidad todavía */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:16 }}>
-              <div style={{ background:"#fff", borderRadius:16, padding:20,
-                border:`1px solid ${C.border}`, opacity:0.6 }}>
-                <div style={{ fontSize:20, marginBottom:8 }}>🔒</div>
-                <div style={{ fontSize:14, fontWeight:700, color: C.charcoal, marginBottom:4 }}>
-                  Cierre de caja
-                </div>
-                <div style={{ fontSize:12, color:"#888" }}>
-                  Arqueo y cierre del turno diario
-                </div>
-                <div style={{ marginTop:10, fontSize:11, color: C.tangerine, fontWeight:700 }}>
-                  🔜 Próximamente
-                </div>
+          </div>
+        )}
+
+        { }
+        {tab === "cierre" && (
+          <div>
+            {cierreCargando ? (
+              <div style={{ textAlign:"center", padding:40, color:C.emerald, fontSize:15 }}>
+                Cargando cierre...
               </div>
-              <div style={{ background:"#fff", borderRadius:16, padding:20,
-                border:`1px solid ${C.border}`, opacity:0.6 }}>
-                <div style={{ fontSize:20, marginBottom:8 }}>📄</div>
-                <div style={{ fontSize:14, fontWeight:700, color: C.charcoal, marginBottom:4 }}>
-                  Reportes
+            ) : (
+              <>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                  <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:C.charcoal }}>
+                    🔒 Cierre de caja
+                  </h3>
+                  <input type="date" value={fechaCierre}
+                    onChange={e => { setFechaCierre(e.target.value); cargarPreview(e.target.value); }}
+                    style={{ padding:"8px 12px", borderRadius:10, border:`1.5px solid ${C.border}`,
+                      fontSize:13, outline:"none", fontFamily:"inherit" }} />
                 </div>
-                <div style={{ fontSize:12, color:"#888" }}>
-                  PDF y Excel de ingresos y egresos
-                </div>
-                <div style={{ marginTop:10, fontSize:11, color: C.tangerine, fontWeight:700 }}>
-                  🔜 Próximamente
-                </div>
+
+                {cierreExito && (
+                  <div style={{ background:"#E8F5E9", border:"1px solid rgba(46,125,50,0.2)",
+                    borderRadius:10, padding:"12px 16px", fontSize:14, color:"#2E7D32", marginBottom:16 }}>
+                    {cierreExito}
+                  </div>
+                )}
+                {cierreError && (
+                  <div style={{ background:"#FFEBEE", border:"1px solid rgba(198,40,40,0.2)",
+                    borderRadius:10, padding:"10px 14px", fontSize:13, color:"#C62828", marginBottom:16 }}>
+                    ⚠️ {cierreError}
+                  </div>
+                )}
+
+                {previewCierre.length === 0 && (
+                  <div style={{ textAlign:"center", padding:32, color:"#bbb" }}>
+                    No hay cuentas activas para este día
+                  </div>
+                )}
+
+                {previewCierre.length > 0 && (
+                  <div style={{ background:"#fff", borderRadius:16,
+                    border:`1px solid ${C.border}`, overflow:"hidden", marginBottom:16 }}>
+                    <div style={{ display:"grid",
+                      gridTemplateColumns:"1fr 100px 120px 90px 130px 100px",
+                      padding:"10px 16px", background:C.softGray,
+                      fontSize:11, fontWeight:700, color:"#888",
+                      textTransform:"uppercase", letterSpacing:"0.8px" }}>
+                      <span>Cuenta</span>
+                      <span style={{ textAlign:"right" }}>Sistema</span>
+                      <span style={{ textAlign:"right" }}>Contado</span>
+                      <span style={{ textAlign:"right" }}>Diff</span>
+                      <span style={{ textAlign:"right" }}>Fondo</span>
+                      <span style={{ textAlign:"right" }}>Retiro</span>
+                    </div>
+                    {previewCierre.map((c, i) => {
+                      const contado = parseFloat(saldoContadoInput[c.idCuenta] ?? c.saldoSistema);
+                      const diff = contado - c.saldoSistema;
+                      const esEfectivo = c.tipo === "EFECTIVO";
+                      const retiro = esEfectivo ? contado - (c.fondoCaja || 0) : null;
+                      const diffColor = diff === 0 ? "#888" : diff > 0 ? "#2E7D32" : "#C62828";
+                      return (
+                        <div key={c.idCuenta} style={{ display:"grid",
+                          gridTemplateColumns:"1fr 100px 120px 90px 130px 100px",
+                          padding:"11px 16px", alignItems:"center",
+                          borderBottom: i < previewCierre.length-1 ? `1px solid ${C.border}` : "none",
+                          background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                          <span style={{ fontSize:13, fontWeight:600, color:C.charcoal }}>
+                            {c.nombre}
+                          </span>
+                          <span style={{ fontSize:13, textAlign:"right", color:C.charcoal }}>
+                            {money(c.saldoSistema)}
+                          </span>
+                          <span style={{ textAlign:"right" }}>
+                            <input type="number" step="0.01"
+                              value={saldoContadoInput[c.idCuenta] ?? ""}
+                              onChange={e => setSaldoContadoInput(i => ({...i, [c.idCuenta]: e.target.value}))}
+                              style={{ width:"90%", padding:"6px 8px", borderRadius:8,
+                                border:`1px solid ${C.border}`, fontSize:13, textAlign:"right",
+                                outline:"none", fontFamily:"inherit" }} />
+                            {c.yaCerrado && (
+                              <div style={{ fontSize:10, color:"#aaa", marginTop:2 }}>
+                                último: {money(c.saldoContado)} · {new Date(c.cerradoEn).toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"})}
+                              </div>
+                            )}
+                          </span>
+                          <span style={{ fontSize:13, textAlign:"right", fontWeight:700, color:diffColor }}>
+                            {diff >= 0 ? "+" : ""}{money(diff)}
+                          </span>
+                          <span style={{ textAlign:"right" }}>
+                            {editandoFondoId === c.idCuenta ? (
+                              <div style={{ display:"flex", gap:4, alignItems:"center", justifyContent:"flex-end" }}>
+                                <input type="number" step="0.01" min="0" autoFocus
+                                  value={fondoInput[c.idCuenta] ?? ""}
+                                  onChange={e => setFondoInput(i => ({...i, [c.idCuenta]: e.target.value}))}
+                                  onKeyDown={e => e.key === "Enter" && handleGuardarFondo(c.idCuenta)}
+                                  style={{ width:60, padding:"4px 6px", borderRadius:6,
+                                    border:`1px solid ${C.border}`, fontSize:12, textAlign:"right",
+                                    outline:"none", fontFamily:"inherit" }} />
+                                <button onClick={() => handleGuardarFondo(c.idCuenta)} disabled={guardandoFondo}
+                                  title="Guardar fondo"
+                                  style={{ border:"none", background:"none", cursor:"pointer",
+                                    color:C.emerald, fontSize:14, padding:0 }}>✓</button>
+                                <button onClick={() => setEditandoFondoId(null)}
+                                  title="Cancelar"
+                                  style={{ border:"none", background:"none", cursor:"pointer",
+                                    color:"#C62828", fontSize:14, padding:0 }}>✕</button>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize:13, color:C.charcoal, cursor:"pointer" }}
+                                title="Click para editar el fondo a dejar en esta cuenta"
+                                onClick={() => { setFondoInput(i => ({...i, [c.idCuenta]: c.fondoCaja || 0})); setEditandoFondoId(c.idCuenta); }}>
+                                {money(c.fondoCaja || 0)} <span style={{ fontSize:10, color:"#bbb" }}>✎</span>
+                              </span>
+                            )}
+                          </span>
+                          <span style={{ fontSize:13, textAlign:"right", fontWeight:700,
+                              color: esEfectivo ? C.tangerine : "#bbb" }}>
+                            {esEfectivo ? money(retiro) : "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {previewCierre.length > 0 && (
+                  <button onClick={handleEjecutarCierre} disabled={ejecutandoCierre}
+                    style={{ padding:"13px 28px", borderRadius:10, border:"none",
+                      background: ejecutandoCierre ? "#ccc"
+                        : `linear-gradient(135deg, ${C.emerald}, ${C.teal})`,
+                      color:"#fff", cursor: ejecutandoCierre ? "not-allowed" : "pointer",
+                      fontSize:14, fontWeight:700, fontFamily:"inherit" }}>
+                    {ejecutandoCierre ? "Ejecutando..." : "🔒 Ejecutar cierre del día"}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        { }
+        {tab === "inventario" && (
+          <div>
+            {cargandoInv ? (
+              <div style={{ textAlign:"center", padding:40, color:C.emerald, fontSize:15 }}>
+                Cargando inventario...
               </div>
-            </div>
+            ) : (
+              <>
+                <div style={{ display:"flex", justifyContent:"space-between",
+                  alignItems:"center", marginBottom:16, gap:12, flexWrap:"wrap" }}>
+                  <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:C.charcoal }}>
+                    📦 Inventario valorizado
+                  </h3>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <input type="text" placeholder="Buscar producto o SKU..."
+                      value={busquedaInv}
+                      onChange={e => setBusquedaInv(e.target.value)}
+                      style={{ padding:"8px 12px", borderRadius:10, border:`1.5px solid ${C.border}`,
+                        fontSize:13, outline:"none", fontFamily:"inherit", width:220 }} />
+                    <button onClick={() => setCategoriasAbiertas(
+                        Object.fromEntries(categoriasInv.map(g => [g.nombre, true])))}
+                      style={{ padding:"8px 12px", borderRadius:10, border:`1px solid ${C.border}`,
+                        background:"#fff", cursor:"pointer", fontSize:12, fontWeight:600, color:"#666" }}>
+                      Expandir todo
+                    </button>
+                    <button onClick={() => setCategoriasAbiertas({})}
+                      style={{ padding:"8px 12px", borderRadius:10, border:`1px solid ${C.border}`,
+                        background:"#fff", cursor:"pointer", fontSize:12, fontWeight:600, color:"#666" }}>
+                      Colapsar todo
+                    </button>
+                    <button onClick={cargarInventario}
+                      style={{ padding:"8px 12px", borderRadius:10, border:`1px solid ${C.border}`,
+                        background:"#fff", cursor:"pointer", fontSize:12, fontWeight:600, color:"#666" }}>
+                      🔄
+                    </button>
+                  </div>
+                </div>
+
+                { }
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",
+                  gap:12, marginBottom:20 }}>
+                  <div style={{ borderRadius:16, padding:"16px 20px", background:G.hero }}>
+                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", fontWeight:700,
+                      textTransform:"uppercase", letterSpacing:"0.6px", marginBottom:6 }}>
+                      Costo invertido
+                    </div>
+                    <div style={{ fontSize:24, fontWeight:900, color:"#fff" }}>
+                      {money(totalesInv.costo)}
+                    </div>
+                  </div>
+                  <div style={{ borderRadius:16, padding:"16px 20px", background:G.hero }}>
+                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", fontWeight:700,
+                      textTransform:"uppercase", letterSpacing:"0.6px", marginBottom:6 }}>
+                      Valor de mercadería
+                    </div>
+                    <div style={{ fontSize:24, fontWeight:900, color: C.tangerine }}>
+                      {money(totalesInv.valor)}
+                    </div>
+                  </div>
+                  <div style={{ borderRadius:16, padding:"16px 20px", background:"#fff",
+                    border:`1px solid ${C.border}` }}>
+                    <div style={{ fontSize:11, color:"#888", fontWeight:700,
+                      textTransform:"uppercase", letterSpacing:"0.6px", marginBottom:6 }}>
+                      Margen potencial
+                    </div>
+                    <div style={{ fontSize:24, fontWeight:900, color:"#2E7D32" }}>
+                      {money(totalesInv.valor - totalesInv.costo)}
+                    </div>
+                  </div>
+                  <div style={{ borderRadius:16, padding:"16px 20px", background:"#fff",
+                    border:`1px solid ${C.border}` }}>
+                    <div style={{ fontSize:11, color:"#888", fontWeight:700,
+                      textTransform:"uppercase", letterSpacing:"0.6px", marginBottom:6 }}>
+                      Productos con stock
+                    </div>
+                    <div style={{ fontSize:24, fontWeight:900, color:C.charcoal }}>
+                      {totalesInv.productos}
+                    </div>
+                  </div>
+                </div>
+
+                {categoriasInv.length === 0 && (
+                  <div style={{ textAlign:"center", padding:32, color:"#bbb" }}>
+                    No hay productos que coincidan.
+                  </div>
+                )}
+
+                { }
+                {categoriasInv.map(g => {
+                  const abierta = !!categoriasAbiertas[g.nombre];
+                  return (
+                    <div key={g.nombre} style={{ background:"#fff", borderRadius:16,
+                      border:`1px solid ${C.border}`, overflow:"hidden", marginBottom:12 }}>
+                      <div onClick={() => toggleCategoria(g.nombre)}
+                        style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+                          padding:"14px 18px", cursor:"pointer", background:C.softGray }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                          <span style={{ fontSize:12, color:"#888",
+                            transform: abierta ? "rotate(90deg)" : "none", transition:"transform 0.15s" }}>▶</span>
+                          <span style={{ fontSize:14, fontWeight:800, color:C.charcoal }}>{g.nombre}</span>
+                          <span style={{ fontSize:11, color:"#888", fontWeight:600 }}>
+                            {g.productos.length} producto{g.productos.length !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        <div style={{ display:"flex", gap:20 }}>
+                          <div style={{ textAlign:"right" }}>
+                            <div style={{ fontSize:10, color:"#888", fontWeight:600 }}>Costo</div>
+                            <div style={{ fontSize:13, fontWeight:800, color:C.charcoal }}>{money(g.costo)}</div>
+                          </div>
+                          <div style={{ textAlign:"right" }}>
+                            <div style={{ fontSize:10, color:"#888", fontWeight:600 }}>Valor</div>
+                            <div style={{ fontSize:13, fontWeight:800, color:C.tangerine }}>{money(g.valor)}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {abierta && (
+                        <div>
+                          <div style={{ display:"grid",
+                            gridTemplateColumns:"2fr 90px 100px 100px 110px 110px",
+                            padding:"8px 18px", background:"#FAFAFA",
+                            fontSize:10, fontWeight:700, color:"#aaa",
+                            textTransform:"uppercase", letterSpacing:"0.6px" }}>
+                            <span>Producto</span>
+                            <span style={{ textAlign:"right" }}>Stock</span>
+                            <span style={{ textAlign:"right" }}>Costo u.</span>
+                            <span style={{ textAlign:"right" }}>Precio</span>
+                            <span style={{ textAlign:"right" }}>Costo inv.</span>
+                            <span style={{ textAlign:"right" }}>Valor merc.</span>
+                          </div>
+                          {g.productos.map((p, i) => (
+                            <div key={p.idProducto} style={{ display:"grid",
+                              gridTemplateColumns:"2fr 90px 100px 100px 110px 110px",
+                              padding:"9px 18px", alignItems:"center",
+                              borderTop:`1px solid ${C.border}`,
+                              background: i % 2 === 0 ? "#fff" : "#FCFCFC" }}>
+                              <span style={{ fontSize:12.5, color:C.charcoal }}>
+                                {p.nombre}
+                                <span style={{ color:"#bbb", fontSize:10.5 }}> · {p.sku}</span>
+                              </span>
+                              <span style={{ fontSize:12.5, textAlign:"right", color:C.charcoal }}>
+                                {p.stock} {p.unidadMedida === "KG" ? "kg" : "u."}
+                              </span>
+                              <span style={{ fontSize:12.5, textAlign:"right", color:"#666" }}>
+                                {money(p.costoUnit)}
+                              </span>
+                              <span style={{ fontSize:12.5, textAlign:"right", color:"#666" }}>
+                                {money(p.precioVenta)}
+                              </span>
+                              <span style={{ fontSize:12.5, textAlign:"right", fontWeight:700, color:C.charcoal }}>
+                                {money(p.costoInvertido)}
+                              </span>
+                              <span style={{ fontSize:12.5, textAlign:"right", fontWeight:700, color:C.tangerine }}>
+                                {money(p.valorMerc)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         )}
 

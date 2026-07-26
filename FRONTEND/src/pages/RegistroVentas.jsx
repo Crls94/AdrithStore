@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosConfig";
+import { imprimirComprobanteVenta } from "../utils/comprobantePdf";
 
 const C = {
   emerald:"#0D5E4F", teal:"#0A3D3A",
@@ -23,8 +24,8 @@ export default function RegistroVentas() {
   const [expandida,  setExpandida]  = useState(null);
   const [pagina,     setPagina]     = useState(1);
 
-  // Anulación
-  const [modalAnular, setModalAnular] = useState(null); // venta a anular
+  
+  const [modalAnular, setModalAnular] = useState(null); 
   const [motivo,      setMotivo]      = useState("");
   const [anulando,    setAnulando]    = useState(false);
   const [errorAnul,   setErrorAnul]   = useState("");
@@ -59,9 +60,9 @@ export default function RegistroVentas() {
     ? { bg:"#E8F5E9", color:"#2E7D32" }
     : { bg:"#FFEBEE", color:"#C62828" };
 
-  // ── Anular venta ──────────────────────────────────────────────────────
+  
   const abrirAnular = (e, venta) => {
-    e.stopPropagation(); // no expandir la fila
+    e.stopPropagation(); 
     setModalAnular(venta);
     setMotivo(""); setErrorAnul("");
   };
@@ -72,7 +73,7 @@ export default function RegistroVentas() {
     try {
       await api.patch(`/ventas/${modalAnular.idVenta}/anular`, { motivo: motivo.trim() });
       setModalAnular(null);
-      cargarVentas(); // recarga la lista actualizada
+      cargarVentas(); 
     } catch (e) {
       const msg = e.response?.data;
       setErrorAnul(typeof msg === "string" ? msg : "Error al anular la venta.");
@@ -87,11 +88,10 @@ export default function RegistroVentas() {
   );
 
   return (
-    <div style={{ background: C.softGray, minHeight:"100vh",
-      padding:24, fontFamily:"'Inter','DM Sans','Segoe UI',sans-serif" }}>
+    <div style={{ background: C.softGray }}>
       <div style={{ maxWidth:1100, margin:"0 auto" }}>
 
-        {/* Header */}
+        { }
         <div style={{ display:"flex", justifyContent:"space-between",
           alignItems:"center", marginBottom:20 }}>
           <div>
@@ -126,12 +126,12 @@ export default function RegistroVentas() {
           />
         </div>
 
-        {/* Tabla */}
+        { }
         <div style={{ background:"#fff", borderRadius:16,
           boxShadow:"0 2px 12px #0001", overflow:"hidden",
           border:`1px solid ${C.border}` }}>
 
-          {/* Cabecera */}
+          { }
           <div style={{ display:"grid",
             gridTemplateColumns:"70px 1fr 140px 100px 120px 100px 80px",
             padding:"10px 16px", background: C.softGray,
@@ -162,7 +162,7 @@ export default function RegistroVentas() {
               <div key={v.idVenta}
                 style={{ borderBottom: i < paginadas.length-1 ? `1px solid ${C.border}` : "none" }}>
 
-                {/* Fila principal */}
+                { }
                 <div style={{ display:"grid",
                   gridTemplateColumns:"70px 1fr 140px 100px 120px 100px 80px",
                   padding:"12px 16px", alignItems:"center",
@@ -195,7 +195,7 @@ export default function RegistroVentas() {
                   <span style={{ fontSize:14, fontWeight:800, color: C.emerald }}>
                     {fmt(v.total)}
                   </span>
-                  {/* Botón anular — solo para ventas confirmadas */}
+                  { }
                   <div onClick={e => e.stopPropagation()}>
                     {v.estado === "confirmado" ? (
                       <button onClick={e => abrirAnular(e, v)}
@@ -210,13 +210,13 @@ export default function RegistroVentas() {
                   </div>
                 </div>
 
-                {/* Detalle expandido */}
+                { }
                 {abierta && (
                   <div style={{ borderTop:`1px solid ${C.border}`, background:"#F8FDF8",
                     padding:"16px 20px" }}>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
 
-                      {/* Productos */}
+                      { }
                       <div>
                         <div style={{ fontSize:11, fontWeight:700, color:"#888",
                           textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>
@@ -254,7 +254,7 @@ export default function RegistroVentas() {
                         )}
                       </div>
 
-                      {/* Pagos y totales */}
+                      { }
                       <div>
                         <div style={{ fontSize:11, fontWeight:700, color:"#888",
                           textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>
@@ -276,7 +276,7 @@ export default function RegistroVentas() {
                           <div style={{ fontSize:12, color:"#bbb" }}>Sin pagos registrados</div>
                         )}
 
-                        {/* Desglose */}
+                        { }
                         <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
                           <div style={{ display:"flex", justifyContent:"space-between",
                             fontSize:12, color:"#888", marginBottom:3 }}>
@@ -300,6 +300,16 @@ export default function RegistroVentas() {
                         </div>
                       </div>
                     </div>
+
+                    <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}`,
+                      display:"flex", justifyContent:"flex-end" }}>
+                      <button onClick={() => imprimirComprobanteVenta(v)}
+                        style={{ padding:"7px 16px", borderRadius:8, border:"none", cursor:"pointer",
+                          fontSize:12, fontWeight:700, background:"#E8F0FE", color:"#1A73E8",
+                          fontFamily:"inherit" }}>
+                        🖨️ Imprimir comprobante PDF
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -307,7 +317,7 @@ export default function RegistroVentas() {
           })}
         </div>
 
-        {/* Paginación */}
+        { }
         {totalPaginas > 1 && (
           <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:16 }}>
             {Array.from({ length: totalPaginas }, (_, i) => (
@@ -324,7 +334,7 @@ export default function RegistroVentas() {
         )}
       </div>
 
-      {/* ── MODAL ANULAR VENTA ────────────────────────────────────────── */}
+      { }
       {modalAnular && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)",
           display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>

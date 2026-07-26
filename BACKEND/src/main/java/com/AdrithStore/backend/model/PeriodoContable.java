@@ -14,14 +14,14 @@ public class PeriodoContable {
     @Column(name = "id_periodo")
     private Integer idPeriodo;
 
-    // Formato 'YYYY-MM'
+    
     @Column(name = "periodo", unique = true, length = 7)
     private String periodo;
 
     @Column(name = "fecha_apertura")
     private LocalDateTime fechaApertura = LocalDateTime.now();
 
-    // abierto | cerrado
+    
     @Column(name = "estado", length = 20)
     private String estado = "abierto";
 

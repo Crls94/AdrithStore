@@ -30,16 +30,19 @@ public class Producto {
     @Column(name = "descripcion")
     private String descripcion;
 
-    // Tipo de producto: BIEN_FISICO | SERVICIO_PURO | SERVICIO_COMIS | CONSUMIBLE
+    
     @Column(name = "tipo", length = 20)
     private String tipo = "BIEN_FISICO";
 
-    // Si false, no aparece en el POS de ventas (CONSUMIBLES)
+    
     @Column(name = "visible_en_pos")
     private Boolean visibleEnPos = true;
 
-    @Column(name = "stock")
-    private Integer stock = 0;
+    @Column(name = "stock", precision = 10, scale = 3)
+    private BigDecimal stock = BigDecimal.ZERO;
+
+    @Column(name = "unidad_medida", length = 10, nullable = false)
+    private String unidadMedida = "UNIDAD";
 
     @Column(name = "precio_costo", precision = 10, scale = 4)
     private BigDecimal precioCosto = BigDecimal.ZERO;
@@ -47,15 +50,19 @@ public class Producto {
     @Column(name = "precio_venta", precision = 10, scale = 2)
     private BigDecimal precioVenta = BigDecimal.ZERO;
 
-    // Solo para SERVICIO_COMIS: S/1 por cada S/100
+    
+    @Column(name = "porcentaje_costo", precision = 5, scale = 2)
+    private BigDecimal porcentajeCosto;
+
+    
     @Column(name = "comision_base", precision = 10, scale = 2)
     private BigDecimal comisionBase;
 
     @Column(name = "comision_cada", precision = 10, scale = 2)
     private BigDecimal comisionCada;
 
-    @Column(name = "stock_alert")
-    private Integer stockAlert = 5;
+    @Column(name = "stock_alert", precision = 10, scale = 3)
+    private BigDecimal stockAlert = BigDecimal.valueOf(5);
 
     @Column(name = "cpp", precision = 10, scale = 4)
     private BigDecimal cpp = BigDecimal.ZERO;
@@ -70,13 +77,14 @@ public class Producto {
     @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ProductoUnidad> unidades;
 
-    // ── Helpers de tipo ───────────────────────────────────────────────────
+    
     public boolean esBienFisico()    { return "BIEN_FISICO".equals(tipo);    }
     public boolean esServicioPuro()  { return "SERVICIO_PURO".equals(tipo);  }
     public boolean esServicioComis() { return "SERVICIO_COMIS".equals(tipo); }
     public boolean esConsumible()    { return "CONSUMIBLE".equals(tipo);     }
+    public boolean esVentaPorKg()    { return "KG".equals(unidadMedida);     }
 
-    // Calcular comisión sugerida para SERVICIO_COMIS
+    
     public BigDecimal calcularComisionSugerida(BigDecimal montoOperacion) {
         if (comisionBase == null || comisionCada == null
                 || comisionCada.compareTo(BigDecimal.ZERO) == 0

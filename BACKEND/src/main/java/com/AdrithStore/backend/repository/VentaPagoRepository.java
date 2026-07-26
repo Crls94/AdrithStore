@@ -13,7 +13,7 @@ public interface VentaPagoRepository extends JpaRepository<VentaPago, Integer> {
 
     List<VentaPago> findByVenta_IdVenta(Integer idVenta);
 
-    // Requerido por DashboardController.java:142
+    
     @Query("""
         SELECT vp.medioPago, SUM(vp.monto)
         FROM VentaPago vp

@@ -20,7 +20,7 @@ public class Usuario {
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
-    // ADMIN | VENDEDOR
+    
     @Column(name = "rol", nullable = false, length = 20)
     private String rol = "VENDEDOR";
 

@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api/axiosConfig";
 import { useAuth } from "../auth/AuthContext";
-
-const API = "http://192.168.18.28:8080/api";
 
 const C = {
   emerald:   "#0D5E4F",
@@ -21,11 +19,13 @@ export default function AdminSistema() {
   const [cargando, setCarg]    = useState(false);
   const [confirm,  setConfirm] = useState(false);
   const [msg,      setMsg]     = useState({ tipo:"", texto:"" });
+  const [repCargando, setRepCargando] = useState(false);
+  const [repResultado, setRepResultado] = useState(null);
 
   useEffect(() => {
     Promise.all([
-      axios.get(`${API}/setup/estado`),
-      axios.get(`${API}/tesoreria/resumen`),
+      api.get('/setup/estado'),
+      api.get('/tesoreria/resumen'),
     ]).then(([c, r]) => {
       setConfig(c.data);
       setResumen(r.data);
@@ -35,13 +35,23 @@ export default function AdminSistema() {
   const handleReset = async () => {
     setCarg(true); setMsg({ tipo:"", texto:"" });
     try {
-      await axios.post(`${API}/setup/reset-operaciones`, { confirmacion:"CONFIRMAR_RESET" });
+      await api.post('/setup/reset-operaciones', { confirmacion:"CONFIRMAR_RESET" });
       await recargarEstado();
       setMsg({ tipo:"exito", texto:"Reset completado. El sistema volvió al estado inicial." });
       setConfirm(false);
     } catch (e) {
       setMsg({ tipo:"error", texto: e.response?.data || "Error al ejecutar el reset." });
     } finally { setCarg(false); }
+  };
+
+  const handleRepararImagenes = async () => {
+    setRepCargando(true); setRepResultado(null);
+    try {
+      const { data } = await api.post('/uploads/reparar-imagenes');
+      setRepResultado({ tipo:"exito", data });
+    } catch (e) {
+      setRepResultado({ tipo:"error", texto: e.response?.data?.error || "Error al reparar imágenes." });
+    } finally { setRepCargando(false); }
   };
 
   const card = (children, extra={}) => (
@@ -64,7 +74,7 @@ export default function AdminSistema() {
           Estado general y herramientas administrativas
         </p>
 
-        {/* Estado del sistema */}
+        { }
         {card(
           <>
             <h3 style={{ margin:"0 0 16px", color: C.emerald, fontSize:14,
@@ -93,7 +103,7 @@ export default function AdminSistema() {
           </>
         )}
 
-        {/* Saldos de cuentas */}
+        { }
         {resumen?.cuentas && card(
           <>
             <h3 style={{ margin:"0 0 14px", color: C.emerald, fontSize:14,
@@ -118,7 +128,45 @@ export default function AdminSistema() {
           </>
         )}
 
-        {/* Herramientas */}
+        { }
+        {card(
+          <>
+            <h3 style={{ margin:"0 0 6px", color: C.emerald, fontSize:14,
+              fontWeight:700, textTransform:"uppercase", letterSpacing:"0.8px" }}>
+              🖼️ Imágenes de productos
+            </h3>
+            <p style={{ margin:"0 0 16px", fontSize:13, color:"#888" }}>
+              Descarga y guarda localmente las imágenes de producto que todavía apuntan a una
+              URL externa (por ejemplo, cargadas desde el seed inicial). Las que ya no se puedan
+              descargar quedan sin imagen — mejor eso que un link roto para siempre.
+            </p>
+
+            {repResultado?.tipo === "exito" && (
+              <div style={{ background:"#E8F5E9", border:"1px solid #A5D6A7", borderRadius:8,
+                padding:"12px 16px", marginBottom:14, color:"#2E7D32", fontSize:13 }}>
+                ✅ {repResultado.data.total} productos con URL externa encontrados —{" "}
+                <strong>{repResultado.data.migradas}</strong> migradas a local,{" "}
+                <strong>{repResultado.data.sinDescargar}</strong> sin poder descargar (quedaron sin imagen).
+              </div>
+            )}
+            {repResultado?.tipo === "error" && (
+              <div style={{ background:"#FFF0F0", border:"1px solid #FCC", borderRadius:8,
+                padding:"12px 16px", marginBottom:14, color:"#C62828", fontSize:13 }}>
+                ⚠️ {repResultado.texto}
+              </div>
+            )}
+
+            <button onClick={handleRepararImagenes} disabled={repCargando}
+              style={{ padding:"10px 20px", background: C.emerald, color:"#fff",
+                border:"none", borderRadius:8, cursor:"pointer",
+                fontSize:13, fontWeight:700, fontFamily:"inherit",
+                opacity: repCargando ? 0.75 : 1 }}>
+              {repCargando ? "Reparando..." : "🔧 Reparar imágenes rotas"}
+            </button>
+          </>
+        )}
+
+        { }
         {card(
           <>
             <h3 style={{ margin:"0 0 6px", color:"#C62828", fontSize:14,

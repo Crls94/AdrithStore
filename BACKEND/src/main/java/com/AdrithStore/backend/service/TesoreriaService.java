@@ -8,9 +8,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +24,7 @@ public class TesoreriaService {
     private final CuentaFinancieraRepository          cuentaRepo;
     private final TransaccionFinancieraRepository     txRepo;
     private final PeriodoContableRepository           periodoRepo;
+    private final CierreDiarioRepository              cierreRepo;
 
     private static final DateTimeFormatter PERIODO_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
 
@@ -26,7 +32,7 @@ public class TesoreriaService {
         return LocalDateTime.now().format(PERIODO_FMT);
     }
 
-    // ── Registrar una transacción financiera ─────────────────────────────
+    
     @Transactional
     public TransaccionFinanciera registrar(String tipoMov, String nombreCuenta,
                                             BigDecimal monto, int signo,
@@ -48,15 +54,28 @@ public class TesoreriaService {
         tx.setCreadaPor(creadaPor);
         tx.setFecha(LocalDateTime.now());
 
-        return txRepo.save(tx);
+        TransaccionFinanciera guardada = txRepo.save(tx);
+        recalcularSaldoCuenta(cuenta);
+        return guardada;
     }
 
-    // ── Procesar venta: genera TX financieras según medio de pago ────────
+    // Mantiene el saldo cacheado de la cuenta al día en cada movimiento, en vez de
+    // depender de recalcularSaldos() (que hoy solo corre al abrir período o al cerrar caja).
+    @Transactional
+    public void recalcularSaldoCuenta(CuentaFinanciera cuenta) {
+        BigDecimal saldo = txRepo.calcularSaldoTotal(cuenta.getIdCuenta())
+            .orElse(BigDecimal.ZERO)
+            .setScale(2, RoundingMode.HALF_UP);
+        cuenta.setSaldoActual(saldo);
+        cuentaRepo.save(cuenta);
+    }
+
+    
     @Transactional
     public void procesarVenta(Venta venta, List<VentaDetalle> detalles,
                                List<VentaPago> pagos, String usuario) {
 
-        // TX por cada medio de pago
+        
         for (VentaPago pago : pagos) {
             String nombreCuenta = resolverCuenta(pago.getMedioPago());
             registrar("VENTA", nombreCuenta,
@@ -65,38 +84,56 @@ public class TesoreriaService {
                 venta.getIdVenta(), null, usuario);
         }
 
-        // TX adicionales para SERVICIO_COMIS (cambio Plin) — pendiente implementación completa
-        // VentaDetalle actual no tiene montoOperacion ni comisionCobrada
-        // Esta rama se activará cuando se agregue soporte para cambio digital
+        
+        
+        
     }
 
-    /**
-     * Flujo Cambio Plin:
-     *   Cliente transfiere (monto + comisión) al Plin → cajero entrega monto en efectivo
-     *   TX1: Plin  INGRESO  +(monto + comision)
-     *   TX2: Caja  EGRESO   -monto
-     */
+     
     @Transactional
     public void procesarCambioDigital(Venta venta, VentaDetalle det, String usuario) {
-        // Usar subtotal como base — montoOperacion se implementará en v2
+        
         BigDecimal montoOp  = det.getSubtotal() != null ? det.getSubtotal() : BigDecimal.ZERO;
         BigDecimal comision = det.getSubtotal() != null ? det.getSubtotal() : BigDecimal.ZERO;
 
-        // TX 1: ingreso total al Plin
+        
         registrar("CAMBIO_DIGITAL", "Plin",
             montoOp.add(comision), +1,
             "Plin INGRESO - cambio digital venta #" + venta.getIdVenta()
                 + " (S/" + montoOp + " entregado + S/" + comision + " comision)",
             venta.getIdVenta(), null, usuario);
 
-        // TX 2: egreso de caja
+        
         registrar("CAMBIO_DIGITAL", "Caja Fisica",
             montoOp, -1,
             "Caja EGRESO - efectivo entregado cambio digital venta #" + venta.getIdVenta(),
             venta.getIdVenta(), null, usuario);
     }
 
-    // ── Registrar gasto operativo (luz, tóner, etc.) ──────────────────────
+     
+    @Transactional
+    public void procesarCambioDigital(Venta venta, VentaDetalleServicio det, String usuario) {
+        BigDecimal montoOp   = det.getMonto() != null ? det.getMonto() : BigDecimal.ZERO;
+        BigDecimal comision  = det.getComision() != null ? det.getComision() : BigDecimal.ZERO;
+        BigDecimal total     = montoOp.add(comision);
+        String nombreProd = det.getProducto() != null ? det.getProducto().getNombre() : "Producto";
+        String concepto   = "Cambio: " + nombreProd
+                           + (det.getDescripcion() != null ? " - " + det.getDescripcion() : "");
+
+        
+        if (det.getOrigen() != null && !det.getOrigen().isBlank()) {
+            registrar("CAMBIO_DIGITAL", det.getOrigen(), montoOp, -1,
+                concepto + " (origen)", venta.getIdVenta(), null, usuario);
+        }
+
+        
+        if (det.getDestino() != null && !det.getDestino().isBlank()) {
+            registrar("CAMBIO_DIGITAL", det.getDestino(), total, 1,
+                concepto + " (destino)", venta.getIdVenta(), null, usuario);
+        }
+    }
+
+    
     @Transactional
     public TransaccionFinanciera registrarGasto(String nombreCuenta, BigDecimal monto,
                                                 String concepto, String usuario) {
@@ -104,7 +141,7 @@ public class TesoreriaService {
             "GASTO: " + concepto, null, null, usuario);
     }
 
-    // ── Apertura de período mensual ───────────────────────────────────────
+    
     @Transactional
     public PeriodoContable abrirPeriodo(String periodo, List<SaldoApertura> saldos,
                                          String notas, String usuario) {
@@ -127,7 +164,101 @@ public class TesoreriaService {
         return pc;
     }
 
-    // ── Recalcular saldos (SELECT FOR UPDATE para evitar race condition) ──
+    
+    public List<Map<String, Object>> obtenerPreviewCierre(LocalDate fecha) {
+        List<CuentaFinanciera> cuentas = cuentaRepo.findByActivaTrue();
+        List<Map<String, Object>> preview = new ArrayList<>();
+        for (CuentaFinanciera c : cuentas) {
+            boolean esEfectivo = "EFECTIVO".equalsIgnoreCase(c.getTipo());
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("idCuenta", c.getIdCuenta());
+            item.put("nombre", c.getNombre());
+            item.put("tipo", c.getTipo());
+            item.put("saldoSistema", c.getSaldoActual());
+            item.put("fondoCaja", c.getFondoCaja() != null ? c.getFondoCaja() : BigDecimal.ZERO);
+            item.put("retiroSugerido", esEfectivo
+                ? c.getSaldoActual().subtract(c.getFondoCaja() != null ? c.getFondoCaja() : BigDecimal.ZERO)
+                : BigDecimal.ZERO);
+
+            // "yaCerrado" es solo informativo (hubo al menos un cierre hoy) — no bloquea
+            // volver a cerrar la cuenta; se permiten varios cierres el mismo día para
+            // reconciliar con más frecuencia y corregir cierres previos con error.
+            Optional<CierreDiario> ultimoCierre = cierreRepo
+                .findFirstByFechaCierreAndCuenta_IdCuentaOrderByCerradoEnDesc(fecha, c.getIdCuenta());
+            item.put("yaCerrado", ultimoCierre.isPresent());
+
+            ultimoCierre.ifPresent(cd -> {
+                item.put("saldoContado", cd.getSaldoContado());
+                item.put("diferencia", cd.getDiferencia());
+                item.put("cerradoEn", cd.getCerradoEn());
+            });
+
+            preview.add(item);
+        }
+        return preview;
+    }
+
+    
+    @Transactional
+    public void ejecutarCierre(LocalDate fecha, List<ItemCierre> items, String usuario) {
+        for (ItemCierre item : items) {
+            CuentaFinanciera cuenta = cuentaRepo.findById(item.getIdCuenta())
+                .orElseThrow(() -> new IllegalArgumentException(
+                    "Cuenta no encontrada: " + item.getIdCuenta()));
+
+            // Se permiten varios cierres por cuenta el mismo día: cada uno reconcilia
+            // contra el saldo del sistema en ese momento, permitiendo corregir con
+            // más frecuencia en vez de esperar a un único cierre diario.
+            BigDecimal saldoSistema = cuenta.getSaldoActual();
+            BigDecimal saldoContado = item.getSaldoContado();
+            BigDecimal diferencia = saldoContado.subtract(saldoSistema);
+            BigDecimal fondo = cuenta.getFondoCaja() != null ? cuenta.getFondoCaja() : BigDecimal.ZERO;
+            // El retiro físico (dejar solo el fondo en caja) solo aplica a efectivo:
+            // las cuentas digitales/bancarias no tienen un cajón del que "sacar" dinero,
+            // el saldo contado debe quedar tal cual como saldo del sistema.
+            boolean esEfectivo = "EFECTIVO".equalsIgnoreCase(cuenta.getTipo());
+            BigDecimal retiro = esEfectivo ? saldoContado.subtract(fondo) : BigDecimal.ZERO;
+            boolean ajusteRegistrado = false;
+
+
+            if (diferencia.compareTo(BigDecimal.ZERO) != 0) {
+                int signo = diferencia.compareTo(BigDecimal.ZERO) > 0 ? 1 : -1;
+                registrar("AJUSTE", cuenta.getNombre(), diferencia.abs(), signo,
+                    "AJUSTE cierre " + fecha + " (contado=" + saldoContado + ", sistema=" + saldoSistema + ")",
+                    null, null, usuario);
+                ajusteRegistrado = true;
+                cuenta.setSaldoActual(saldoContado);
+            }
+
+
+            if (esEfectivo && retiro.compareTo(BigDecimal.ZERO) > 0) {
+                registrar("RETIRO", cuenta.getNombre(), retiro, -1,
+                    "RETIRO cierre " + fecha + " (contado=" + saldoContado + ", fondo=" + fondo + ")",
+                    null, null, usuario);
+                cuenta.setSaldoActual(fondo);
+            }
+
+            cuentaRepo.save(cuenta);
+
+            
+            CierreDiario cd = new CierreDiario();
+            cd.setFechaCierre(fecha);
+            cd.setCuenta(cuenta);
+            cd.setSaldoSistema(saldoSistema);
+            cd.setSaldoContado(saldoContado);
+            cd.setDiferencia(diferencia);
+            cd.setFondoDejado(fondo);
+            cd.setRetiro(retiro);
+            cd.setAjusteRegistrado(ajusteRegistrado);
+            cd.setObservacion(item.getObservacion());
+            cd.setCerradoPor(usuario);
+            cd.setCerradoEn(LocalDateTime.now());
+            cd.setEstado("cerrado");
+            cierreRepo.save(cd);
+        }
+    }
+
+    
     @Transactional
     public void recalcularSaldos() {
         List<CuentaFinanciera> cuentas = cuentaRepo.findAllForUpdate();
@@ -140,7 +271,7 @@ public class TesoreriaService {
         }
     }
 
-    // ── Resolver cuenta por medio de pago ────────────────────────────────
+    
     private String resolverCuenta(String medioPago) {
         if (medioPago == null) return "Caja Fisica";
         switch (medioPago.toLowerCase().trim()) {
@@ -154,8 +285,25 @@ public class TesoreriaService {
         }
     }
 
-    // ── DTO: saldo de apertura ────────────────────────────────────────────
-    // Clase normal (no record) para compatibilidad con Java 11
+    
+    public static class ItemCierre {
+        private final Integer    idCuenta;
+        private final BigDecimal saldoContado;
+        private final String     observacion;
+
+        public ItemCierre(Integer idCuenta, BigDecimal saldoContado, String observacion) {
+            this.idCuenta    = idCuenta;
+            this.saldoContado = saldoContado;
+            this.observacion  = observacion;
+        }
+
+        public Integer    getIdCuenta()    { return idCuenta; }
+        public BigDecimal getSaldoContado() { return saldoContado; }
+        public String     getObservacion()  { return observacion; }
+    }
+
+    
+    
     public static class SaldoApertura {
         private final String nombreCuenta;
         private final BigDecimal monto;

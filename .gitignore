@@ -7,3 +7,7 @@ BACKEND/uploads/
 FRONTEND/node_modules/
 FRONTEND/dist/
 *.log
+
+# Documentos personales / referencias fuera del código del proyecto
+*.docx
+Boleta Bodega.html

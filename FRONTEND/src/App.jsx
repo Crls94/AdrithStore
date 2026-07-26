@@ -1,16 +1,16 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 
-// Auth y Setup
+
 import PrimerAdmin  from "./auth/PrimerAdmin";
 import Login        from "./auth/Login";
 import SetupWizard  from "./pages/SetupWizard";
 import Layout       from "./components/layout/Layout";
 
-// Dashboard — sin Layout (centro de operaciones propio)
+
 import Dashboard from "./pages/Dashboard";
 
-// Páginas internas — dentro del Layout mínimo
+
 import Ventas         from "./pages/ventas";
 import RegistroVentas from "./pages/RegistroVentas";
 import Productos      from "./pages/Productos";
@@ -23,9 +23,10 @@ import EventoLog      from "./pages/EventoLog";
 import Usuarios       from "./pages/Usuarios";
 import AdminSistema   from "./pages/AdminSistema";
 import Tesoreria      from "./pages/Tesoreria";
+import Reportes       from "./pages/Reportes";
 import RecuperarPassword from "./auth/RecuperarPassword";
 
-// ── Guards ────────────────────────────────────────────────────────────────
+
 function PrivateRoute({ children, soloAdmin = false }) {
   const { usuario, cargando, estado } = useAuth();
   if (cargando) return <Cargando />;
@@ -60,14 +61,14 @@ function Cargando() {
   );
 }
 
-// ── Rutas ─────────────────────────────────────────────────────────────────
+
 function AppRoutes() {
   const { usuario, cargando, estado } = useAuth();
   if (cargando) return <Cargando />;
 
   return (
     <Routes>
-      {/* Raíz: detectar flujo */}
+      { }
       <Route path="/" element={
         !estado?.hayUsuarios   ? <Navigate to="/primer-admin" replace />
         : !usuario             ? <Navigate to="/login"        replace />
@@ -75,27 +76,23 @@ function AppRoutes() {
         :                        <Navigate to="/dashboard"    replace />
       } />
 
-      {/* Públicas */}
+      { }
       <Route path="/primer-admin" element={
         estado?.hayUsuarios ? <Navigate to="/login" replace /> : <PrimerAdmin />
       } />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/recuperar" element={<PublicRoute><RecuperarPassword /></PublicRoute>} />
 
-      {/* Setup */}
+      { }
       <Route path="/setup" element={
         !usuario ? <Navigate to="/login" replace />
         : estado?.configurado ? <Navigate to="/dashboard" replace />
         : <SetupWizard />
       } />
 
-      {/* ── Dashboard SIN Layout — página completa propia ── */}
-      <Route path="/dashboard" element={
-        <PrivateRoute><Dashboard /></PrivateRoute>
-      } />
-
-      {/* ── Páginas internas CON Layout mínimo (solo header + back) ── */}
+      { }
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/ventas"          element={<Ventas />} />
         <Route path="/registro-ventas" element={<RegistroVentas />} />
         <Route path="/productos"       element={<Productos />} />
@@ -108,6 +105,7 @@ function AppRoutes() {
         <Route path="/admin-sistema"   element={<PrivateRoute soloAdmin><AdminSistema /></PrivateRoute>} />
         <Route path="/eventos"         element={<PrivateRoute soloAdmin><EventoLog /></PrivateRoute>} />
         <Route path="/tesoreria"        element={<PrivateRoute soloAdmin><Tesoreria /></PrivateRoute>} />
+        <Route path="/reportes"        element={<Reportes />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
