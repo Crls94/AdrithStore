@@ -19,7 +19,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/tesoreria/cierre")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class CierreController {
 
     private final TesoreriaService           tesoreriaService;

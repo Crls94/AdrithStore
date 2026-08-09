@@ -21,7 +21,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/tesoreria")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 
 public class TesoreriaController {
 

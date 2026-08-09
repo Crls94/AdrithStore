@@ -14,7 +14,7 @@ export default function RecuperarPassword() {
   const [username,   setUsername]   = useState("");
   const [dni,        setDni]        = useState("");
   const [telefono,   setTelefono]   = useState("");
-  const [idUsuario,  setIdUsuario]  = useState(null);
+  const [resetToken, setResetToken] = useState(null);
   const [nombres,    setNombres]    = useState("");
   const [nueva,      setNueva]      = useState("");
   const [confirmar,  setConfirmar]  = useState("");
@@ -42,7 +42,7 @@ export default function RecuperarPassword() {
         dni: dni.trim(),
         telefono: telefono.trim(),
       });
-      setIdUsuario(data.idUsuario);
+      setResetToken(data.resetToken);
       setNombres(data.nombres);
       setPaso("nueva-clave");
     } catch (e) {
@@ -57,10 +57,11 @@ export default function RecuperarPassword() {
     if (nueva !== confirmar)         return setError("Las contraseñas no coinciden.");
     setCargando(true);
     try {
-      await api.post('/auth/recuperar/cambiar', { idUsuario, nuevaPassword: nueva });
+      await api.post('/auth/recuperar/cambiar', { resetToken, nuevaPassword: nueva });
       setExito(true);
     } catch (e) {
-      setError("Error al cambiar la contraseña. Intenta de nuevo.");
+      const msg = e.response?.data;
+      setError(typeof msg === "string" ? msg : "Error al cambiar la contraseña. Intenta de nuevo.");
     } finally { setCargando(false); }
   };
 

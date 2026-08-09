@@ -2,11 +2,13 @@ package com.AdrithStore.backend.controller;
 
 import com.AdrithStore.backend.model.*;
 import com.AdrithStore.backend.repository.*;
+import com.AdrithStore.backend.security.AuthenticatedUser;
 import com.AdrithStore.backend.service.LogService;
 import com.AdrithStore.backend.service.TesoreriaService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,7 +21,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/ventas")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class VentaController {
 
     private final VentaRepository                ventaRepo;
@@ -46,8 +47,11 @@ public class VentaController {
     
     @GetMapping("/por-usuario/{idUsuario}")
     @Transactional(readOnly = true)
-    public List<Venta> porUsuario(@PathVariable Integer idUsuario) {
-        return ventaRepo.findByUsuario_IdUsuarioOrderByFechaDesc(idUsuario);
+    public ResponseEntity<?> porUsuario(@PathVariable Integer idUsuario,
+            @AuthenticationPrincipal AuthenticatedUser me) {
+        if (!idUsuario.equals(me.idUsuario()) && !"ADMIN".equals(me.rol()))
+            return ResponseEntity.status(403).body("No puedes ver las ventas de otro usuario.");
+        return ResponseEntity.ok(ventaRepo.findByUsuario_IdUsuarioOrderByFechaDesc(idUsuario));
     }
 
     @PostMapping

@@ -2,10 +2,12 @@ package com.AdrithStore.backend.controller;
 
 import com.AdrithStore.backend.model.*;
 import com.AdrithStore.backend.repository.*;
+import com.AdrithStore.backend.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +20,6 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/reportes")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class ReportesController {
 
     private final VentaRepository                ventaRepo;
@@ -82,15 +83,15 @@ public class ReportesController {
             @RequestParam(required = false)    Integer idCliente,
             @RequestParam(required = false)    Integer idVendedor,
             @RequestParam(required = false)    String estado,
-            @RequestParam(required = false)    Integer idUsuario,
-            @RequestParam(required = false)    String rol) {
+            @AuthenticationPrincipal AuthenticatedUser me) {
 
         LocalDateTime d = inicioDelDia(desde);
         LocalDateTime h = finDelDia(hasta);
 
-        
-        if ("VENDEDOR".equals(rol) && idUsuario != null) {
-            idVendedor = idUsuario;
+        // El vendedor solo puede ver sus propias ventas: se ignora cualquier
+        // idVendedor que mande el cliente y se fuerza al usuario autenticado.
+        if ("VENDEDOR".equals(me.rol())) {
+            idVendedor = me.idUsuario();
         }
 
         Page<Venta> pagina = ventaRepo.buscarPaginado(d, h, idCliente, idVendedor, estado,

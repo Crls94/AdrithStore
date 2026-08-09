@@ -11,3 +11,8 @@ FRONTEND/dist/
 # Documentos personales / referencias fuera del código del proyecto
 *.docx
 Boleta Bodega.html
+
+# Variables de entorno / secretos - nunca al repo
+.env
+.env.local
+.env.*.local

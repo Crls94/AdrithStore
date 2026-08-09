@@ -4,12 +4,15 @@ import com.AdrithStore.backend.model.Usuario;
 import com.AdrithStore.backend.repository.UsuarioRepository;
 import com.AdrithStore.backend.repository.SistemaConfigRepository;
 import com.AdrithStore.backend.repository.CuentaFinancieraRepository;
+import com.AdrithStore.backend.security.JwtUtil;
 import com.AdrithStore.backend.util.PasswordUtil;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,12 +20,21 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class AuthController {
 
     private final UsuarioRepository          usuarioRepo;
     private final CuentaFinancieraRepository  cuentaRepo;
     private final SistemaConfigRepository     sistemaConfigRepo;
+    private final JwtUtil                     jwtUtil;
+    private final PasswordEncoder             passwordEncoder;
+
+    // Los hashes viejos (pre-BCrypt) llevan el prefijo "SHA256:". Los nuevos son BCrypt puro.
+    // En cuanto un usuario con hash viejo hace login exitoso, se re-hashea a BCrypt (migracion perezosa).
+    private boolean verificarCredencial(String passwordPlano, String hashGuardado) {
+        if (hashGuardado != null && hashGuardado.startsWith("SHA256:"))
+            return PasswordUtil.verificar(passwordPlano, hashGuardado);
+        return hashGuardado != null && passwordEncoder.matches(passwordPlano, hashGuardado);
+    }
 
     
     @GetMapping("/estado")
@@ -60,7 +72,7 @@ public class AuthController {
         u.setNombres(req.getNombres());
         u.setApellidos(req.getApellidos());
         u.setDni(req.getDni());
-        u.setPasswordHash(PasswordUtil.hashear(req.getPassword()));
+        u.setPasswordHash(passwordEncoder.encode(req.getPassword()));
         u.setRol("ADMIN");
         u.setActivo(true);
         usuarioRepo.save(u);
@@ -79,11 +91,28 @@ public class AuthController {
         
         if ("CLIENTE".equals(u.getRol()))
             return ResponseEntity.status(403).body("Los clientes no acceden al sistema. Consulta a tu administrador.");
-        if (!PasswordUtil.verificar(req.getPassword(), u.getPasswordHash()))
+        if (!verificarCredencial(req.getPassword(), u.getPasswordHash()))
             return ResponseEntity.status(401).body("Usuario o contraseña incorrectos.");
 
-        u.setPasswordHash(""); 
-        return ResponseEntity.ok(u);
+        if (u.getPasswordHash().startsWith("SHA256:")) {
+            u.setPasswordHash(passwordEncoder.encode(req.getPassword()));
+            usuarioRepo.save(u);
+        }
+
+        String token = jwtUtil.generarTokenAuth(u.getIdUsuario(), u.getUsername(), u.getRol());
+
+        u.setPasswordHash("");
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("token", token);
+        res.put("idUsuario", u.getIdUsuario());
+        res.put("username", u.getUsername());
+        res.put("rol", u.getRol());
+        res.put("nombres", u.getNombres());
+        res.put("apellidos", u.getApellidos());
+        res.put("nombreCompleto", u.getNombreCompleto());
+        res.put("dni", u.getDni());
+        res.put("telefono", u.getTelefono());
+        return ResponseEntity.ok(res);
     }
 
     
@@ -105,24 +134,29 @@ public class AuthController {
         if (!Boolean.TRUE.equals(u.getActivo()))
             return ResponseEntity.status(403).body("Cuenta desactivada. Contacta al administrador.");
 
-        
+
+        String resetToken = jwtUtil.generarTokenResetPassword(u.getIdUsuario(), u.getUsername());
         return ResponseEntity.ok(Map.of(
-            "idUsuario", u.getIdUsuario(),
-            "nombres",   u.getNombres()
+            "resetToken", resetToken,
+            "nombres",    u.getNombres()
         ));
     }
 
     @PostMapping("/recuperar/cambiar")
     public ResponseEntity<?> cambiarPassword(@RequestBody RecuperarCambiarReq req) {
-        if (req.getIdUsuario() == null || req.getNuevaPassword() == null)
+        if (req.getResetToken() == null || req.getNuevaPassword() == null)
             return ResponseEntity.badRequest().body("Datos incompletos.");
         if (req.getNuevaPassword().length() < 6)
             return ResponseEntity.badRequest().body("La contraseña debe tener al menos 6 caracteres.");
 
-        var opt = usuarioRepo.findById(req.getIdUsuario());
+        Integer idUsuario = jwtUtil.validarTokenResetPassword(req.getResetToken());
+        if (idUsuario == null)
+            return ResponseEntity.status(401).body("El enlace de recuperación es inválido o expiró. Vuelve a solicitarlo.");
+
+        var opt = usuarioRepo.findById(idUsuario);
         if (opt.isEmpty()) return ResponseEntity.status(404).body("Usuario no encontrado.");
         var u = opt.get();
-        u.setPasswordHash(PasswordUtil.hashear(req.getNuevaPassword()));
+        u.setPasswordHash(passwordEncoder.encode(req.getNuevaPassword()));
         usuarioRepo.save(u);
         return ResponseEntity.ok(Map.of("mensaje", "Contraseña actualizada correctamente."));
     }
@@ -131,5 +165,5 @@ public class AuthController {
     @Data static class LoginReq         { private String username, password; }
     @Data static class PrimerAdminReq   { private String username, password, nombres, apellidos, dni; }
     @Data static class RecuperarVerifReq{ private String username, dni, telefono; }
-    @Data static class RecuperarCambiarReq { private Integer idUsuario; private String nuevaPassword; }
+    @Data static class RecuperarCambiarReq { private String resetToken; private String nuevaPassword; }
 }

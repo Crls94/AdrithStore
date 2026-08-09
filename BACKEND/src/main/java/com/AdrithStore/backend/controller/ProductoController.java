@@ -16,7 +16,6 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/productos")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class ProductoController {
 
     private static final Set<String> CATEGORIAS_SERVICIO = Set.of("SERVICIOS", "IMPRESIONES", "TRANSFERENCIA");
