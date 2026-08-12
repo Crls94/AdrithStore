@@ -81,16 +81,23 @@ export default function Compras() {
   const [guardandoAjuste,   setGuardandoAjuste]   = useState(false);
   const [errorAjuste,       setErrorAjuste]       = useState('');
 
-  useEffect(() => {
+  const cargarTodo = () => {
+    setCargando(true); setError('');
     Promise.all([api.get('/compras'), api.get('/proveedores'), api.get('/productos'), api.get('/categorias'), api.get('/tesoreria/cuentas')])
       .then(([c, p, pr, cat, cta]) => {
         setCompras(c.data); setProveedores(p.data); setProductos(pr.data); setCategorias(cat.data);
         setCuentas(Array.isArray(cta.data) ? cta.data : []);
-      }).finally(() => setCargando(false));
-  }, []);
+      })
+      .catch(() => setError('No se pudo cargar la información de compras. Verifica tu conexión e intenta de nuevo.'))
+      .finally(() => setCargando(false));
+  };
 
-  const recargarProductos = () => api.get('/productos').then(r => { setProductos(r.data); return r.data; });
-  const recargarCompras   = () => api.get('/compras').then(r => { setCompras(r.data); return r.data; });
+  useEffect(() => { cargarTodo(); }, []);
+
+  const recargarProductos = () => api.get('/productos').then(r => { setProductos(r.data); return r.data; })
+    .catch(() => { setError('No se pudo actualizar la lista de productos.'); return productos; });
+  const recargarCompras   = () => api.get('/compras').then(r => { setCompras(r.data); return r.data; })
+    .catch(() => { setError('No se pudo actualizar la lista de compras.'); return compras; });
 
   const cargarAjustes = (idCompra) => {
     api.get(`/compras/${idCompra}/ajustes`).then(r => {
@@ -389,6 +396,19 @@ export default function Compras() {
           display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span><i className="bi bi-check-circle me-2" />{exito}</span>
           <button onClick={() => setExito('')} style={{ background: 'none', border: 'none', color: '#0d8c6e', cursor: 'pointer', fontSize: '18px' }}><i className="bi bi-x" /></button>
+        </div>
+      )}
+
+      { }
+      {error && vistaActiva === 'lista' && (
+        <div style={{ background: '#b0606018', border: '1px solid #b0606040', borderRadius: '10px',
+          padding: '12px 16px', marginBottom: '16px', color: '#c07070', fontSize: '13px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span><i className="bi bi-exclamation-circle me-2" />{error}</span>
+          <button onClick={cargarTodo} style={{ background: 'none', border: 'none', color: '#c07070',
+            fontWeight: 700, cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}>
+            Reintentar
+          </button>
         </div>
       )}
 
