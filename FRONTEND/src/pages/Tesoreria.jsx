@@ -26,6 +26,9 @@ const TIPO_MOV_LABEL = {
   COMPRA:      { label:"Compra",       color:"#B84D00", bg:"#FFF3E0", icon:"🚚" },
   COMPRA_ANULADA: { label:"Compra anulada", color:"#2E7D32", bg:"#E8F5E9", icon:"↩️" },
   AJUSTE:      { label:"Ajuste",       color:"#0D5E4F", bg:"#E8F5F2", icon:"⚙️" },
+  APORTE:      { label:"Ingreso capital", color:"#2E7D32", bg:"#E8F5E9", icon:"💵" },
+  RETIRO:      { label:"Retiro",       color:"#B84D00", bg:"#FFF3E0", icon:"📤" },
+  TRANSFERENCIA: { label:"Transferencia entre cuentas", color:"#1A73E8", bg:"#E8F0FE", icon:"🔁" },
   INICIAL:     { label:"Saldo inicial",color:"#555",    bg:"#F5F5F5", icon:"🏦" },
 };
 
@@ -40,6 +43,17 @@ const TIPOS_GASTO = [
   "Transporte",
   "Otros gastos",
 ];
+const TIPOS_INGRESO_CAPITAL = [
+  "Aporte de capital inicial",
+  "Inversión",
+  "Reposición de caja",
+  "Otro ingreso",
+];
+const TIPOS_RETIRO = [
+  "Sueldo del mes",
+  "Retorno de inversión",
+  "Otro retiro",
+];
 
 export default function Tesoreria() {
   const navigate = useNavigate();
@@ -47,17 +61,47 @@ export default function Tesoreria() {
   const [cuentas,     setCuentas]     = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [cargando,    setCargando]    = useState(true);
-  const [tab,         setTab]         = useState("resumen"); 
+  const [errorCarga,  setErrorCarga]  = useState("");
+  const [tab,         setTab]         = useState("resumen");
   const [filtroTipo,  setFiltroTipo]  = useState("");
   const [filtroCuenta,setFiltroCuenta]= useState("");
 
-  
+
+  const [movTipo, setMovTipo] = useState("gasto"); // "gasto" | "capital" | "retiro"
+
   const [formGasto, setFormGasto] = useState({
     concepto:"", tipo:"Servicios (luz, agua, internet)", monto:"", cuenta:"Caja Fisica",
   });
   const [guardando,  setGuardando]  = useState(false);
   const [exito,      setExito]      = useState("");
   const [errorGasto, setErrorGasto] = useState("");
+
+
+  const [formCapital, setFormCapital] = useState({
+    concepto:"", tipo:"Aporte de capital inicial", monto:"", cuenta:"Caja Fisica",
+  });
+  const [guardandoCapital, setGuardandoCapital] = useState(false);
+  const [exitoCapital,     setExitoCapital]     = useState("");
+  const [errorCapital,     setErrorCapital]     = useState("");
+
+
+  const [formRetiro, setFormRetiro] = useState({
+    concepto:"", tipo:"Sueldo del mes", monto:"", cuenta:"Caja Fisica",
+  });
+  const [guardandoRetiro, setGuardandoRetiro] = useState(false);
+  const [exitoRetiro,     setExitoRetiro]     = useState("");
+  const [errorRetiro,     setErrorRetiro]     = useState("");
+  const [statsMes,        setStatsMes]        = useState(null); // ganancia del mes (calculadora)
+  const [cargandoStatsMes,setCargandoStatsMes]= useState(false);
+  const [pctRetiro,       setPctRetiro]       = useState("");
+
+
+  const [formTransferencia, setFormTransferencia] = useState({
+    cuentaOrigen:"Yape", cuentaDestino:"Caja Fisica", monto:"", concepto:"",
+  });
+  const [guardandoTransferencia, setGuardandoTransferencia] = useState(false);
+  const [exitoTransferencia,     setExitoTransferencia]     = useState("");
+  const [errorTransferencia,     setErrorTransferencia]     = useState("");
 
   const [fechaCierre, setFechaCierre] = useState(() => new Date().toISOString().split('T')[0]);
   const [previewCierre, setPreviewCierre] = useState([]);
@@ -66,9 +110,7 @@ export default function Tesoreria() {
   const [cierreExito, setCierreExito] = useState("");
   const [cierreError, setCierreError] = useState("");
   const [saldoContadoInput, setSaldoContadoInput] = useState({});
-  const [fondoInput,      setFondoInput]      = useState({});
-  const [editandoFondoId, setEditandoFondoId] = useState(null);
-  const [guardandoFondo,  setGuardandoFondo]  = useState(false);
+  const [observacionInput,  setObservacionInput]  = useState({});
 
   const [productosInv,     setProductosInv]     = useState([]);
   const [cargandoInv,      setCargandoInv]       = useState(false);
@@ -76,27 +118,59 @@ export default function Tesoreria() {
   const [categoriasAbiertas, setCategoriasAbiertas] = useState({});
 
   const cargarDatos = () => {
-    setCargando(true);
+    setCargando(true); setErrorCarga("");
     Promise.all([
       api.get('/tesoreria/cuentas'),
       api.get('/tesoreria/movimientos?dias=30'),
     ]).then(([c, m]) => {
       setCuentas(Array.isArray(c.data) ? c.data : []);
       setMovimientos(Array.isArray(m.data) ? m.data : []);
-    }).catch(() => {})
+    }).catch(() => setErrorCarga("No se pudieron cargar las cuentas/movimientos. Verifica tu conexión e intenta de nuevo."))
       .finally(() => setCargando(false));
   };
 
   useEffect(() => { cargarDatos(); }, []);
   useEffect(() => { if (tab === "cierre") cargarPreview(fechaCierre); }, [tab]);
   useEffect(() => { if (tab === "inventario") cargarInventario(); }, [tab]);
+  useEffect(() => {
+    if (tab === "movimiento" && movTipo === "retiro" && !statsMes && !cargandoStatsMes) cargarStatsMes();
+  }, [tab, movTipo]);
 
   const cargarInventario = () => {
-    setCargandoInv(true);
+    setCargandoInv(true); setErrorCarga("");
     getProductos()
       .then(r => setProductosInv(Array.isArray(r.data) ? r.data : []))
-      .catch(() => {})
+      .catch(() => setErrorCarga("No se pudo cargar el inventario. Verifica tu conexión e intenta de nuevo."))
       .finally(() => setCargandoInv(false));
+  };
+
+  // Ganancia del mes para la calculadora de retiro: mismo dato/cálculo que ya
+  // muestra el Dashboard (ingresos - costos), viene de un endpoint que ya existe.
+  const cargarStatsMes = () => {
+    setCargandoStatsMes(true);
+    api.get('/dashboard/stats?periodo=mes')
+      .then(r => setStatsMes(r.data))
+      .catch(() => setStatsMes(null))
+      .finally(() => setCargandoStatsMes(false));
+  };
+
+  const gananciaMes = statsMes
+    ? parseFloat(statsMes.totalIngresos || 0) - parseFloat(statsMes.totalCostos || 0)
+    : null;
+
+  const cambiarMovTipo = (t) => {
+    setMovTipo(t);
+    setErrorGasto(""); setExito("");
+    setErrorCapital(""); setExitoCapital("");
+    setErrorRetiro(""); setExitoRetiro("");
+    setErrorTransferencia(""); setExitoTransferencia("");
+  };
+
+  const aplicarPctRetiro = (pct) => {
+    setPctRetiro(pct);
+    if (gananciaMes == null || pct === "") return;
+    const sugerido = gananciaMes * (parseFloat(pct) || 0) / 100;
+    setFormRetiro(f => ({ ...f, monto: sugerido > 0 ? sugerido.toFixed(2) : "" }));
   };
 
 
@@ -169,6 +243,85 @@ export default function Tesoreria() {
     } finally { setGuardando(false); }
   };
 
+
+  const handleRegistrarIngresoCapital = async () => {
+    setErrorCapital("");
+    if (!formCapital.concepto.trim()) { setErrorCapital("El concepto es obligatorio."); return; }
+    if (!formCapital.monto || parseFloat(formCapital.monto) <= 0) {
+      setErrorCapital("Ingresa un monto válido mayor a 0."); return;
+    }
+    setGuardandoCapital(true);
+    try {
+      await api.post('/tesoreria/ingreso-capital', {
+        concepto: formCapital.concepto.trim(),
+        tipo:     formCapital.tipo,
+        monto:    parseFloat(formCapital.monto),
+        cuenta:   formCapital.cuenta,
+      });
+      setExitoCapital(`✅ Ingreso de ${money(formCapital.monto)} registrado correctamente.`);
+      setFormCapital({ concepto:"", tipo:"Aporte de capital inicial", monto:"", cuenta:"Caja Fisica" });
+      cargarDatos();
+      setTimeout(() => setExitoCapital(""), 4000);
+    } catch (e) {
+      const msg = e.response?.data;
+      setErrorCapital(typeof msg === "string" ? msg : "Error al registrar el ingreso.");
+    } finally { setGuardandoCapital(false); }
+  };
+
+
+  const handleRegistrarRetiro = async () => {
+    setErrorRetiro("");
+    if (!formRetiro.concepto.trim()) { setErrorRetiro("El concepto es obligatorio."); return; }
+    if (!formRetiro.monto || parseFloat(formRetiro.monto) <= 0) {
+      setErrorRetiro("Ingresa un monto válido mayor a 0."); return;
+    }
+    setGuardandoRetiro(true);
+    try {
+      await api.post('/tesoreria/retiro', {
+        concepto: formRetiro.concepto.trim(),
+        tipo:     formRetiro.tipo,
+        monto:    parseFloat(formRetiro.monto),
+        cuenta:   formRetiro.cuenta,
+      });
+      setExitoRetiro(`✅ Retiro de ${money(formRetiro.monto)} registrado correctamente.`);
+      setFormRetiro({ concepto:"", tipo:"Sueldo del mes", monto:"", cuenta:"Caja Fisica" });
+      setPctRetiro("");
+      setStatsMes(null);
+      cargarDatos();
+      setTimeout(() => setExitoRetiro(""), 4000);
+    } catch (e) {
+      const msg = e.response?.data;
+      setErrorRetiro(typeof msg === "string" ? msg : "Error al registrar el retiro.");
+    } finally { setGuardandoRetiro(false); }
+  };
+
+
+  const handleRegistrarTransferencia = async () => {
+    setErrorTransferencia("");
+    if (formTransferencia.cuentaOrigen === formTransferencia.cuentaDestino) {
+      setErrorTransferencia("Elige dos cuentas distintas."); return;
+    }
+    if (!formTransferencia.monto || parseFloat(formTransferencia.monto) <= 0) {
+      setErrorTransferencia("Ingresa un monto válido mayor a 0."); return;
+    }
+    setGuardandoTransferencia(true);
+    try {
+      await api.post('/tesoreria/transferencia', {
+        cuentaOrigen:  formTransferencia.cuentaOrigen,
+        cuentaDestino: formTransferencia.cuentaDestino,
+        monto:         parseFloat(formTransferencia.monto),
+        concepto:      formTransferencia.concepto.trim(),
+      });
+      setExitoTransferencia(`✅ Transferencia de ${money(formTransferencia.monto)} de ${formTransferencia.cuentaOrigen} a ${formTransferencia.cuentaDestino} registrada.`);
+      setFormTransferencia(f => ({ ...f, monto:"", concepto:"" }));
+      cargarDatos();
+      setTimeout(() => setExitoTransferencia(""), 4000);
+    } catch (e) {
+      const msg = e.response?.data;
+      setErrorTransferencia(typeof msg === "string" ? msg : "Error al registrar la transferencia.");
+    } finally { setGuardandoTransferencia(false); }
+  };
+
   const cargarPreview = async (fecha) => {
     setCierreCargando(true);
     setCierreError("");
@@ -179,22 +332,11 @@ export default function Tesoreria() {
       const inputs = {};
       data.forEach(c => { inputs[c.idCuenta] = c.saldoSistema; });
       setSaldoContadoInput(inputs);
-    } catch (e) {}
-    finally { setCierreCargando(false); }
-  };
-
-  const handleGuardarFondo = async (idCuenta) => {
-    const val = parseFloat(fondoInput[idCuenta]);
-    if (isNaN(val) || val < 0) { setCierreError("El fondo debe ser un número mayor o igual a 0."); return; }
-    setCierreError(""); setGuardandoFondo(true);
-    try {
-      await api.put(`/tesoreria/cierre/cuentas/${idCuenta}/fondo`, { fondoCaja: val });
-      setPreviewCierre(list => list.map(c => c.idCuenta === idCuenta ? { ...c, fondoCaja: val } : c));
-      setCuentas(list => list.map(c => c.idCuenta === idCuenta ? { ...c, fondoCaja: val } : c));
-      setEditandoFondoId(null);
+      setObservacionInput({});
     } catch (e) {
-      setCierreError(e.response?.data ?? "Error al guardar el fondo.");
-    } finally { setGuardandoFondo(false); }
+      setCierreError("No se pudo cargar el preview del cierre. Intenta de nuevo.");
+    }
+    finally { setCierreCargando(false); }
   };
 
   const handleEjecutarCierre = async () => {
@@ -202,13 +344,13 @@ export default function Tesoreria() {
     const items = previewCierre.map(c => ({
       idCuenta: c.idCuenta,
       saldoContado: parseFloat(saldoContadoInput[c.idCuenta] ?? c.saldoSistema),
-      observacion: "",
+      observacion: (observacionInput[c.idCuenta] || "").trim(),
     }));
     if (items.length === 0) return;
     setEjecutandoCierre(true);
     try {
       const res = await api.post('/tesoreria/cierre/ejecutar', {
-        fecha: fechaCierre, items, usuario: "admin",
+        fecha: fechaCierre, items,
       });
       setCierreExito(res.data.mensaje || "✅ Cierre ejecutado");
       setTimeout(() => setCierreExito(""), 4000);
@@ -222,6 +364,14 @@ export default function Tesoreria() {
   const cuentaSeleccionada = cuentas.find(c => c.nombre === formGasto.cuenta);
   const saldoDisponible = cuentaSeleccionada?.saldoActual ?? 0;
   const montoSuperaSaldo = parseFloat(formGasto.monto || 0) > parseFloat(saldoDisponible);
+
+  const cuentaSeleccionadaRetiro = cuentas.find(c => c.nombre === formRetiro.cuenta);
+  const saldoDisponibleRetiro = cuentaSeleccionadaRetiro?.saldoActual ?? 0;
+  const montoSuperaSaldoRetiro = parseFloat(formRetiro.monto || 0) > parseFloat(saldoDisponibleRetiro);
+
+  const cuentaOrigenTransferencia = cuentas.find(c => c.nombre === formTransferencia.cuentaOrigen);
+  const saldoDisponibleTransferencia = cuentaOrigenTransferencia?.saldoActual ?? 0;
+  const montoSuperaSaldoTransferencia = parseFloat(formTransferencia.monto || 0) > parseFloat(saldoDisponibleTransferencia);
 
   const inp = {
     width:"100%", padding:"10px 14px", borderRadius:10,
@@ -300,8 +450,7 @@ export default function Tesoreria() {
           {[
             { k:"resumen",    l:"📊 Resumen" },
             { k:"movimientos",l:"📋 Movimientos" },
-            { k:"registrar",  l:"➕ Registrar gasto" },
-            
+            { k:"movimiento", l:"💸 Movimiento de caja" },
             { k:"cierre",     l:"🔒 Cierre de caja" },
             { k:"inventario", l:"📦 Inventario" },
             { k:"reportes",   l:"📄 Reportes",        disabled:true },
@@ -322,6 +471,20 @@ export default function Tesoreria() {
             </button>
           ))}
         </div>
+
+        { }
+        {errorCarga && (
+          <div style={{ background:"#FFEBEE", border:"1px solid rgba(198,40,40,0.2)",
+            borderRadius:10, padding:"10px 14px", fontSize:13, color:"#C62828",
+            marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span>⚠️ {errorCarga}</span>
+            <button onClick={() => (tab === "inventario" ? cargarInventario() : cargarDatos())}
+              style={{ background:"none", border:"none", color:"#C62828", fontWeight:700,
+                cursor:"pointer", fontSize:13, textDecoration:"underline" }}>
+              Reintentar
+            </button>
+          </div>
+        )}
 
         { }
         {tab === "resumen" && (
@@ -460,8 +623,29 @@ export default function Tesoreria() {
         )}
 
         { }
-        {tab === "registrar" && (
+        {tab === "movimiento" && (
           <div style={{ maxWidth:520 }}>
+            { }
+            <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+              {[
+                { k:"gasto",   l:"💸 Gasto" },
+                { k:"capital", l:"💵 Ingreso de capital" },
+                { k:"retiro",  l:"📤 Retiro" },
+                { k:"transferencia", l:"🔁 Transferencia" },
+              ].map(m => (
+                <button key={m.k} onClick={() => cambiarMovTipo(m.k)}
+                  style={{ flex:1, padding:"9px 10px", borderRadius:10,
+                    cursor:"pointer", fontSize:12.5, fontWeight:700,
+                    background: movTipo === m.k ? C.emerald : "#fff",
+                    color:      movTipo === m.k ? "#fff"    : "#666",
+                    boxShadow:  movTipo === m.k ? `0 4px 12px ${C.emerald}33` : `0 1px 4px #0001`,
+                    border: movTipo === m.k ? "none" : `1px solid ${C.border}` }}>
+                  {m.l}
+                </button>
+              ))}
+            </div>
+
+            {movTipo === "gasto" && (
             <div style={{ background:"#fff", borderRadius:16, padding:28,
               border:`1px solid ${C.border}` }}>
               <h3 style={{ margin:"0 0 20px", fontSize:16, fontWeight:800, color: C.charcoal }}>
@@ -560,6 +744,347 @@ export default function Tesoreria() {
                 El gasto se descontará de la cuenta seleccionada y se registrará en el log de eventos.
               </p>
             </div>
+            )}
+
+            {movTipo === "capital" && (
+            <div style={{ background:"#fff", borderRadius:16, padding:28,
+              border:`1px solid ${C.border}` }}>
+              <h3 style={{ margin:"0 0 20px", fontSize:16, fontWeight:800, color: C.charcoal }}>
+                Registrar ingreso de capital
+              </h3>
+
+              {exitoCapital && (
+                <div style={{ background:"#E8F5E9", border:"1px solid rgba(46,125,50,0.2)",
+                  borderRadius:10, padding:"12px 16px", fontSize:14, color:"#2E7D32",
+                  marginBottom:18 }}>
+                  {exitoCapital}
+                </div>
+              )}
+
+              <div style={{ marginBottom:16 }}>
+                <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                  textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                  Tipo de ingreso
+                </label>
+                <select value={formCapital.tipo}
+                  onChange={e => setFormCapital(f => ({...f, tipo:e.target.value}))}
+                  style={inp}>
+                  {TIPOS_INGRESO_CAPITAL.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div style={{ marginBottom:16 }}>
+                <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                  textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                  Concepto / descripción *
+                </label>
+                <input value={formCapital.concepto}
+                  onChange={e => setFormCapital(f => ({...f, concepto:e.target.value}))}
+                  placeholder="Ej: Dejé S/100 para iniciar la venta de esta semana"
+                  style={inp} />
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+                <div>
+                  <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                    textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                    Monto (S/) *
+                  </label>
+                  <input type="number" min="0.01" step="0.01"
+                    value={formCapital.monto}
+                    onChange={e => setFormCapital(f => ({...f, monto:e.target.value}))}
+                    placeholder="0.00"
+                    style={inp} />
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                    textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                    Cuenta destino
+                  </label>
+                  <select value={formCapital.cuenta}
+                    onChange={e => setFormCapital(f => ({...f, cuenta:e.target.value}))}
+                    style={inp}>
+                    {cuentas.map(c => <option key={c.idCuenta}>{c.nombre}</option>)}
+                    {CUENTAS_DESTINO.filter(n => !cuentas.find(c=>c.nombre===n)).map(n=>(
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {errorCapital && (
+                <div style={{ background:"#FFEBEE", border:"1px solid rgba(198,40,40,0.2)",
+                  borderRadius:10, padding:"10px 14px", fontSize:13, color:"#C62828",
+                  marginBottom:16 }}>
+                  ⚠️ {errorCapital}
+                </div>
+              )}
+
+              <button onClick={handleRegistrarIngresoCapital} disabled={guardandoCapital}
+                style={{ width:"100%", padding:"13px", borderRadius:10, border:"none",
+                  background: guardandoCapital
+                    ? "#ccc"
+                    : `linear-gradient(135deg, ${C.emerald}, ${C.teal})`,
+                  color:"#fff", cursor: guardandoCapital ? "not-allowed" : "pointer",
+                  fontSize:15, fontWeight:700,
+                  fontFamily:"'Inter','DM Sans',system-ui,sans-serif" }}>
+                {guardandoCapital ? "Registrando..." : "💵 Registrar ingreso"}
+              </button>
+
+              <p style={{ margin:"14px 0 0", fontSize:12, color:"#aaa", textAlign:"center" }}>
+                El ingreso se suma a la cuenta seleccionada y se registra en el log de eventos.
+                No cuenta como venta ni afecta la ganancia del Dashboard.
+              </p>
+            </div>
+            )}
+
+            {movTipo === "retiro" && (
+            <div style={{ background:"#fff", borderRadius:16, padding:28,
+              border:`1px solid ${C.border}` }}>
+              <h3 style={{ margin:"0 0 20px", fontSize:16, fontWeight:800, color: C.charcoal }}>
+                Registrar retiro
+              </h3>
+
+              { }
+              <div style={{ background: C.softGray, borderRadius:12, padding:"14px 16px", marginBottom:18 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#888",
+                  textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>
+                  Calculadora — ganancia de este mes
+                </div>
+                {cargandoStatsMes ? (
+                  <div style={{ fontSize:13, color:"#888" }}>Cargando...</div>
+                ) : gananciaMes == null ? (
+                  <div style={{ fontSize:13, color:"#888" }}>No se pudo cargar la ganancia del mes.</div>
+                ) : (
+                  <>
+                    <div style={{ fontSize:20, fontWeight:800, color: C.emerald, marginBottom:10 }}>
+                      {money(gananciaMes)}
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <label style={{ fontSize:12, color:"#666" }}>% a retirar:</label>
+                      <input type="number" min="0" max="100" step="1"
+                        value={pctRetiro}
+                        onChange={e => aplicarPctRetiro(e.target.value)}
+                        placeholder="30"
+                        style={{ width:70, padding:"6px 8px", borderRadius:8,
+                          border:`1px solid ${C.border}`, fontSize:13, textAlign:"right",
+                          outline:"none", fontFamily:"inherit" }} />
+                      <span style={{ fontSize:12, color:"#888" }}>→ autocompleta el monto abajo</span>
+                    </div>
+                  </>
+                )}
+                <p style={{ margin:"10px 0 0", fontSize:11, color:"#aaa" }}>
+                  El resto de la ganancia no se registra aparte: se queda en la cuenta tal cual.
+                </p>
+              </div>
+
+              {exitoRetiro && (
+                <div style={{ background:"#E8F5E9", border:"1px solid rgba(46,125,50,0.2)",
+                  borderRadius:10, padding:"12px 16px", fontSize:14, color:"#2E7D32",
+                  marginBottom:18 }}>
+                  {exitoRetiro}
+                </div>
+              )}
+
+              <div style={{ marginBottom:16 }}>
+                <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                  textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                  Tipo de retiro
+                </label>
+                <select value={formRetiro.tipo}
+                  onChange={e => setFormRetiro(f => ({...f, tipo:e.target.value}))}
+                  style={inp}>
+                  {TIPOS_RETIRO.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div style={{ marginBottom:16 }}>
+                <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                  textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                  Concepto / descripción *
+                </label>
+                <input value={formRetiro.concepto}
+                  onChange={e => setFormRetiro(f => ({...f, concepto:e.target.value}))}
+                  placeholder="Ej: Sueldo al mes"
+                  style={inp} />
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+                <div>
+                  <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                    textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                    Monto (S/) *
+                  </label>
+                  <input type="number" min="0.01" step="0.01"
+                    value={formRetiro.monto}
+                    onChange={e => setFormRetiro(f => ({...f, monto:e.target.value}))}
+                    placeholder="0.00"
+                    style={inp} />
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                    textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                    Cuenta de salida
+                  </label>
+                  <select value={formRetiro.cuenta}
+                    onChange={e => setFormRetiro(f => ({...f, cuenta:e.target.value}))}
+                    style={inp}>
+                    {cuentas.map(c => <option key={c.idCuenta}>{c.nombre}</option>)}
+                    {CUENTAS_DESTINO.filter(n => !cuentas.find(c=>c.nombre===n)).map(n=>(
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize:12, color:"#666", marginTop:4 }}>
+                    Saldo disponible: <strong>{money(saldoDisponibleRetiro)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {montoSuperaSaldoRetiro && formRetiro.monto && (
+                <div style={{ background:"#FFF3E0", border:"1px solid rgba(224,122,47,0.3)",
+                  borderRadius:10, padding:"10px 14px", fontSize:13, color:"#B84D00", marginBottom:16 }}>
+                  ⚠️ El monto supera el saldo disponible en {formRetiro.cuenta}.
+                </div>
+              )}
+
+              {errorRetiro && (
+                <div style={{ background:"#FFEBEE", border:"1px solid rgba(198,40,40,0.2)",
+                  borderRadius:10, padding:"10px 14px", fontSize:13, color:"#C62828",
+                  marginBottom:16 }}>
+                  ⚠️ {errorRetiro}
+                </div>
+              )}
+
+              <button onClick={handleRegistrarRetiro} disabled={guardandoRetiro}
+                style={{ width:"100%", padding:"13px", borderRadius:10, border:"none",
+                  background: guardandoRetiro
+                    ? "#ccc"
+                    : `linear-gradient(135deg, ${C.emerald}, ${C.teal})`,
+                  color:"#fff", cursor: guardandoRetiro ? "not-allowed" : "pointer",
+                  fontSize:15, fontWeight:700,
+                  fontFamily:"'Inter','DM Sans',system-ui,sans-serif" }}>
+                {guardandoRetiro ? "Registrando..." : "📤 Registrar retiro"}
+              </button>
+
+              <p style={{ margin:"14px 0 0", fontSize:12, color:"#aaa", textAlign:"center" }}>
+                El retiro se descuenta de la cuenta seleccionada y se registra en el log de eventos.
+              </p>
+            </div>
+            )}
+
+            {movTipo === "transferencia" && (
+            <div style={{ background:"#fff", borderRadius:16, padding:28,
+              border:`1px solid ${C.border}` }}>
+              <h3 style={{ margin:"0 0 20px", fontSize:16, fontWeight:800, color: C.charcoal }}>
+                Transferir entre cuentas propias
+              </h3>
+
+              {exitoTransferencia && (
+                <div style={{ background:"#E8F5E9", border:"1px solid rgba(46,125,50,0.2)",
+                  borderRadius:10, padding:"12px 16px", fontSize:14, color:"#2E7D32",
+                  marginBottom:18 }}>
+                  {exitoTransferencia}
+                </div>
+              )}
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+                <div>
+                  <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                    textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                    De (origen)
+                  </label>
+                  <select value={formTransferencia.cuentaOrigen}
+                    onChange={e => setFormTransferencia(f => ({...f, cuentaOrigen:e.target.value}))}
+                    style={inp}>
+                    {cuentas.map(c => <option key={c.idCuenta}>{c.nombre}</option>)}
+                    {CUENTAS_DESTINO.filter(n => !cuentas.find(c=>c.nombre===n)).map(n=>(
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize:12, color:"#666", marginTop:4 }}>
+                    Saldo disponible: <strong>{money(saldoDisponibleTransferencia)}</strong>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                    textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                    A (destino)
+                  </label>
+                  <select value={formTransferencia.cuentaDestino}
+                    onChange={e => setFormTransferencia(f => ({...f, cuentaDestino:e.target.value}))}
+                    style={inp}>
+                    {cuentas.map(c => <option key={c.idCuenta}>{c.nombre}</option>)}
+                    {CUENTAS_DESTINO.filter(n => !cuentas.find(c=>c.nombre===n)).map(n=>(
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom:16 }}>
+                <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                  textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                  Monto (S/) *
+                </label>
+                <input type="number" min="0.01" step="0.01"
+                  value={formTransferencia.monto}
+                  onChange={e => setFormTransferencia(f => ({...f, monto:e.target.value}))}
+                  placeholder="0.00"
+                  style={inp} />
+              </div>
+
+              <div style={{ marginBottom:16 }}>
+                <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#888",
+                  textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>
+                  Concepto (opcional)
+                </label>
+                <input value={formTransferencia.concepto}
+                  onChange={e => setFormTransferencia(f => ({...f, concepto:e.target.value}))}
+                  placeholder="Ej: Cambié el Yape del día a efectivo"
+                  style={inp} />
+              </div>
+
+              {formTransferencia.cuentaOrigen === formTransferencia.cuentaDestino && (
+                <div style={{ background:"#FFF3E0", border:"1px solid rgba(224,122,47,0.3)",
+                  borderRadius:10, padding:"10px 14px", fontSize:13, color:"#B84D00", marginBottom:16 }}>
+                  ⚠️ Elige dos cuentas distintas.
+                </div>
+              )}
+
+              {montoSuperaSaldoTransferencia && formTransferencia.monto && (
+                <div style={{ background:"#FFF3E0", border:"1px solid rgba(224,122,47,0.3)",
+                  borderRadius:10, padding:"10px 14px", fontSize:13, color:"#B84D00", marginBottom:16 }}>
+                  ⚠️ El monto supera el saldo disponible en {formTransferencia.cuentaOrigen}.
+                </div>
+              )}
+
+              {errorTransferencia && (
+                <div style={{ background:"#FFEBEE", border:"1px solid rgba(198,40,40,0.2)",
+                  borderRadius:10, padding:"10px 14px", fontSize:13, color:"#C62828",
+                  marginBottom:16 }}>
+                  ⚠️ {errorTransferencia}
+                </div>
+              )}
+
+              <button onClick={handleRegistrarTransferencia}
+                disabled={guardandoTransferencia || formTransferencia.cuentaOrigen === formTransferencia.cuentaDestino}
+                style={{ width:"100%", padding:"13px", borderRadius:10, border:"none",
+                  background: (guardandoTransferencia || formTransferencia.cuentaOrigen === formTransferencia.cuentaDestino)
+                    ? "#ccc"
+                    : `linear-gradient(135deg, ${C.emerald}, ${C.teal})`,
+                  color:"#fff",
+                  cursor: (guardandoTransferencia || formTransferencia.cuentaOrigen === formTransferencia.cuentaDestino) ? "not-allowed" : "pointer",
+                  fontSize:15, fontWeight:700,
+                  fontFamily:"'Inter','DM Sans',system-ui,sans-serif" }}>
+                {guardandoTransferencia ? "Registrando..." : "🔁 Transferir"}
+              </button>
+
+              <p style={{ margin:"14px 0 0", fontSize:12, color:"#aaa", textAlign:"center" }}>
+                No es venta ni gasto: la plata sigue siendo del negocio, solo cambia de cuenta.
+                Queda registrada en el log de eventos.
+              </p>
+            </div>
+            )}
 
           </div>
         )}
@@ -606,7 +1131,7 @@ export default function Tesoreria() {
                   <div style={{ background:"#fff", borderRadius:16,
                     border:`1px solid ${C.border}`, overflow:"hidden", marginBottom:16 }}>
                     <div style={{ display:"grid",
-                      gridTemplateColumns:"1fr 100px 120px 90px 130px 100px",
+                      gridTemplateColumns:"1fr 100px 120px 90px 1.4fr",
                       padding:"10px 16px", background:C.softGray,
                       fontSize:11, fontWeight:700, color:"#888",
                       textTransform:"uppercase", letterSpacing:"0.8px" }}>
@@ -614,18 +1139,15 @@ export default function Tesoreria() {
                       <span style={{ textAlign:"right" }}>Sistema</span>
                       <span style={{ textAlign:"right" }}>Contado</span>
                       <span style={{ textAlign:"right" }}>Diff</span>
-                      <span style={{ textAlign:"right" }}>Fondo</span>
-                      <span style={{ textAlign:"right" }}>Retiro</span>
+                      <span style={{ paddingLeft:12 }}>Observación</span>
                     </div>
                     {previewCierre.map((c, i) => {
                       const contado = parseFloat(saldoContadoInput[c.idCuenta] ?? c.saldoSistema);
                       const diff = contado - c.saldoSistema;
-                      const esEfectivo = c.tipo === "EFECTIVO";
-                      const retiro = esEfectivo ? contado - (c.fondoCaja || 0) : null;
                       const diffColor = diff === 0 ? "#888" : diff > 0 ? "#2E7D32" : "#C62828";
                       return (
                         <div key={c.idCuenta} style={{ display:"grid",
-                          gridTemplateColumns:"1fr 100px 120px 90px 130px 100px",
+                          gridTemplateColumns:"1fr 100px 120px 90px 1.4fr",
                           padding:"11px 16px", alignItems:"center",
                           borderBottom: i < previewCierre.length-1 ? `1px solid ${C.border}` : "none",
                           background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
@@ -651,36 +1173,14 @@ export default function Tesoreria() {
                           <span style={{ fontSize:13, textAlign:"right", fontWeight:700, color:diffColor }}>
                             {diff >= 0 ? "+" : ""}{money(diff)}
                           </span>
-                          <span style={{ textAlign:"right" }}>
-                            {editandoFondoId === c.idCuenta ? (
-                              <div style={{ display:"flex", gap:4, alignItems:"center", justifyContent:"flex-end" }}>
-                                <input type="number" step="0.01" min="0" autoFocus
-                                  value={fondoInput[c.idCuenta] ?? ""}
-                                  onChange={e => setFondoInput(i => ({...i, [c.idCuenta]: e.target.value}))}
-                                  onKeyDown={e => e.key === "Enter" && handleGuardarFondo(c.idCuenta)}
-                                  style={{ width:60, padding:"4px 6px", borderRadius:6,
-                                    border:`1px solid ${C.border}`, fontSize:12, textAlign:"right",
-                                    outline:"none", fontFamily:"inherit" }} />
-                                <button onClick={() => handleGuardarFondo(c.idCuenta)} disabled={guardandoFondo}
-                                  title="Guardar fondo"
-                                  style={{ border:"none", background:"none", cursor:"pointer",
-                                    color:C.emerald, fontSize:14, padding:0 }}>✓</button>
-                                <button onClick={() => setEditandoFondoId(null)}
-                                  title="Cancelar"
-                                  style={{ border:"none", background:"none", cursor:"pointer",
-                                    color:"#C62828", fontSize:14, padding:0 }}>✕</button>
-                              </div>
-                            ) : (
-                              <span style={{ fontSize:13, color:C.charcoal, cursor:"pointer" }}
-                                title="Click para editar el fondo a dejar en esta cuenta"
-                                onClick={() => { setFondoInput(i => ({...i, [c.idCuenta]: c.fondoCaja || 0})); setEditandoFondoId(c.idCuenta); }}>
-                                {money(c.fondoCaja || 0)} <span style={{ fontSize:10, color:"#bbb" }}>✎</span>
-                              </span>
-                            )}
-                          </span>
-                          <span style={{ fontSize:13, textAlign:"right", fontWeight:700,
-                              color: esEfectivo ? C.tangerine : "#bbb" }}>
-                            {esEfectivo ? money(retiro) : "—"}
+                          <span style={{ paddingLeft:12 }}>
+                            <input type="text"
+                              value={observacionInput[c.idCuenta] ?? ""}
+                              onChange={e => setObservacionInput(i => ({...i, [c.idCuenta]: e.target.value}))}
+                              placeholder={diff !== 0 ? "Ej: faltó S/10, ya se repuso" : "Sin novedad"}
+                              style={{ width:"100%", padding:"6px 8px", borderRadius:8,
+                                border:`1px solid ${C.border}`, fontSize:13,
+                                outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
                           </span>
                         </div>
                       );

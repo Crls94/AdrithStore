@@ -15,6 +15,18 @@ const G = {
 
 const money = (n) => `S/ ${parseFloat(n || 0).toFixed(2)}`;
 
+// Ingreso real de una venta para el gráfico: el "monto" de un cambio de
+// divisa (SERVICIO_COMIS - Yape/Plin <-> efectivo) es un movimiento interno
+// entre billeteras/caja, no una venta — solo la comisión cobrada lo es.
+// Mismo criterio que ya usa el backend para "totalIngresos" (ver
+// DashboardController.stats() / sumMontoTransferenciasEntreFechas).
+function ingresoVenta(v) {
+  const montoTransferencias = (v.detallesServicio || [])
+    .filter(d => d.producto?.tipo === "SERVICIO_COMIS")
+    .reduce((s, d) => s + parseFloat(d.monto || 0), 0);
+  return parseFloat(v.total || 0) - montoTransferencias;
+}
+
 function buildChartData(ventas, periodo) {
   if (!ventas || ventas.length === 0) return [];
   const ahora = new Date();
@@ -25,12 +37,12 @@ function buildChartData(ventas, periodo) {
   else                                 desde.setHours(0,0,0,0);
   const mapa = {};
     {  }
-  
+  // Solo ventas confirmadas (una anulada no es ingreso) y con fecha en rango.
 ventas
-    .filter(v => v.fecha && v.total && new Date(v.fecha) >= desde)
+    .filter(v => v.fecha && v.total && v.estado === "confirmado" && new Date(v.fecha) >= desde)
     .forEach(v => {
       const dia = new Date(v.fecha).toLocaleDateString("es-PE",{day:"2-digit",month:"2-digit"});
-      mapa[dia] = (mapa[dia]||0) + parseFloat(v.total||0);
+      mapa[dia] = (mapa[dia]||0) + ingresoVenta(v);
     });
 
   return Object.entries(mapa)

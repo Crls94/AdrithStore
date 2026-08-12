@@ -23,7 +23,6 @@ import javax.imageio.ImageIO;
 @RestController
 @RequestMapping("/api/uploads")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class ImagenController {
 
     @Value("${app.upload.dir:uploads/imagenes}")

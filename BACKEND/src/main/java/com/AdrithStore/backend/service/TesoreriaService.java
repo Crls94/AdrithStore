@@ -169,16 +169,11 @@ public class TesoreriaService {
         List<CuentaFinanciera> cuentas = cuentaRepo.findByActivaTrue();
         List<Map<String, Object>> preview = new ArrayList<>();
         for (CuentaFinanciera c : cuentas) {
-            boolean esEfectivo = "EFECTIVO".equalsIgnoreCase(c.getTipo());
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("idCuenta", c.getIdCuenta());
             item.put("nombre", c.getNombre());
             item.put("tipo", c.getTipo());
             item.put("saldoSistema", c.getSaldoActual());
-            item.put("fondoCaja", c.getFondoCaja() != null ? c.getFondoCaja() : BigDecimal.ZERO);
-            item.put("retiroSugerido", esEfectivo
-                ? c.getSaldoActual().subtract(c.getFondoCaja() != null ? c.getFondoCaja() : BigDecimal.ZERO)
-                : BigDecimal.ZERO);
 
             // "yaCerrado" es solo informativo (hubo al menos un cierre hoy) — no bloquea
             // volver a cerrar la cuenta; se permiten varios cierres el mismo día para
@@ -212,15 +207,13 @@ public class TesoreriaService {
             BigDecimal saldoSistema = cuenta.getSaldoActual();
             BigDecimal saldoContado = item.getSaldoContado();
             BigDecimal diferencia = saldoContado.subtract(saldoSistema);
-            BigDecimal fondo = cuenta.getFondoCaja() != null ? cuenta.getFondoCaja() : BigDecimal.ZERO;
-            // El retiro físico (dejar solo el fondo en caja) solo aplica a efectivo:
-            // las cuentas digitales/bancarias no tienen un cajón del que "sacar" dinero,
-            // el saldo contado debe quedar tal cual como saldo del sistema.
-            boolean esEfectivo = "EFECTIVO".equalsIgnoreCase(cuenta.getTipo());
-            BigDecimal retiro = esEfectivo ? saldoContado.subtract(fondo) : BigDecimal.ZERO;
             boolean ajusteRegistrado = false;
 
-
+            // No hay "fondo" que reponer ni retiro automático: el cierre solo reconcilia
+            // lo contado contra el sistema (en el que se confía, ventas/compras ya están
+            // bien registradas). Si hay diferencia, se registra el ajuste y la cuenta
+            // queda con el saldo realmente contado; por qué hubo diferencia se explica en
+            // observacion (texto libre), no con un cálculo automático.
             if (diferencia.compareTo(BigDecimal.ZERO) != 0) {
                 int signo = diferencia.compareTo(BigDecimal.ZERO) > 0 ? 1 : -1;
                 registrar("AJUSTE", cuenta.getNombre(), diferencia.abs(), signo,
@@ -228,27 +221,16 @@ public class TesoreriaService {
                     null, null, usuario);
                 ajusteRegistrado = true;
                 cuenta.setSaldoActual(saldoContado);
+                cuentaRepo.save(cuenta);
             }
 
 
-            if (esEfectivo && retiro.compareTo(BigDecimal.ZERO) > 0) {
-                registrar("RETIRO", cuenta.getNombre(), retiro, -1,
-                    "RETIRO cierre " + fecha + " (contado=" + saldoContado + ", fondo=" + fondo + ")",
-                    null, null, usuario);
-                cuenta.setSaldoActual(fondo);
-            }
-
-            cuentaRepo.save(cuenta);
-
-            
             CierreDiario cd = new CierreDiario();
             cd.setFechaCierre(fecha);
             cd.setCuenta(cuenta);
             cd.setSaldoSistema(saldoSistema);
             cd.setSaldoContado(saldoContado);
             cd.setDiferencia(diferencia);
-            cd.setFondoDejado(fondo);
-            cd.setRetiro(retiro);
             cd.setAjusteRegistrado(ajusteRegistrado);
             cd.setObservacion(item.getObservacion());
             cd.setCerradoPor(usuario);

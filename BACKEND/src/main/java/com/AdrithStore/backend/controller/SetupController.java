@@ -19,7 +19,6 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/setup")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class SetupController {
 
     private final SistemaConfigRepository        configRepo;

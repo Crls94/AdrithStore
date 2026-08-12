@@ -31,7 +31,10 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     const { data } = await api.post('/auth/login', { username, password });
 
-    
+
+    localStorage.setItem("adrith_token", data.token);
+
+
     let datosCompletos = {
       idUsuario:      data.idUsuario,
       username:       data.username,
@@ -41,7 +44,7 @@ export function AuthProvider({ children }) {
       nombreCompleto: data.nombreCompleto,
     };
 
-    
+
     try {
       const perfil = await api.get(`/usuarios/${data.idUsuario}`);
       datosCompletos = {
@@ -63,7 +66,8 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUsuario(null);
     localStorage.removeItem("adrith_usuario");
-    setEstado(prev => prev); 
+    localStorage.removeItem("adrith_token");
+    setEstado(prev => prev);
   };
 
   const registrarPrimerAdmin = async (datos) => {

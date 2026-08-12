@@ -1,0 +1,48 @@
+# NOTA: la maquina cliente actual (desktop-6m5le6v) es Windows, no Linux.
+# Para esa maquina usar deploy/windows/ (NSSM) en vez de este archivo.
+# Este .service queda documentado por si en el futuro se migra esa maquina
+# a Ubuntu Server u otro Linux.
+#
+# Servicio systemd para el backend de AdrithStore en la maquina cliente.
+#
+# Instalacion:
+#   sudo cp adrithstore-backend.service /etc/systemd/system/
+#   sudo mkdir -p /etc/adrithstore
+#   sudo cp backend.env.example /etc/adrithstore/backend.env   # y completar valores reales
+#   sudo chmod 600 /etc/adrithstore/backend.env                # solo root puede leerlo
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin adrithstore
+#   sudo chown -R adrithstore:adrithstore /opt/adrithstore
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now adrithstore-backend
+#   sudo systemctl status adrithstore-backend
+#   journalctl -u adrithstore-backend -f     # logs en vivo
+#
+# El .jar se espera en /opt/adrithstore/backend/backend.jar (ver deploy.sh,
+# que lo copia ahi despues de cada build).
+
+[Unit]
+Description=AdrithStore - Backend (Spring Boot)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=adrithstore
+Group=adrithstore
+WorkingDirectory=/opt/adrithstore/backend
+EnvironmentFile=/etc/adrithstore/backend.env
+ExecStart=/usr/bin/java -jar /opt/adrithstore/backend/backend.jar --spring.profiles.active=prod
+
+# El backend solo escucha en 127.0.0.1 (server.address en
+# application-prod.properties) - nunca queda expuesto directo a la red, todo
+# entra por el reverse proxy TLS (deploy/Caddyfile o nginx.conf.example).
+
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=143
+
+# Limites razonables para una maquina de un solo negocio (ajustar si hace falta).
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

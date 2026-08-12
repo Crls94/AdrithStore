@@ -2,10 +2,12 @@ package com.AdrithStore.backend.controller;
 
 import com.AdrithStore.backend.model.*;
 import com.AdrithStore.backend.repository.*;
+import com.AdrithStore.backend.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +20,6 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/reportes")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class ReportesController {
 
     private final VentaRepository                ventaRepo;
@@ -82,15 +83,15 @@ public class ReportesController {
             @RequestParam(required = false)    Integer idCliente,
             @RequestParam(required = false)    Integer idVendedor,
             @RequestParam(required = false)    String estado,
-            @RequestParam(required = false)    Integer idUsuario,
-            @RequestParam(required = false)    String rol) {
+            @AuthenticationPrincipal AuthenticatedUser me) {
 
         LocalDateTime d = inicioDelDia(desde);
         LocalDateTime h = finDelDia(hasta);
 
-        
-        if ("VENDEDOR".equals(rol) && idUsuario != null) {
-            idVendedor = idUsuario;
+        // El vendedor solo puede ver sus propias ventas: se ignora cualquier
+        // idVendedor que mande el cliente y se fuerza al usuario autenticado.
+        if ("VENDEDOR".equals(me.rol())) {
+            idVendedor = me.idUsuario();
         }
 
         Page<Venta> pagina = ventaRepo.buscarPaginado(d, h, idCliente, idVendedor, estado,
@@ -196,7 +197,7 @@ public class ReportesController {
 
         List<CierreDiario> lista;
         if (idCuenta != null) {
-            
+
             lista = cierreRepo.findByFechaCierreBetweenOrderByFechaCierreDesc(d, h)
                     .stream()
                     .filter(c -> c.getCuenta().getIdCuenta().equals(idCuenta))
@@ -205,7 +206,22 @@ public class ReportesController {
             lista = cierreRepo.findByFechaCierreBetweenOrderByFechaCierreDesc(d, h);
         }
 
-        return listaAMapa(lista, Map.of());
+        // Totales del rango: antes se mandaba Map.of() (vacío), por lo que la tabla
+        // de Reportes > Cierres nunca mostraba fila de totales.
+        Map<String, Object> totales = new LinkedHashMap<>();
+        totales.put("saldoSistema", sumarBigDecimal(lista, CierreDiario::getSaldoSistema));
+        totales.put("saldoContado", sumarBigDecimal(lista, CierreDiario::getSaldoContado));
+        totales.put("diferencia",   sumarBigDecimal(lista, CierreDiario::getDiferencia));
+
+        return listaAMapa(lista, totales);
+    }
+
+    private BigDecimal sumarBigDecimal(List<CierreDiario> lista,
+            java.util.function.Function<CierreDiario, BigDecimal> extractor) {
+        return lista.stream()
+            .map(extractor)
+            .filter(java.util.Objects::nonNull)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     
