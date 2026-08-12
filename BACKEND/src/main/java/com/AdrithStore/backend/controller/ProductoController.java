@@ -137,7 +137,19 @@ public class ProductoController {
         p.setDescripcion(datos.getDescripcion());
         p.setCategoria(datos.getCategoria());
         p.setPermiteStockNegativo(datos.getPermiteStockNegativo());
-        p.setCpp(datos.getCpp());
+
+        // No pisar el CPP (costo promedio ponderado, usado como costo real en cada
+        // venta) con un valor vacio o en 0: eso deja el costo de las ventas futuras
+        // en S/ 0 sin que se note (precioCosto se ve normal en el formulario) e infla
+        // la ganancia mostrada en el dashboard. Mismo resguardo que ya tiene crear().
+        BigDecimal cppEntrante = datos.getCpp();
+        if (cppEntrante == null || cppEntrante.compareTo(BigDecimal.ZERO) <= 0) {
+            BigDecimal cppExistente = p.getCpp();
+            p.setCpp(cppExistente != null && cppExistente.compareTo(BigDecimal.ZERO) > 0
+                ? cppExistente : p.getPrecioCosto());
+        } else {
+            p.setCpp(cppEntrante);
+        }
         if (datos.getComisionBase() != null) p.setComisionBase(datos.getComisionBase());
         if (datos.getComisionCada() != null) p.setComisionCada(datos.getComisionCada());
         if (datos.getImagenUrl() != null) p.setImagenUrl(datos.getImagenUrl());
