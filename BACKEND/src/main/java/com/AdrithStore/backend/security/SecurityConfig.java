@@ -74,6 +74,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/recuperar/cambiar").permitAll()
                 .requestMatchers(HttpMethod.GET,  "/api/uploads/imagen/**").permitAll()
 
+                // Mantenimiento masivo (reprocesa las imagenes de TODOS los productos):
+                // solo se expone en AdminSistema.jsx, debe ser ADMIN-only tambien en el
+                // backend, no solo escondido en el frontend.
+                .requestMatchers(HttpMethod.POST, "/api/uploads/reparar-imagenes").hasRole("ADMIN")
+
                 // Auto-servicio (mas especifico primero): cualquier logueado puede ver/editar
                 // su propio perfil y su propia password; el controlador valida la identidad.
                 .requestMatchers(HttpMethod.GET, "/api/usuarios/{id}").authenticated()
