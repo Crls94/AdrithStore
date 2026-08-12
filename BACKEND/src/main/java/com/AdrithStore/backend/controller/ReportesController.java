@@ -197,7 +197,7 @@ public class ReportesController {
 
         List<CierreDiario> lista;
         if (idCuenta != null) {
-            
+
             lista = cierreRepo.findByFechaCierreBetweenOrderByFechaCierreDesc(d, h)
                     .stream()
                     .filter(c -> c.getCuenta().getIdCuenta().equals(idCuenta))
@@ -206,7 +206,22 @@ public class ReportesController {
             lista = cierreRepo.findByFechaCierreBetweenOrderByFechaCierreDesc(d, h);
         }
 
-        return listaAMapa(lista, Map.of());
+        // Totales del rango: antes se mandaba Map.of() (vacío), por lo que la tabla
+        // de Reportes > Cierres nunca mostraba fila de totales.
+        Map<String, Object> totales = new LinkedHashMap<>();
+        totales.put("saldoSistema", sumarBigDecimal(lista, CierreDiario::getSaldoSistema));
+        totales.put("saldoContado", sumarBigDecimal(lista, CierreDiario::getSaldoContado));
+        totales.put("diferencia",   sumarBigDecimal(lista, CierreDiario::getDiferencia));
+
+        return listaAMapa(lista, totales);
+    }
+
+    private BigDecimal sumarBigDecimal(List<CierreDiario> lista,
+            java.util.function.Function<CierreDiario, BigDecimal> extractor) {
+        return lista.stream()
+            .map(extractor)
+            .filter(java.util.Objects::nonNull)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     

@@ -98,7 +98,7 @@ const COL = {
     { key:"saldoContado",     label:"Contado",     numeric:true,  sortable:false },
     { key:"diferencia",       label:"Diferencia",  numeric:true,  sortable:false,
       color:(v)=>v!==0?"#C62828":"#888" },
-    { key:"retiro",           label:"Retiro",      numeric:true,  sortable:false },
+    { key:"observacion",      label:"Observación", numeric:false, sortable:false, render:(v)=>v||"—" },
     { key:"ajusteRegistrado", label:"Ajuste",      numeric:false, sortable:false, render:(v)=>siNo(v), textRender:(v)=>v?"Sí":"No" },
     { key:"cerradoPor",       label:"Cerrado por", numeric:false, sortable:false },
   ],
@@ -143,7 +143,6 @@ const COL = {
         v==="EFECTIVO"?"#2E7D32":v==="DIGITAL"?"#1A73E8":"#B84D00"),
       textRender:(v)=>v||"" },
     { key:"saldoActual",      label:"Saldo",       numeric:true,  sortable:false },
-    { key:"fondoCaja",        label:"Fondo caja",  numeric:true,  sortable:false },
     { key:"activa",           label:"Activa",      numeric:false, sortable:false, render:(v)=>siNo(v), textRender:(v)=>v?"Sí":"No" },
   ],
   usuarios: [
@@ -518,6 +517,7 @@ function TabMovimientos({ desde, hasta, filtros, onActualizarFiltro }) {
 
 function TabCierres({ desde, hasta, filtros, onActualizarFiltro }) {
   const [data, setData] = useState([]);
+  const [totales, setTotales] = useState({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -525,15 +525,15 @@ function TabCierres({ desde, hasta, filtros, onActualizarFiltro }) {
     const params = { desde, hasta };
     if (filtros.idCuenta) params.idCuenta = filtros.idCuenta;
     api.getCierres(params)
-      .then(r => setData(Array.isArray(r.data.content) ? r.data.content : []))
-      .catch(() => setData([]))
+      .then(r => { setData(Array.isArray(r.data.content) ? r.data.content : []); setTotales(r.data.totales||{}); })
+      .catch(() => { setData([]); setTotales({}); })
       .finally(() => setLoading(false));
   }, [desde, hasta, filtros.idCuenta]);
 
   return (
     <div>
       <ExportButtons data={data} columnas={COL.cierres} titulo="Cierres de Caja" />
-      <TablaReporte columnas={COL.cierres} data={data} loading={loading} mensajeVacio="Sin cierres en el rango" />
+      <TablaReporte columnas={COL.cierres} data={data} totales={totales} loading={loading} mensajeVacio="Sin cierres en el rango" />
     </div>
   );
 }

@@ -18,6 +18,9 @@ public class LogService {
     public static final String STOCK_NEGATIVO   = "STOCK_NEGATIVO";
     public static final String PRODUCTO_CREADO  = "PRODUCTO_CREADO";
     public static final String GASTO_REGISTRADO = "GASTO_REGISTRADO";
+    public static final String INGRESO_CAPITAL_REGISTRADO = "INGRESO_CAPITAL_REGISTRADO";
+    public static final String RETIRO_REGISTRADO = "RETIRO_REGISTRADO";
+    public static final String TRANSFERENCIA_REGISTRADA = "TRANSFERENCIA_REGISTRADA";
 
     private final EventoLogRepository logRepo;
 
