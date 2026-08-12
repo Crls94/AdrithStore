@@ -1,3 +1,8 @@
+# NOTA: la maquina cliente actual (desktop-6m5le6v) es Windows, no Linux, y
+# usa Caddy via deploy/Caddyfile (ver README-DEPLOY.md) - este archivo no
+# aplica a ese despliegue. Queda documentado por si en el futuro se sirve
+# AdrithStore desde una maquina Linux con nginx en vez de Windows+Caddy.
+#
 # Reverse proxy TLS para AdrithStore - alternativa a Caddy (deploy/Caddyfile).
 # Mas manual: hay que correr certbot vos mismo para el certificado y su
 # renovacion (Caddy lo hace solo). Usar esto si el equipo ya tiene experiencia

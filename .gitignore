@@ -16,3 +16,6 @@ Boleta Bodega.html
 .env
 .env.local
 .env.*.local
+# Nombre real usado por deploy/backend.env.example y README-DEPLOY.md si
+# alguna vez se copia dentro del checkout en vez de vivir fuera del repo
+backend.env

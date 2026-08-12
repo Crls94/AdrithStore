@@ -67,7 +67,7 @@ pg_restore -h localhost -U postgres -d AdrithStore --no-owner --no-privileges C:
 
 Esto trae el esquema completo **y** los datos tal cual estaban. Flyway, al arrancar el backend por primera vez, va a detectar que la base ya tiene tablas y **no** va a intentar recrearlas — la marca como "baseline en V1" automáticamente (`spring.flyway.baseline-on-migrate=true` en `application.properties`) y sigue de ahí. No hay que correr ninguna migración a mano en este paso.
 
-Si en cambio querés arrancar **sin** los datos actuales (una instalación limpia), no hace falta el `pg_dump`/`pg_restore`: alcanza con `createdb AdrithStore` vacía — el backend va a correr `V1__baseline.sql` (crea las 17 tablas desde cero) y después el seed de `data.sql` (categorías + catálogo base de productos) automáticamente al arrancar. *(Verificado: se probó este camino contra una base vacía y funciona de punta a punta.)*
+Si en cambio querés arrancar **sin** los datos actuales (una instalación limpia), no hace falta el `pg_dump`/`pg_restore`: alcanza con `createdb AdrithStore` vacía — el backend va a correr `V1__baseline.sql` (crea las 19 tablas desde cero) y después el seed de `data.sql` (categorías + catálogo base de productos) automáticamente al arrancar. *(Verificado: se probó este camino contra una base vacía y funciona de punta a punta.)*
 
 ### 1.3. Variables de entorno
 
@@ -99,6 +99,15 @@ cd C:\adrithstore\app\FRONTEND
 npm ci
 npm run build
 ```
+
+**Nota sobre `FRONTEND/.env`:** a diferencia del backend, el frontend no necesita un
+`.env` completado a mano para este despliegue — `VITE_API_URL` y `VITE_BACKEND_URL`
+quedan indefinidas en build time y caen a sus defaults (`'/api'` y `''`, rutas
+relativas), que **funcionan correctamente** porque `deploy/Caddyfile` sirve el frontend
+y el backend desde el mismo origen (`/api/*` → backend, todo lo demás → `FRONTEND/dist`).
+Si en el futuro el frontend se sirve desde un dominio/origen distinto al backend, hay que
+crear `FRONTEND/.env` con esas variables apuntando al origen real del backend antes de
+`npm run build`.
 
 ### 1.5. Servicio Windows (NSSM, reemplaza a systemd)
 
