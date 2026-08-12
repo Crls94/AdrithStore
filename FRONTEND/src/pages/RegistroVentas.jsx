@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosConfig";
+import { useAuth } from "../auth/AuthContext";
 import { imprimirComprobanteVenta } from "../utils/comprobantePdf";
 
 const C = {
@@ -16,8 +17,24 @@ const fmtFecha = (f) => f
         hour:"2-digit", minute:"2-digit" })
   : "—";
 
+// Margen de ganancia de la venta: el negocio no recupera el IGV al tributar,
+// así que el ingreso real es el total cobrado (con IGV), no el subtotal —
+// menos el costo histórico de los productos y servicios vendidos. Solo se
+// calcula/usa cuando el usuario es admin (ver esAdmin más abajo).
+const calcularMargen = (v) => {
+  const costoProductos = (v.detalles || []).reduce(
+    (s, d) => s + parseFloat(d.costoHistorico || 0) * parseFloat(d.cantidad || 0), 0);
+  const costoServicios = (v.detallesServicio || []).reduce(
+    (s, d) => s + parseFloat(d.costo || 0), 0);
+  const ingreso = parseFloat(v.total || 0);
+  const margen  = ingreso - costoProductos - costoServicios;
+  const pct     = ingreso > 0 ? (margen / ingreso) * 100 : 0;
+  return { margen, pct };
+};
+
 export default function RegistroVentas() {
   const navigate = useNavigate();
+  const { esAdmin } = useAuth();
   const [ventas,     setVentas]     = useState([]);
   const [cargando,   setCargando]   = useState(true);
   const [busqueda,   setBusqueda]   = useState("");
@@ -297,6 +314,19 @@ export default function RegistroVentas() {
                             fontSize:15, fontWeight:800, color: C.emerald }}>
                             <span>TOTAL</span><span>{fmt(v.total)}</span>
                           </div>
+                          {esAdmin() && (() => {
+                            const { margen, pct } = calcularMargen(v);
+                            return (
+                              <div style={{ display:"flex", justifyContent:"space-between",
+                                fontSize:12, color: C.tangerine, marginTop:8, paddingTop:8,
+                                borderTop:`1px dashed ${C.border}` }}>
+                                <span>Margen de ganancia</span>
+                                <span style={{ fontWeight:800 }}>
+                                  {fmt(margen)} ({pct.toFixed(1)}%)
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
