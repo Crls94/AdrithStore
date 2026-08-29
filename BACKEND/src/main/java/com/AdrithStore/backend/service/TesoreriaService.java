@@ -120,16 +120,14 @@ public class TesoreriaService {
         String concepto   = "Cambio: " + nombreProd
                            + (det.getDescripcion() != null ? " - " + det.getDescripcion() : "");
 
-        
+        // El destino del dinero ya lo registra el pago VENTA del POS (el botón de pago
+        // es, por definición, la cuenta donde entra el dinero cobrado, incluyendo la
+        // comisión). Aquí solo se deja la pata de ORIGEN: el efectivo/billetera que el
+        // cajero entrega sale de esa cuenta. La comisión (que viaja dentro del pago)
+        // queda como único ingreso neto de la operación.
         if (det.getOrigen() != null && !det.getOrigen().isBlank()) {
             registrar("CAMBIO_DIGITAL", det.getOrigen(), montoOp, -1,
                 concepto + " (origen)", venta.getIdVenta(), null, usuario);
-        }
-
-        
-        if (det.getDestino() != null && !det.getDestino().isBlank()) {
-            registrar("CAMBIO_DIGITAL", det.getDestino(), total, 1,
-                concepto + " (destino)", venta.getIdVenta(), null, usuario);
         }
     }
 

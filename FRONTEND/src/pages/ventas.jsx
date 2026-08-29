@@ -25,6 +25,37 @@ const MEDIOS_PAGO = ['Efectivo', 'Plin', 'Yape', 'Tarjeta', 'Transferencia'];
 const MEDIO_PAGO_KEY = 'adrith_medio_pago_default';
 const medioPagoDefault = () => localStorage.getItem(MEDIO_PAGO_KEY) || 'Yape';
 
+// Ingreso de peso "estilo balanza" para productos en KG: máscara fija de 2 enteros
+// + 3 decimales (XX.XXX). Cada tecla numérica entra por la derecha (milésimas) y
+// desplaza los dígitos hacia la izquierda, descartando el que supera los 2 enteros.
+// El borrado (backspace) es reversible: desplaza los dígitos hacia la derecha.
+const aDigitos = (cantidad) => String(Math.round((cantidad || 0) * 1000)).padStart(5, '0');
+const deDigitos = (s) => (parseInt((s === '' ? '0' : s), 10) || 0) / 1000;
+const formatPeso = (cantidad) => { const d = aDigitos(cantidad); return d.slice(0, 2) + '.' + d.slice(2); };
+
+function PesoInput({ cantidad, onCambio, style }) {
+  const tecla = (e) => {
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      onCambio(deDigitos(aDigitos(cantidad).slice(0, -1)));
+    } else if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      onCambio(deDigitos((aDigitos(cantidad) + e.key).slice(-5)));
+    }
+  };
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={formatPeso(cantidad)}
+      onFocus={e => e.target.select()}
+      onKeyDown={tecla}
+      onChange={e => e.target.select()}
+      style={style}
+    />
+  );
+}
+
 export default function Ventas() {
   const navigate  = useNavigate();
   const { usuario } = useAuth();
@@ -154,9 +185,8 @@ export default function Ventas() {
         idProducto: prod.idProducto,
         nombre: prod.nombre,
         origen: '',
-        destino: '',
         monto: 0,
-        comision: parseFloat(prod.precioVenta) || 0,
+        comision: 0,
       }]);
       return;
     }
@@ -198,6 +228,38 @@ export default function Ventas() {
         : Math.max(1, parseInt(val) || 1);
       if (!i.permiteNeg && n > i.stockDisp) {
         setError('Máx ' + i.stockDisp + (esKg ? ' kg.' : ' und.')); return i;
+      }
+      return { ...i, cantidad: n };
+    }));
+  };
+
+  // Peso digitado con la máscara (PesoInput): aplica tope de 2 enteros (0-99) y
+  // respeta el stock si el producto no permite stock negativo.
+  const cambiarCantidadKg = (uid, val) => {
+    setCarrito(c => c.map(i => {
+      if (i._uid !== uid || i.tipoItem !== 'normal') return i;
+      const entero = Math.floor(val || 0);
+      const clamp = Math.max(0, Math.min(99, entero));
+      const dec = Math.round(((val || 0) % 1) * 1000) / 1000;
+      const n = Math.round((clamp + dec) * 1000) / 1000;
+      if (!i.permiteNeg && n > i.stockDisp) {
+        setError('Máx ' + i.stockDisp + ' kg.'); return i;
+      }
+      return { ...i, cantidad: n };
+    }));
+  };
+
+  // Botones +/− en productos KG: suman/restan solo la parte entera (paso 1 kg),
+  // conservando los decimales, con tope 99 y mínimo 0.
+  const cambiarCantidadEntera = (uid, delta) => {
+    setCarrito(c => c.map(i => {
+      if (i._uid !== uid || i.tipoItem !== 'normal') return i;
+      const entero = Math.floor(i.cantidad || 0) + delta;
+      const clamp = Math.max(0, Math.min(99, entero));
+      const dec = Math.round(((i.cantidad || 0) % 1) * 1000) / 1000;
+      const n = Math.round((clamp + dec) * 1000) / 1000;
+      if (!i.permiteNeg && n > i.stockDisp) {
+        setError('Máx ' + i.stockDisp + ' kg.'); return i;
       }
       return { ...i, cantidad: n };
     }));
@@ -305,7 +367,7 @@ export default function Ventas() {
     
     const errServicio = carrito.some(i => {
       if (i.tipoItem === 'transferencia')
-        return !i.origen || !i.destino || (parseFloat(i.monto) || 0) <= 0;
+        return !i.origen || (parseFloat(i.monto) || 0) <= 0;
       if (i.tipoItem === 'servicio' || i.tipoItem === 'impresion')
         return (parseFloat(i.monto) || 0) <= 0;
       return false;
@@ -345,7 +407,7 @@ export default function Ventas() {
             if (i.tipoItem === 'impresion')
               return { ...base, costo: (parseFloat(i.monto) || 0) * (parseFloat(i.porcentajeCosto) || 0) / 100 };
             if (i.tipoItem === 'transferencia')
-              return { ...base, comision: parseFloat(i.comision) || 0, origen: i.origen || '', destino: i.destino || '' };
+              return { ...base, comision: parseFloat(i.comision) || 0, origen: i.origen || '' };
             return base;
           }),
       });
@@ -392,7 +454,6 @@ export default function Ventas() {
           monto,
           comision: i.tipoItem === 'transferencia' ? comision : undefined,
           origen: i.origen,
-          destino: i.destino,
           subtotal: monto + (i.tipoItem === 'transferencia' ? comision : 0),
         };
       });
@@ -775,8 +836,9 @@ export default function Ventas() {
                     <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
                       {['-', '+'].map((btn, idx) => (
                         <button key={btn}
-                          onClick={() => cambiarCantidad(item._uid,
-                            idx === 0 ? item.cantidad - 1 : item.cantidad + 1)}
+                          onClick={() => item.unidadMedida === 'KG'
+                            ? cambiarCantidadEntera(item._uid, idx === 0 ? -1 : 1)
+                            : cambiarCantidad(item._uid, idx === 0 ? item.cantidad - 1 : item.cantidad + 1)}
                           style={{ width:'24px', height:'24px', border:`1px solid ${T.border}`,
                             borderRadius:'6px', background: T.bgCard, cursor:'pointer',
                             fontSize:'14px', color: T.textPrimary,
@@ -784,13 +846,25 @@ export default function Ventas() {
                           {btn}
                         </button>
                       ))}
-                      <input type="number" value={item.cantidad}
-                        min={item.unidadMedida==='KG'?'0.001':'1'}
-                        step={item.unidadMedida==='KG'?'0.001':'1'}
-                        onChange={e => cambiarCantidad(item._uid, e.target.value)}
-                        style={{ width:'48px', textAlign:'center', border:`1px solid ${T.border}`,
-                          borderRadius:'6px', padding:'2px', fontSize:'12px', outline:'none',
-                          background: T.bgCard, color: T.textPrimary }} />
+                      {item.unidadMedida === 'KG' ? (
+                        <>
+                          <PesoInput
+                            cantidad={item.cantidad}
+                            onCambio={v => cambiarCantidadKg(item._uid, v)}
+                            style={{ width:'58px', textAlign:'center', border:`1px solid ${T.border}`,
+                              borderRadius:'6px', padding:'2px', fontSize:'12px', outline:'none',
+                              fontFamily:'monospace', background: T.bgCard, color: T.textPrimary }}
+                          />
+                          <span style={{ fontSize:'10px', color: T.textMuted }}>kg</span>
+                        </>
+                      ) : (
+                        <input type="number" value={item.cantidad}
+                          min="1" step="1"
+                          onChange={e => cambiarCantidad(item._uid, e.target.value)}
+                          style={{ width:'48px', textAlign:'center', border:`1px solid ${T.border}`,
+                            borderRadius:'6px', padding:'2px', fontSize:'12px', outline:'none',
+                            background: T.bgCard, color: T.textPrimary }} />
+                      )}
                     </div>
                     <div style={{ textAlign:'right' }}>
                       <div style={{ fontSize:'10px', color: T.textMuted }}>
@@ -932,21 +1006,6 @@ export default function Ventas() {
                         ))}
                       </select>
                     </div>
-                    <div style={{ flex:1 }}>
-                      <label style={{ fontSize:'9px', color: T.textMuted, display:'block' }}>
-                        Destino
-                      </label>
-                      <select value={item.destino}
-                        onChange={e => actualizarServicioField(item._uid, 'destino', e.target.value)}
-                        style={{ width:'100%', padding:'4px', border:`1px solid ${T.border}`,
-                          borderRadius:'6px', fontSize:'11px', outline:'none',
-                          background: T.bgCard, color: T.textPrimary }}>
-                        <option value="">Seleccionar</option>
-                        {cuentas.map(c => (
-                          <option key={c.idCuenta} value={c.nombre}>{c.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
                   <div style={{ display:'flex', gap:'6px', alignItems:'center', marginBottom:'3px' }}>
                     <label style={{ fontSize:'10px', color: T.textMuted, whiteSpace:'nowrap' }}>
@@ -959,8 +1018,16 @@ export default function Ventas() {
                         borderRadius:'6px', fontSize:'11px', outline:'none',
                         background: T.bgCard, color: T.textPrimary }} />
                   </div>
-                  <div style={{ fontSize:'10px', color: T.textMuted }}>
-                    Comisión: S/ {com.toFixed(2)}
+                  <div style={{ display:'flex', gap:'6px', alignItems:'center', marginBottom:'3px' }}>
+                    <label style={{ fontSize:'10px', color: T.textMuted, whiteSpace:'nowrap' }}>
+                      Comisión S/:
+                    </label>
+                    <input type="number" min="0" step="0.10"
+                      value={item.comision}
+                      onChange={e => actualizarServicioField(item._uid, 'comision', parseFloat(e.target.value) || 0)}
+                      style={{ flex:1, padding:'4px 6px', border:`1px solid ${T.border}`,
+                        borderRadius:'6px', fontSize:'11px', outline:'none',
+                        background: T.bgCard, color: T.textPrimary }} />
                   </div>
                   <div style={{ fontSize:'11px', fontWeight:700, color: T.gold, marginTop:'2px' }}>
                     Total: S/ {((parseFloat(item.monto) || 0) + com).toFixed(2)}
