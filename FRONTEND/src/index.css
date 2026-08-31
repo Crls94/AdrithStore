@@ -65,3 +65,44 @@
   .print-only { display: block !important; }
   body, #root, main { overflow: visible !important; height: auto !important; }
 }
+
+/* ===== Mapa de calor (react-calendar-heatmap) ===== */
+.react-calendar-heatmap text { font-size: 9px; fill: #9aa5a0; }
+.react-calendar-heatmap .react-calendar-heatmap-small-text { font-size: 5px; }
+.react-calendar-heatmap rect { shape-rendering: crispedges; }
+.react-calendar-heatmap rect:hover { stroke: #0D5E4F; stroke-width: 1px; }
+
+.react-calendar-heatmap .heat-0 { fill: #EDF0EE; }
+.react-calendar-heatmap .heat-1 { fill: #CBE4DA; }
+.react-calendar-heatmap .heat-2 { fill: #8CC7B2; }
+.react-calendar-heatmap .heat-3 { fill: #3F9E83; }
+.react-calendar-heatmap .heat-4 { fill: #0D5E4F; }
+
+.heat-square[data-level="heat-0"] { background: #EDF0EE; }
+.heat-square[data-level="heat-1"] { background: #CBE4DA; }
+.heat-square[data-level="heat-2"] { background: #8CC7B2; }
+.heat-square[data-level="heat-3"] { background: #3F9E83; }
+.heat-square[data-level="heat-4"] { background: #0D5E4F; }
+
+/* Contenedor del mapa de calor: desplaza (scroll) cuando el rango es ancho
+   (ej. Año) y centra cuando cabe. El ancho del canvas se fija en px desde JS
+   para que cada cuadro del día conserve SIEMPRE el mismo tamaño. */
+.heatmap-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  min-width: 0;
+}
+.heatmap-scroll .heatmap-canvas {
+  flex-shrink: 0;
+  margin: 0 auto;
+  min-width: 0;
+}
+/* El lienzo usa margin:auto (no justify-content:center) para centrarse cuando
+   cabe y, al desbordar, poder scrollear desde el inicio sin recorte. */
+.heatmap-scroll .heatmap-canvas .react-calendar-heatmap {
+  display: block;
+  flex-shrink: 0;
+}

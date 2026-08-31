@@ -134,8 +134,6 @@ public class VentaController {
                 if (dsi.getComision() != null && dsi.getComision().compareTo(BigDecimal.ZERO) > 0) {
                     if (dsi.getOrigen() == null || dsi.getOrigen().isBlank())
                         return ResponseEntity.badRequest().body("Origen requerido para transferencia.");
-                    if (dsi.getDestino() == null || dsi.getDestino().isBlank())
-                        return ResponseEntity.badRequest().body("Destino requerido para transferencia.");
                 }
                 BigDecimal sub = dsi.getMonto();
                 if (dsi.getComision() != null) sub = sub.add(dsi.getComision());

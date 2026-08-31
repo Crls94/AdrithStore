@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine, XAxis, LabelList } from "recharts";
 import { useAuth } from "../auth/AuthContext";
 import api from "../api/axiosConfig";
+import HeatmapCard from "../components/dashboard/HeatmapCard";
 
 const G = {
   hero:       "linear-gradient(135deg, #061A18 0%, #0A3D3A 45%, #0D5E4F 100%)",
@@ -399,7 +400,7 @@ function DashAdmin() {
         <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1.5fr_2fr] gap-3 lg:gap-4 items-stretch">
 
           { }
-          <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-teal-lg"
+          <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-teal-lg min-w-0"
             style={{background:G.accounts}}>
             <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full pointer-events-none"
               style={{background:"rgba(255,255,255,0.04)"}}/>
@@ -435,7 +436,7 @@ function DashAdmin() {
           </div>
 
           { }
-          <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-brand-md"
+          <div className="rounded-2xl p-4 lg:p-5 relative overflow-hidden shadow-brand-md min-w-0"
             style={{background:G.kpi}}>
             <SectionLabel>Métricas del período</SectionLabel>
             <div className={clsx("rounded-xl p-3 backdrop-blur-md transition-all mb-3",
@@ -470,56 +471,11 @@ function DashAdmin() {
           </div>
 
           { }
-          <div className="bg-white rounded-2xl p-4 lg:p-5 border border-brand/10 shadow-sm flex flex-col">
-            <div className="flex items-center justify-between mb-3 flex-shrink-0">
-              <SectionLabel dark={false}>Últimas Ventas</SectionLabel>
-              <button onClick={()=>navigate("/registro-ventas")}
-                className="text-xs font-bold text-brand bg-transparent border-none cursor-pointer hover:underline">
-                Ver todas →
-              </button>
+          <div className="bg-white rounded-2xl p-4 lg:p-5 border border-brand/10 shadow-sm flex flex-col min-w-0">
+            <div className="flex-shrink-0 mb-2">
+              <SectionLabel dark={false}>Mapa de calor de ventas</SectionLabel>
             </div>
-            <div className="flex-1 overflow-y-auto">
-              {ventas.length===0 ? (
-                <div className="flex items-center justify-center py-6 text-sm text-gray-300">
-                  Sin ventas en este período
-                </div>
-              ) : ventas.map((v,i)=>(
-                <div key={v.idVenta||i}
-                  className={clsx("flex justify-between items-start py-2.5",
-                    i<ventas.length-1&&"border-b border-brand/8")}>
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-sm flex-shrink-0 mt-0.5">🧾</div>
-                    <div>
-                      <div className="text-sm font-bold text-brand">Venta #{v.idVenta}</div>
-                      <div className="text-xs text-gray-500">
-                        {v.cliente?`${v.cliente.nombre} ${v.cliente.apellido||""}`.trim():"Cliente General"}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {v.usuario && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                            style={{background:"rgba(13,94,79,0.08)",color:"#0D5E4F"}}>
-                            👤 {v.usuario.nombres?.split(" ")[0]}
-                          </span>
-                        )}
-                        {v.pagos?.length>0 && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                            style={{background:"rgba(224,122,47,0.1)",color:"#B86020"}}>
-                            {v.pagos[0].medioPago}
-                            {v.pagos.length>1&&` +${v.pagos.length-1}`}
-                          </span>
-                        )}
-                        {v.fecha && (
-                          <span className="text-[10px] text-gray-400">
-                            {new Date(v.fecha).toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"})}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-sm font-black text-brand flex-shrink-0 ml-2">{money(v.total)}</div>
-                </div>
-              ))}
-            </div>
+            <HeatmapCard />
           </div>
         </div>
     </div>

@@ -146,7 +146,7 @@ export function imprimirComprobanteVenta(venta) {
     });
     (venta.detallesServicio||[]).forEach(s => {
       const nombre = s.producto?.nombre || s.descripcion || "Servicio";
-      const desc = (s.origen||s.destino) ? `${nombre} (${s.origen||"?"} → ${s.destino||"?"})` : nombre;
+      const desc = s.origen ? `${nombre} (origen: ${s.origen})` : nombre;
       tablaFila(1, desc, (parseFloat(s.monto)||0).toFixed(2), (parseFloat(s.subtotal)||0).toFixed(2));
     });
     hrule();
