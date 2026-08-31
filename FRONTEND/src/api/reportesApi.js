@@ -1,6 +1,7 @@
 import api from './axiosConfig';
 
 export const getReporteVentas    = (params) => api.get('/reportes/ventas', { params });
+export const getVentasHeatmap    = (params) => api.get('/reportes/ventas/heatmap', { params });
 export const getReporteCompras   = (params) => api.get('/reportes/compras', { params });
 export const getAjustesCompra    = (params) => api.get('/reportes/ajustes-compra', { params });
 export const getMovimientos      = (params) => api.get('/reportes/movimientos', { params });
