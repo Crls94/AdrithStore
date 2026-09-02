@@ -82,8 +82,7 @@ public class CompraController {
                 ? costoTotalLote.divide(cantidadTotal, 4, RoundingMode.HALF_UP)
                 : item.getCostoUnitario();
 
-            BigDecimal cppAnterior = producto.getCpp() != null && producto.getCpp().compareTo(BigDecimal.ZERO) > 0
-                ? producto.getCpp() : producto.getPrecioCosto();
+            BigDecimal cppAnterior = producto.getCpp() != null ? producto.getCpp() : BigDecimal.ZERO;
 
             
             
@@ -104,9 +103,8 @@ public class CompraController {
                             : costoBonifTotal;
                     } else {
 
-                        cppBonif = prodBonif.getCpp() != null && prodBonif.getCpp().compareTo(BigDecimal.ZERO) > 0
-                            ? prodBonif.getCpp() : prodBonif.getPrecioCosto();
-                        if (cppBonif == null || cppBonif.compareTo(BigDecimal.ZERO) == 0) {
+                        cppBonif = prodBonif.getCpp() != null ? prodBonif.getCpp() : BigDecimal.ZERO;
+                        if (cppBonif.compareTo(BigDecimal.ZERO) < 0) {
 
                             cppBonif = BigDecimal.ZERO;
                         }
@@ -122,14 +120,21 @@ public class CompraController {
 
 
                     BigDecimal stockBonifActual = prodBonif.getStock() != null ? prodBonif.getStock() : BigDecimal.ZERO;
-                    BigDecimal stockBonifNuevo  = stockBonifActual.add(cantidadBonif);
-                    BigDecimal cppBonifAnterior = prodBonif.getCpp() != null ? prodBonif.getCpp() : prodBonif.getPrecioCosto();
+                    BigDecimal cppBonifAnterior = prodBonif.getCpp() != null ? prodBonif.getCpp() : BigDecimal.ZERO;
 
-                    BigDecimal cppBonifNuevo = stockBonifNuevo.compareTo(BigDecimal.ZERO) > 0
-                        ? cppBonifAnterior.multiply(stockBonifActual)
+                    BigDecimal cppBonifNuevo;
+                    BigDecimal stockBonifNuevo;
+                    if (stockBonifActual.compareTo(BigDecimal.ZERO) <= 0) {
+
+                        cppBonifNuevo   = cppBonif;
+                        stockBonifNuevo = cantidadBonif;
+                    } else {
+
+                        stockBonifNuevo = stockBonifActual.add(cantidadBonif);
+                        cppBonifNuevo   = cppBonifAnterior.multiply(stockBonifActual)
                             .add(cppBonif.multiply(cantidadBonif))
-                            .divide(stockBonifNuevo, 4, RoundingMode.HALF_UP)
-                        : cppBonif;
+                            .divide(stockBonifNuevo, 4, RoundingMode.HALF_UP);
+                    }
 
 
                     CompraDetalle detBonif = new CompraDetalle();
@@ -144,7 +149,6 @@ public class CompraController {
 
                     prodBonif.setStock(stockBonifNuevo);
                     prodBonif.setCpp(cppBonifNuevo);
-                    prodBonif.setPrecioCosto(cppBonifNuevo);
                     productoRepo.save(prodBonif);
 
                     logService.log(LogService.STOCK_AJUSTADO, "PRODUCTO", prodBonif.getIdProducto(),
@@ -173,16 +177,22 @@ public class CompraController {
 
 
             BigDecimal stockActual = producto.getStock() != null ? producto.getStock() : BigDecimal.ZERO;
-            BigDecimal nuevoStock  = stockActual.add(cantidadTotal);
-            BigDecimal cppNuevo = nuevoStock.compareTo(BigDecimal.ZERO) > 0
-                ? cppAnterior.multiply(stockActual.max(BigDecimal.ZERO))
+            BigDecimal cppNuevo;
+            BigDecimal nuevoStock;
+            if (stockActual.compareTo(BigDecimal.ZERO) <= 0) {
+
+                cppNuevo   = costoUnitarioReal;
+                nuevoStock = cantidadTotal;
+            } else {
+
+                nuevoStock = stockActual.add(cantidadTotal);
+                cppNuevo   = cppAnterior.multiply(stockActual)
                     .add(costoUnitarioReal.multiply(cantidadTotal))
-                    .divide(nuevoStock, 4, RoundingMode.HALF_UP)
-                : costoUnitarioReal;
+                    .divide(nuevoStock, 4, RoundingMode.HALF_UP);
+            }
 
             producto.setStock(nuevoStock);
             producto.setCpp(cppNuevo);
-            producto.setPrecioCosto(cppNuevo);
 
             if (item.getPrecioVenta() != null && item.getPrecioVenta().compareTo(BigDecimal.ZERO) > 0)
                 producto.setPrecioVenta(item.getPrecioVenta());
@@ -257,7 +267,7 @@ public class CompraController {
                 BigDecimal stockActual  = prod.getStock()   != null ? prod.getStock()   : BigDecimal.ZERO;
                 BigDecimal cantAnulada  = det.getCantidad()  != null ? det.getCantidad()  : BigDecimal.ZERO;
                 BigDecimal stockNuevo   = stockActual.subtract(cantAnulada);
-                BigDecimal cppActual = prod.getCpp() != null ? prod.getCpp() : prod.getPrecioCosto();
+                BigDecimal cppActual = prod.getCpp() != null ? prod.getCpp() : BigDecimal.ZERO;
                 BigDecimal cppNuevo;
 
                 if (stockNuevo.compareTo(BigDecimal.ZERO) > 0) {
@@ -271,7 +281,6 @@ public class CompraController {
                 }
                 prod.setStock(stockNuevo.max(BigDecimal.ZERO));
                 prod.setCpp(cppNuevo);
-                prod.setPrecioCosto(cppNuevo);
                 productoRepo.save(prod);
             }
         }
@@ -310,7 +319,7 @@ public class CompraController {
         if (req.getMotivo() == null || req.getMotivo().isBlank())
             return ResponseEntity.badRequest().body("El motivo es obligatorio.");
 
-        BigDecimal cppAnterior = producto.getCpp() != null ? producto.getCpp() : producto.getPrecioCosto();
+        BigDecimal cppAnterior = producto.getCpp() != null ? producto.getCpp() : BigDecimal.ZERO;
         CompraAjuste ajuste    = new CompraAjuste();
         ajuste.setCompraOriginal(compra); ajuste.setProducto(producto);
         ajuste.setFecha(LocalDateTime.now()); ajuste.setTipo(req.getTipo());
@@ -328,7 +337,7 @@ public class CompraController {
                     .add(req.getCostoNuevo().multiply(req.getCantidadOriginal()))
                     .divide(stockActual, 4, RoundingMode.HALF_UP);
             } else { cppNuevo = req.getCostoNuevo(); }
-            producto.setCpp(cppNuevo); producto.setPrecioCosto(cppNuevo);
+            producto.setCpp(cppNuevo);
             ajuste.setCostoNuevo(req.getCostoNuevo()); ajuste.setCppResultante(cppNuevo);
         } else if ("CANTIDAD".equals(req.getTipo()) || "DEVOLUCION".equals(req.getTipo())) {
             BigDecimal delta = ajuste.getDeltaCantidad();

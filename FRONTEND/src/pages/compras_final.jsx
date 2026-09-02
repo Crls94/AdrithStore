@@ -143,7 +143,7 @@ export default function Compras() {
       const res = await api.post('/productos', {
         nombre: prodNuevoForm.nombre.trim(), sku: prodNuevoForm.sku.trim() || null,
         descripcion: prodNuevoForm.descripcion.trim() || null,
-        precioVenta: parseFloat(prodNuevoForm.precioVenta), precioCosto: parseFloat(costoUnitario),
+        precioVenta: parseFloat(prodNuevoForm.precioVenta), cpp: parseFloat(costoUnitario),
         unidadMedida: prodNuevoForm.unidadMedida,
         stock: 0, stockAlert: 5, categoria: { idCategoria: parseInt(prodNuevoForm.idCategoria) },
       });
@@ -164,7 +164,7 @@ export default function Compras() {
       nombre:      prod.nombre      ?? '',
       sku:         prod.sku         ?? '',
       precioVenta: prod.precioVenta ?? '',
-      precioCosto: prod.precioCosto ?? '',
+      cpp:         prod.cpp         ?? '',
       stockAlert:  prod.stockAlert  ?? 5,
       descripcion: prod.descripcion ?? '',
       idCategoria: prod.categoria?.idCategoria ?? '',
@@ -180,12 +180,11 @@ export default function Compras() {
         nombre:      editProdForm.nombre.trim(),
         sku:         editProdForm.sku.trim() || null,
         precioVenta: parseFloat(editProdForm.precioVenta) || 0,
-        precioCosto: parseFloat(editProdForm.precioCosto) || 0,
+        cpp:         parseFloat(editProdForm.cpp) || 0,
         stockAlert:  (modalEditProd.unidadMedida==='KG' ? parseFloat(editProdForm.stockAlert) : parseInt(editProdForm.stockAlert)) || 5,
         unidadMedida: modalEditProd.unidadMedida,
         descripcion: editProdForm.descripcion.trim() || null,
         stock:       modalEditProd.stock,
-        cpp:         modalEditProd.cpp,
         tipo:        modalEditProd.tipo,
         permiteStockNegativo: modalEditProd.permiteStockNegativo,
         categoria:   { idCategoria: parseInt(editProdForm.idCategoria) || modalEditProd.categoria?.idCategoria },
@@ -497,11 +496,11 @@ export default function Compras() {
                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                           <div>
                             <div style={{ fontWeight: 600, color: T.textPrimary, fontSize: '13px' }}>{p.nombre}</div>
-                            <small style={{ color: T.textMuted }}>{p.sku ?? '--'} · Stock: {p.stock} · CPP: {fmt(p.cpp ?? p.precioCosto)}</small>
+                            <small style={{ color: T.textMuted }}>{p.sku ?? '--'} · Stock: {p.stock} · CPP: {fmt(p.cpp ?? 0)}</small>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '8px' }}>
                             <span style={{ color: T.gold, fontSize: '12px', fontWeight: 700 }}>
-                              {fmt(p.precioCosto)}
+                              {fmt(p.cpp ?? 0)}
                             </span>
                             <button
                               onMouseDown={e => { e.stopPropagation(); e.preventDefault(); abrirEditProd(p); }}
@@ -816,7 +815,7 @@ export default function Compras() {
                                               <small style={{ color: T.textMuted }}>{pr.sku ?? '--'}</small>
                                             </div>
                                             <span style={{ color: '#9a7ec4', fontSize: '11px', fontWeight: 700, flexShrink: 0, marginLeft: '6px' }}>
-                                              CPP: {(parseFloat(pr.cpp) > 0 ? parseFloat(pr.cpp) : parseFloat(pr.precioCosto || 0)).toFixed(2)}
+                                              CPP: {(parseFloat(pr.cpp) || 0).toFixed(2)}
                                             </span>
                                           </div>
                                         ))}
@@ -832,7 +831,7 @@ export default function Compras() {
                                   {item.idProductoBonif && (() => {
                                     const prodB = productos.find(pr => String(pr.idProducto) === String(item.idProductoBonif));
                                     if (!prodB) return null;
-                                    const cppBActual = parseFloat(prodB.cpp) > 0 ? parseFloat(prodB.cpp) : parseFloat(prodB.precioCosto || 0);
+                                    const cppBActual = parseFloat(prodB.cpp) || 0;
                                     const sinCpp = cppBActual <= 0;
                                     const bonifEsKg = prodB.unidadMedida === 'KG';
                                     const costoBonifTotalNum = parseFloat(item.costoBonifTotal || 0);
@@ -1410,7 +1409,7 @@ export default function Compras() {
                     fontSize: '12px', color: T.textMuted, border: '1px solid ' + T.border }}>
                     <i className="bi bi-info-circle me-1" />
                     Stock actual: <strong style={{ color: T.textPrimary }}>{modalEditProd.stock}</strong>
-                    {' '}· CPP vigente: <strong style={{ color: T.gold }}>{fmt(modalEditProd.cpp ?? modalEditProd.precioCosto)}</strong>
+                    {' '}· CPP vigente: <strong style={{ color: T.gold }}>{fmt(modalEditProd.cpp ?? 0)}</strong>
                     {' '}· El CPP se actualiza solo al registrar compras.
                   </div>
                 </div>

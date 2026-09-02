@@ -187,7 +187,7 @@ export default function Tesoreria() {
     for (const p of filtrados) {
       const nombreCat = p.categoria?.nombre || "Sin categoría";
       const stock     = parseFloat(p.stock || 0);
-      const costoUnit = parseFloat(p.cpp) > 0 ? parseFloat(p.cpp) : parseFloat(p.precioCosto || 0);
+      const costoUnit = parseFloat(p.cpp) || 0;
       const costoInvertido = stock * costoUnit;
       const valorMerc      = stock * parseFloat(p.precioVenta || 0);
       if (!grupos[nombreCat]) grupos[nombreCat] = { nombre: nombreCat, productos: [], costo: 0, valor: 0 };

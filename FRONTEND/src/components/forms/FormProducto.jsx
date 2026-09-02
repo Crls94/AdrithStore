@@ -4,11 +4,11 @@ import api from '../../api/axiosConfig';
 import { crearProducto, actualizarProducto } from '../../api/productosApi';
 
 const FORM_VACIO = {
-  nombre: '', sku: '', stock: 0, precioCosto: '', precioVenta: '',
+  nombre: '', sku: '', stock: 0, precioVenta: '',
   stockAlert: 5, descripcion: '', imagenUrl: '', tipo: '', unidadMedida: 'UNIDAD',
   categoria: { idCategoria: '' },
   porcentajeCosto: '', comisionBase: '', comisionCada: '',
-  cpp: 0, permiteStockNegativo: true,
+  cpp: '', permiteStockNegativo: true,
 };
 
 const CAT_SERVICIOS = new Set(['SERVICIOS', 'IMPRESIONES', 'TRANSFERENCIA']);
@@ -32,12 +32,12 @@ export default function FormProducto({ producto, categorias, onClose, onGuardado
   useEffect(() => {
     if (producto) {
       setForm({ nombre: producto.nombre ?? '', sku: producto.sku ?? '', stock: producto.stock ?? 0,
-        precioCosto: producto.precioCosto ?? '', precioVenta: producto.precioVenta ?? '',
+        precioVenta: producto.precioVenta ?? '',
         stockAlert: producto.stockAlert ?? 5, descripcion: producto.descripcion ?? '',
         imagenUrl: producto.imagenUrl ?? '', tipo: producto.tipo ?? '', unidadMedida: producto.unidadMedida ?? 'UNIDAD',
         categoria: { idCategoria: producto.categoria?.idCategoria ?? '' },
         porcentajeCosto: producto.porcentajeCosto ?? '', comisionBase: producto.comisionBase ?? '', comisionCada: producto.comisionCada ?? '',
-        cpp: producto.cpp ?? 0, permiteStockNegativo: producto.permiteStockNegativo ?? true });
+        cpp: producto.cpp ?? '', permiteStockNegativo: producto.permiteStockNegativo ?? true });
     } else {
       setForm(FORM_VACIO);
     }
@@ -90,7 +90,7 @@ export default function FormProducto({ producto, categorias, onClose, onGuardado
     try {
       const payload = { ...form, stock: (esKg ? parseFloat(form.stock) : parseInt(form.stock))||0,
         stockAlert: (esKg ? parseFloat(form.stockAlert) : parseInt(form.stockAlert))||0,
-        precioCosto: parseFloat(form.precioCosto)||0, precioVenta: parseFloat(form.precioVenta),
+        cpp: parseFloat(form.cpp)||0, precioVenta: parseFloat(form.precioVenta),
         porcentajeCosto: form.porcentajeCosto ? parseFloat(form.porcentajeCosto) : null,
         comisionBase: form.comisionBase ? parseFloat(form.comisionBase) : null,
         comisionCada: form.comisionCada ? parseFloat(form.comisionCada) : null,
@@ -224,7 +224,7 @@ export default function FormProducto({ producto, categorias, onClose, onGuardado
             {catSel === 'SERVICIOS' || esBienFisico ? (
               <div className="col-4">
                 <label style={labelStyle}>Costo (S/)</label>
-                <input name="precioCosto" type="number" step="0.01" min="0" value={form.precioCosto} onChange={handleChange} placeholder="0.00" style={inputStyle} />
+                <input name="cpp" type="number" step="0.01" min="0" value={form.cpp} onChange={handleChange} placeholder="0.00" style={inputStyle} />
               </div>
             ) : null}
             <div className={esBienFisico ? 'col-4' : catSel === 'TRANSFERENCIA' ? 'col-4' : 'col-4'}>
@@ -249,15 +249,15 @@ export default function FormProducto({ producto, categorias, onClose, onGuardado
                 </div>
               </>
             )}
-            {form.precioCosto && form.precioVenta && parseFloat(form.precioCosto) > 0 && !esServicio && (
+            {form.cpp && form.precioVenta && parseFloat(form.cpp) > 0 && !esServicio && (
               <div className="col-12">
                 <div style={{ background:T.bgMuted, borderRadius:'10px', padding:'10px 14px',
                   border:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <span style={{ fontSize:'12px', color:T.textMuted }}>Margen estimado:</span>
                   <span style={{ fontWeight:700, fontSize:'14px',
-                    color: (((parseFloat(form.precioVenta)-parseFloat(form.precioCosto))/parseFloat(form.precioVenta))*100) >= 20 ? T.gold : '#d68c0d' }}>
-                    {((( parseFloat(form.precioVenta)-parseFloat(form.precioCosto))/parseFloat(form.precioVenta))*100).toFixed(1)}%
-                    · S/ {(parseFloat(form.precioVenta)-parseFloat(form.precioCosto)).toFixed(2)}
+                    color: (((parseFloat(form.precioVenta)-parseFloat(form.cpp))/parseFloat(form.precioVenta))*100) >= 20 ? T.gold : '#d68c0d' }}>
+                    {((( parseFloat(form.precioVenta)-parseFloat(form.cpp))/parseFloat(form.precioVenta))*100).toFixed(1)}%
+                    · S/ {(parseFloat(form.precioVenta)-parseFloat(form.cpp)).toFixed(2)}
                   </span>
                 </div>
               </div>

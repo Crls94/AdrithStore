@@ -160,7 +160,7 @@ export default function Ventas() {
             nombre: prod.nombre,
             descripcion: '',
             monto: parseFloat(prod.precioVenta) || 0,
-            costo: parseFloat(prod.precioCosto) || 0,
+            costo: parseFloat(prod.cpp) || 0,
           }];
         }
         if (catNombre === 'IMPRESIONES') {
@@ -637,7 +637,7 @@ export default function Ventas() {
                   const img       = resolverImagen(prod.imagenUrl);
                   const stockBajo = prod.tipo === 'BIEN_FISICO'
                     && prod.stock <= prod.stockAlert && prod.stock > 0;
-                  const costoProd = parseFloat(prod.cpp) > 0 ? parseFloat(prod.cpp) : parseFloat(prod.precioCosto || 0);
+                  const costoProd = parseFloat(prod.cpp) || 0;
                   const precioVentaNum = parseFloat(prod.precioVenta) || 0;
                   const margenPct = precioVentaNum > 0 ? ((precioVentaNum - costoProd) / precioVentaNum) * 100 : 0;
                   const margenColor = margenPct < 0 ? '#b06060' : margenPct < 20 ? '#e6950a' : '#0d8c6e';

@@ -67,6 +67,13 @@ public class ProductoController {
     public ResponseEntity<?> crear(@RequestBody Producto producto) {
         if (producto.getSku() != null && producto.getSku().isBlank()) producto.setSku(null);
         forzarTipoPorCategoria(producto);
+
+        // Fallback de emergencia: el costo real es el CPP. Si un producto llega sin
+        // CPP (null/0), se establece un minimo de S/ 0.10 para no registrar ventas
+        // con costo S/ 0. Debe aplicarse antes de validar (validarProducto exige cpp > 0).
+        if (producto.getCpp() == null || producto.getCpp().compareTo(BigDecimal.ZERO) == 0)
+            producto.setCpp(BigDecimal.valueOf(0.10));
+
         String error = validarProducto(producto);
         if (error != null) return ResponseEntity.badRequest().body(error);
 
@@ -83,10 +90,6 @@ public class ProductoController {
         
         if ("CONSUMIBLE".equals(producto.getTipo()))
             producto.setVisibleEnPos(false);
-
-        
-        if (producto.getCpp() == null || producto.getCpp().compareTo(BigDecimal.ZERO) == 0)
-            producto.setCpp(producto.getPrecioCosto());
 
         try {
             Producto guardado = productoRepo.save(producto);
@@ -121,6 +124,18 @@ public class ProductoController {
 
         if (datos.getSku() != null && datos.getSku().isBlank()) datos.setSku(null);
         forzarTipoPorCategoria(datos);
+
+        // Sanear el CPP entrante antes de validar: el costo real es el CPP. Si el
+        // formulario no envia un CPP valido, se conserva el existente; si tampoco hay
+        // CPP previo, se usa el minimo de emergencia (0.10). Esto permite editar un
+        // producto sin tocar el costo sin que la validacion (que exige cpp > 0) falle.
+        BigDecimal cppEntrante = datos.getCpp();
+        if (cppEntrante == null || cppEntrante.compareTo(BigDecimal.ZERO) <= 0) {
+            BigDecimal cppExistente = p.getCpp();
+            datos.setCpp(cppExistente != null && cppExistente.compareTo(BigDecimal.ZERO) > 0
+                ? cppExistente : BigDecimal.valueOf(0.10));
+        }
+
         String error = validarProducto(datos);
         if (error != null) return ResponseEntity.badRequest().body(error);
 
@@ -130,7 +145,6 @@ public class ProductoController {
         p.setVisibleEnPos("CONSUMIBLE".equals(datos.getTipo()) ? false : datos.getVisibleEnPos());
         p.setStock(datos.getStock());
         p.setUnidadMedida(datos.getUnidadMedida());
-        p.setPrecioCosto(datos.getPrecioCosto());
         p.setPorcentajeCosto(datos.getPorcentajeCosto());
         p.setPrecioVenta(datos.getPrecioVenta());
         p.setStockAlert(datos.getStockAlert());
@@ -138,18 +152,13 @@ public class ProductoController {
         p.setCategoria(datos.getCategoria());
         p.setPermiteStockNegativo(datos.getPermiteStockNegativo());
 
-        // No pisar el CPP (costo promedio ponderado, usado como costo real en cada
-        // venta) con un valor vacio o en 0: eso deja el costo de las ventas futuras
-        // en S/ 0 sin que se note (precioCosto se ve normal en el formulario) e infla
-        // la ganancia mostrada en el dashboard. Mismo resguardo que ya tiene crear().
-        BigDecimal cppEntrante = datos.getCpp();
-        if (cppEntrante == null || cppEntrante.compareTo(BigDecimal.ZERO) <= 0) {
-            BigDecimal cppExistente = p.getCpp();
-            p.setCpp(cppExistente != null && cppExistente.compareTo(BigDecimal.ZERO) > 0
-                ? cppExistente : p.getPrecioCosto());
-        } else {
-            p.setCpp(cppEntrante);
-        }
+        // El costo real del producto es el CPP (costo promedio ponderado). Es el que
+        // se usa como costo_historico en cada venta y alimenta el margen/ganancia del
+        // dashboard. El admin lo gestiona directamente aqui (al igual que CompraController
+        // lo recalcula al comprar). El valor ya fue saneado arriba (antes de validar):
+        // se conserva el CPP existente si no vino uno valido, y el fallback de emergencia
+        // (0.10) solo se aplica cuando no existe CPP previo.
+        p.setCpp(datos.getCpp());
         if (datos.getComisionBase() != null) p.setComisionBase(datos.getComisionBase());
         if (datos.getComisionCada() != null) p.setComisionCada(datos.getComisionCada());
         if (datos.getImagenUrl() != null) p.setImagenUrl(datos.getImagenUrl());
@@ -224,14 +233,14 @@ public class ProductoController {
 
         switch (tipo) {
             case "BIEN_FISICO":
-                if (p.getPrecioCosto() == null || p.getPrecioCosto().compareTo(BigDecimal.ZERO) <= 0)
-                    return "BIEN_FISICO requiere costo > 0.";
+                if (p.getCpp() == null || p.getCpp().compareTo(BigDecimal.ZERO) <= 0)
+                    return "BIEN_FISICO requiere costo (CPP) > 0.";
                 if (p.getPrecioVenta() == null || p.getPrecioVenta().compareTo(BigDecimal.ZERO) <= 0)
                     return "El precio de venta debe ser mayor a 0.";
                 break;
             case "SERVICIO_PURO":
-                if (p.getPrecioCosto() == null || p.getPrecioCosto().compareTo(BigDecimal.ZERO) < 0)
-                    return "SERVICIO_PURO requiere costo >= 0.";
+                if (p.getCpp() == null || p.getCpp().compareTo(BigDecimal.ZERO) < 0)
+                    return "SERVICIO_PURO requiere costo (CPP) >= 0.";
                 if (p.getPrecioVenta() == null || p.getPrecioVenta().compareTo(BigDecimal.ZERO) <= 0)
                     return "El precio de venta debe ser mayor a 0.";
                 break;

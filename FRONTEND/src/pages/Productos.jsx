@@ -84,17 +84,15 @@ export default function Productos() {
   };
 
   const margen = (p) => {
-    const c = parseFloat(p.precioCosto||0), v = parseFloat(p.precioVenta||0);
+    const c = parseFloat(p.cpp||0), v = parseFloat(p.precioVenta||0);
     if (c<=0||v<=0) return null;
     return (((v-c)/v)*100).toFixed(0);
   };
 
-  // Producto con costo real configurado (precioCosto > 0) pero CPP en 0/vacío:
-  // el CPP es el que se usa como costo real en cada venta, así que si queda en 0
-  // esas ventas se registran "gratis" e inflan la ganancia sin que se note
-  // (precioCosto se ve normal en el formulario). Ver conversación sobre el bug
-  // del dashboard de ganancias.
-  const cppEnCero = (p) => parseFloat(p.precioCosto || 0) > 0 && !(parseFloat(p.cpp || 0) > 0);
+  // Producto sin costo real (CPP) configurado: el CPP es el costo que se usa en cada
+  // venta, asi que si esta en 0 las ventas se registran "gratis" e inflan la ganancia.
+  // El CompraController/ProductoController lo resanan a un minimo de 0.10 al guardar.
+  const cppEnCero = (p) => !(parseFloat(p.cpp || 0) > 0);
 
   const prodsFiltradosFinal = (() => {
     let list = productos;
@@ -253,7 +251,7 @@ export default function Productos() {
 
                   { }
                   <div style={{ fontSize:'11px', color:T.textMuted, marginBottom:'8px' }}>
-                    CPP: S/ {(parseFloat(p.cpp) > 0 ? parseFloat(p.cpp) : parseFloat(p.precioCosto || 0)).toFixed(2)}
+                    CPP: S/ {(parseFloat(p.cpp) > 0 ? parseFloat(p.cpp) : 0).toFixed(2)}
                     {cppEnCero(p) && (
                       <span style={{ marginLeft:'6px', color:'#8c4ab0', fontWeight:700 }}
                         title="El CPP quedó en 0: las próximas ventas de este producto se registrarán con costo S/ 0.00. Edítalo y guarda para corregirlo.">
