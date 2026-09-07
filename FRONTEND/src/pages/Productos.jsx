@@ -84,17 +84,15 @@ export default function Productos() {
   };
 
   const margen = (p) => {
-    const c = parseFloat(p.precioCosto||0), v = parseFloat(p.precioVenta||0);
+    const c = parseFloat(p.cpp||0), v = parseFloat(p.precioVenta||0);
     if (c<=0||v<=0) return null;
     return (((v-c)/v)*100).toFixed(0);
   };
 
-  // Producto con costo real configurado (precioCosto > 0) pero CPP en 0/vacío:
-  // el CPP es el que se usa como costo real en cada venta, así que si queda en 0
-  // esas ventas se registran "gratis" e inflan la ganancia sin que se note
-  // (precioCosto se ve normal en el formulario). Ver conversación sobre el bug
-  // del dashboard de ganancias.
-  const cppEnCero = (p) => parseFloat(p.precioCosto || 0) > 0 && !(parseFloat(p.cpp || 0) > 0);
+  // Producto con costo real (CPP) muy bajo o sin configurar: el CPP es el costo que
+  // se usa en cada venta, asi que si queda en 0 las ventas se registran "gratis" e
+  // inflan la ganancia. Se considera "bajo" cuando el CPP no supera S/ 0.30.
+  const cppEnCero = (p) => !(parseFloat(p.cpp || 0) > 0.30);
 
   const prodsFiltradosFinal = (() => {
     let list = productos;
@@ -138,7 +136,7 @@ export default function Productos() {
           { key:'todos',    label:'Todos',          count: productos.length, col: T.gold },
           { key:'bajo',     label:'Stock bajo',     count: cntBajo,          col: '#d68c0d' },
           { key:'negativo', label:'Stock negativo', count: cntNegativo,      col: '#b02020' },
-          { key:'cpp0',     label:'CPP en 0',        count: cntCpp0,          col: '#8c4ab0' },
+          { key:'cpp0',     label:'CPP 0.3',      count: cntCpp0,          col: '#8c4ab0' },
         ].map(tab => (
           <button key={tab.key} onClick={() => setTabActiva(tab.key)}
             style={{ padding:'6px 16px', borderRadius:'999px', fontSize:'12px', fontWeight:600,
@@ -175,7 +173,7 @@ export default function Productos() {
         <div style={{ ...cardStyle, textAlign:'center', padding:'48px', color:T.textMuted }}>
           <i className="bi bi-box-seam" style={{ fontSize:'32px', display:'block', marginBottom:'8px' }} />
           {tabActiva === 'negativo' ? 'Sin stock negativo' : tabActiva === 'bajo' ? 'Sin alertas de stock' :
-            tabActiva === 'cpp0' ? 'Ningún producto tiene el CPP en 0' : 'Sin productos'}
+            tabActiva === 'cpp0' ? 'Ningún producto tiene el CPP en 0.3 o menor' : 'Sin productos'}
         </div>
       ) : (
         <div style={{ display:'grid',
@@ -253,11 +251,11 @@ export default function Productos() {
 
                   { }
                   <div style={{ fontSize:'11px', color:T.textMuted, marginBottom:'8px' }}>
-                    CPP: S/ {(parseFloat(p.cpp) > 0 ? parseFloat(p.cpp) : parseFloat(p.precioCosto || 0)).toFixed(2)}
+                    CPP: S/ {(parseFloat(p.cpp) > 0 ? parseFloat(p.cpp) : 0).toFixed(2)}
                     {cppEnCero(p) && (
                       <span style={{ marginLeft:'6px', color:'#8c4ab0', fontWeight:700 }}
-                        title="El CPP quedó en 0: las próximas ventas de este producto se registrarán con costo S/ 0.00. Edítalo y guarda para corregirlo.">
-                        <i className="bi bi-exclamation-triangle-fill" /> CPP en 0
+                        title="El CPP es S/ 0.30 o menor: las ventas de este producto se registran con un costo muy bajo. Edítalo y guarda un costo real para corregirlo.">
+                        <i className="bi bi-exclamation-triangle-fill" /> CPP bajo
                       </span>
                     )}
                     {p.stockAlert && p.stock <= p.stockAlert && p.stock >= 0 && (

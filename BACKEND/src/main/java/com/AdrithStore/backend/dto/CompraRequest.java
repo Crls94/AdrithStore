@@ -13,6 +13,8 @@ public class CompraRequest {
     private String        tipoComprobante;
     private String        serieComprobante;
     private BigDecimal    percepcion;
+    // null: compatibilidad con clientes anteriores (importe positivo activa el 2%).
+    private Boolean       aplicaPercepcion;
     private BigDecimal    descuentoGlobal;
     private String        medioPago;
 
@@ -26,6 +28,8 @@ public class CompraRequest {
         private Integer    idProducto;
         private BigDecimal cantidad;
         private BigDecimal costoUnitario;
+        // Bruto de línea opcional: evita perder centavos al dividir total/cantidad.
+        private BigDecimal costoTotal;
         private BigDecimal precioVenta;
         private Integer    idUnidad;
         private BigDecimal descuentoPct;
