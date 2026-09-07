@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { T, inputStyle, labelStyle, btnPrimary, cardStyle } from '../theme';
 import api from '../api/axiosConfig';
+import { prepararCompra } from '../utils/compraPayload';
 import { imprimirComprobanteCompra } from '../utils/comprobantePdf';
 
 const fmt      = (n) => 'S/ ' + parseFloat(n ?? 0).toFixed(2);
@@ -8,7 +9,7 @@ const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-PE', {
   day: '2-digit', month: '2-digit', year: 'numeric',
 }) : '--';
 
-const FORM_VACIO       = { idProveedor: '', tipoComprobante: 'Factura', serieComprobante: 'F001', percepcion: '0', descuentoGlobal: '0', fechaIngreso: '', medioPago: 'Efectivo' };
+const FORM_VACIO       = { idProveedor: '', tipoComprobante: 'Factura', serieComprobante: 'F001', aplicaPercepcion: false, percepcion: '0', descuentoGlobal: '0', fechaIngreso: '', medioPago: 'Efectivo' };
 
 const MEDIOS_PAGO = ['Efectivo', 'Plin', 'Yape', 'Tarjeta', 'Transferencia', 'Otro'];
 
@@ -48,6 +49,22 @@ export default function Compras() {
   
   const [form,           setForm]           = useState(FORM_VACIO);
   const [detalle,        setDetalle]        = useState([]);
+  const [previsualizacion, setPrevisualizacion] = useState(null);
+  const [errorCalculo, setErrorCalculo] = useState(null);
+  const entradaCalculo = JSON.stringify(prepararCompra(form, detalle));
+  const calculo = previsualizacion?.entrada === entradaCalculo ? previsualizacion.datos : null;
+  const mensajeCalculo = errorCalculo?.entrada === entradaCalculo ? errorCalculo.mensaje : '';
+  useEffect(() => {
+    if (!JSON.parse(entradaCalculo).detalles.length) return;
+    let vigente = true;
+    const timer = setTimeout(() => {
+      api.post('/compras/calcular', JSON.parse(entradaCalculo))
+        .then(r => { if (vigente) { setPrevisualizacion({ entrada: entradaCalculo, datos: r.data }); setErrorCalculo(null); } })
+        .catch(e => { if (vigente) setErrorCalculo({ entrada: entradaCalculo, mensaje:
+          typeof e.response?.data === 'string' ? e.response.data : 'No se pudo calcular la compra. Modifica un campo para reintentar.' }); });
+    }, 250);
+    return () => { vigente = false; clearTimeout(timer); };
+  }, [entradaCalculo]);
   const [buscProd,       setBuscProd]       = useState('');
   const [prodsFiltrados, setProdsFiltrados] = useState([]);
   const [mostrarDrop,    setMostrarDrop]    = useState(false);
@@ -208,19 +225,10 @@ export default function Compras() {
   const actualizarItem = (id, campo, valor) => setDetalle(d => d.map(i => i.idProducto === id ? { ...i, [campo]: valor } : i));
   const quitarItem     = (id) => setDetalle(d => d.filter(i => i.idProducto !== id));
 
-  const subtotalCompra = detalle.reduce((a, i) => {
-    const dsc  = parseFloat(i.descuentoPct) / 100 || 0;
-    const cant = (i.unidadMedida === 'KG' ? parseFloat(i.cantidad) : parseInt(i.cantidad)) || 0;
-    const usaTotal = i.costoTotal !== '' && i.costoTotal !== undefined;
-    const costoBase = usaTotal
-      ? (parseFloat(i.costoTotal) || 0)
-      : (parseFloat(i.costoUnitario) || 0) * cant;
-    return a + costoBase * (1 - dsc);
-  }, 0);
-  const percepcionNum  = parseFloat(form.percepcion) || 0;
-  const descuentoNum   = parseFloat(form.descuentoGlobal) || 0;
-  const totalCompra    = subtotalCompra + percepcionNum - descuentoNum;
-
+  const subtotalCompra = Number(calculo?.subtotalNeto ?? 0);
+  const percepcionNum = form.aplicaPercepcion ? Number(form.percepcion) || 0 : 0;
+  const descuentoNum = Number(form.descuentoGlobal) || 0;
+  const totalCompra = Number(calculo?.totalTesoreria ?? 0);
 
   const mapearCuentaNombre = (medioPago) => {
     switch ((medioPago || '').toLowerCase()) {
@@ -248,38 +256,10 @@ export default function Compras() {
       return !cant || !costoOk;
     });
     if (invalido) { setError('Verifica cantidad y costo total de "' + invalido.nombre + '".'); return; }
+    if (!calculo) { setError(mensajeCalculo || 'Espera el cálculo del servidor.'); return; }
     setGuardando(true); setError('');
     try {
-      await api.post('/compras', {
-        idProveedor: parseInt(form.idProveedor), tipoComprobante: form.tipoComprobante,
-        serieComprobante: form.serieComprobante, percepcion: percepcionNum,
-        descuentoGlobal: parseFloat(form.descuentoGlobal) || 0,
-        medioPago: form.medioPago,
-        fechaIngreso: form.fechaIngreso ? new Date(form.fechaIngreso).toISOString().replace('Z', '') : null,
-        detalles: detalle.map(i => {
-          const esKg = i.unidadMedida === 'KG';
-          const cant = (esKg ? parseFloat(i.cantidad) : parseInt(i.cantidad)) || 1;
-
-          const costoUnit = (i.costoTotal !== '' && i.costoTotal !== undefined)
-            ? parseFloat(i.costoTotal) / cant
-            : parseFloat(i.costoUnitario) || 0;
-          const bonifEsKg = i.idProductoBonif
-            ? productos.find(p => p.idProducto === parseInt(i.idProductoBonif))?.unidadMedida === 'KG'
-            : false;
-          return {
-            idProducto:            i.idProducto,
-            cantidad:              cant,
-            costoUnitario:         parseFloat(costoUnit.toFixed(4)),
-            descuentoPct:          parseFloat(i.descuentoPct) || 0,
-            precioVenta:           i.precioVenta ? parseFloat(i.precioVenta) : null,
-            unidadesBonificacion:  (esKg ? parseFloat(i.unidadesBonif) : parseInt(i.unidadesBonif)) || 0,
-            idProductoBonif:       i.idProductoBonif ? parseInt(i.idProductoBonif) : null,
-            cantidadBonif:         i.idProductoBonif ? (bonifEsKg ? parseFloat(i.cantidadBonif) : parseInt(i.cantidadBonif)) || 0 : null,
-
-            costoBonifTotal:       i.idProductoBonif && i.costoBonifTotal ? parseFloat(i.costoBonifTotal) : null,
-          };
-        }),
-      });
+      await api.post('/compras', prepararCompra(form, detalle));
       setExito('Compra registrada. Stock, CPP y precios de venta actualizados.');
       setForm(FORM_VACIO); setDetalle([]); recargarCompras(); recargarProductos(); setVistaActiva('lista');
     } catch (e) {
@@ -439,8 +419,13 @@ export default function Compras() {
                   <input value={form.serieComprobante} onChange={e => setForm(f => ({ ...f, serieComprobante: e.target.value }))} placeholder="F001-00123" style={inp} />
                 </div>
                 <div className="col-6">
-                  <label style={lbl}>Percepcion (S/)</label>
-                  <input type="number" step="0.01" min="0" value={form.percepcion} onChange={e => setForm(f => ({ ...f, percepcion: e.target.value }))} placeholder="0.00" style={inp} />
+                  <label style={{ ...lbl, display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input type="checkbox" checked={form.aplicaPercepcion}
+                      onChange={e => setForm(f => ({ ...f, aplicaPercepcion: e.target.checked }))} />
+                    Hubo percepción (2%)
+                  </label>
+                  <label style={lbl}>Percepción según comprobante (S/)</label>
+                  <input type="number" step="0.01" min="0" disabled={!form.aplicaPercepcion} value={form.aplicaPercepcion ? form.percepcion : '0'} onChange={e => setForm(f => ({ ...f, percepcion: e.target.value }))} placeholder="0.00" style={inp} />
                 </div>
                 <div className="col-12">
                   <label style={lbl}>Fecha de ingreso al almacen</label>
@@ -453,7 +438,7 @@ export default function Compras() {
                 <div className="col-6">
                   <label style={lbl}>Descuento global (S/)</label>
                   <input type="number" step="0.01" min="0" value={form.descuentoGlobal} onChange={e => setForm(f => ({ ...f, descuentoGlobal: e.target.value }))} placeholder="0.00" style={inp} />
-                  <small style={{ color: T.textMuted, fontSize: '10px', marginTop: '3px', display: 'block' }}>Redondeo o dscto del proveedor</small>
+                  <small style={{ color: T.textMuted, fontSize: '10px', marginTop: '3px', display: 'block' }}>Reduce solo el pago; no modifica el CPP.</small>
                 </div>
               </div>
             </div>
@@ -641,9 +626,9 @@ export default function Compras() {
                 </div>
               ) : (
                 <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                  {detalle.map(item => {
+                  {detalle.map((item, indice) => {
                     const itemEsKg = item.unidadMedida === 'KG';
-                    const subtotalItem = (parseFloat(item.costoUnitario) || 0) * ((itemEsKg ? parseFloat(item.cantidad) : parseInt(item.cantidad)) || 0);
+                    const linea = calculo?.lineas[indice];
                     return (
                       <div key={item.idProducto} style={{ padding: '12px 16px', borderBottom: `1px solid ${T.border}` }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
@@ -677,11 +662,9 @@ export default function Compras() {
                         </div>
                         {(() => {
                           const cant     = (itemEsKg ? parseFloat(item.cantidad) : parseInt(item.cantidad)) || 0;
-                          const dsc      = parseFloat(item.descuentoPct) / 100 || 0;
                           const usaTotal = item.costoTotal !== '' && item.costoTotal !== undefined;
                           const costoT   = usaTotal ? parseFloat(item.costoTotal) || 0 : (parseFloat(item.costoUnitario) || 0) * cant;
                           const costoU   = cant > 0 ? costoT / cant : 0;
-                          const subItem  = costoT * (1 - dsc);
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               { }
@@ -693,11 +676,11 @@ export default function Compras() {
                                     style={{ ...inp, textAlign: 'center' }} />
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                  <label style={{ ...lbl, marginBottom: '2px' }}>Costo total pagado (S/)</label>
+                                  <label style={{ ...lbl, marginBottom: '2px' }}>Costo bruto de línea (S/)</label>
                                   <input type="number" step="0.01" min="0"
                                     value={usaTotal ? item.costoTotal : (parseFloat(item.costoUnitario) * cant || '')}
                                     onChange={e => actualizarItem(item.idProducto, 'costoTotal', e.target.value)}
-                                    placeholder={'Cuanto pagaste por ' + (cant || '?') + ' unidades'}
+                                    placeholder="Antes de descuento y percepción"
                                     style={inp} />
                                 </div>
                                 <div style={{ flex: '0 0 64px' }}>
@@ -709,21 +692,11 @@ export default function Compras() {
                                 </div>
                               </div>
                               { }
-                              {costoT > 0 && cant > 0 && (
-                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                  <div style={{ background: '#6a9ac415', border: '1px solid #6a9ac440',
-                                    borderRadius: '8px', padding: '5px 10px', fontSize: '11px',
-                                    color: '#6a9ac4', fontWeight: 600, flex: 1 }}>
-                                    Costo unit. calculado: <strong>S/ {costoU.toFixed(4)}</strong>
-                                  </div>
-                                  {parseFloat(item.descuentoPct) > 0 && (
-                                    <div style={{ fontSize: '10px', color: T.textMuted, textDecoration: 'line-through' }}>
-                                      {fmt(costoT)}
-                                    </div>
-                                  )}
-                                  <div style={{ fontWeight: 800, color: T.gold, fontSize: '15px', flexShrink: 0 }}>
-                                    {fmt(subItem)}
-                                  </div>
+                              {linea && (
+                                <div style={{ fontSize: '11px', color: T.textMuted, lineHeight: 1.7 }}>
+                                  <div>Bruto: {fmt(linea.bruto)} · Descuento: −{fmt(linea.descuento)} · Neto: {fmt(linea.neto)}</div>
+                                  <div>Percepción 2%: {fmt(linea.percepcionVisible)} · Valor para CPP: <strong>{fmt(linea.valorizado)}</strong></div>
+                                  <div>Costo efectivo del lote por unidad: {fmt(linea.costoUnitario)}</div>
                                 </div>
                               )}
                               { }
@@ -763,11 +736,11 @@ export default function Compras() {
                                       onChange={e => actualizarItem(item.idProducto, 'unidadesBonif', e.target.value)}
                                       style={{ ...inp, textAlign: 'center' }} />
                                   </div>
-                                  {(itemEsKg ? parseFloat(item.unidadesBonif) : parseInt(item.unidadesBonif)) > 0 && costoT > 0 && (
+                                  {linea && (itemEsKg ? parseFloat(item.unidadesBonif) : parseInt(item.unidadesBonif)) > 0 && costoT > 0 && (
                                     <div style={{ flexShrink: 0, fontSize: '11px', fontWeight: 700, color: '#6aad7e',
                                       background: '#6aad7e15', padding: '5px 10px', borderRadius: '8px',
                                       whiteSpace: 'nowrap', paddingBottom: '7px' }}>
-                                      Costo real: S/ {(costoT / (cant + (itemEsKg ? parseFloat(item.unidadesBonif) : parseInt(item.unidadesBonif)))).toFixed(4)}/und
+                                      Costo real: S/ {Number(linea?.costoUnitario ?? 0).toFixed(2)}/und
                                     </div>
                                   )}
                                 </div>
@@ -832,12 +805,8 @@ export default function Compras() {
                                     const prodB = productos.find(pr => String(pr.idProducto) === String(item.idProductoBonif));
                                     if (!prodB) return null;
                                     const cppBActual = parseFloat(prodB.cpp) || 0;
-                                    const sinCpp = cppBActual <= 0;
+
                                     const bonifEsKg = prodB.unidadMedida === 'KG';
-                                    const costoBonifTotalNum = parseFloat(item.costoBonifTotal || 0);
-                                    const cantBonif = (bonifEsKg ? parseFloat(item.cantidadBonif) : parseInt(item.cantidadBonif)) || 1;
-                                    const costoUnitBonif = cantBonif > 0 && costoBonifTotalNum > 0
-                                      ? costoBonifTotalNum / cantBonif : cppBActual;
                                     return (
                                       <div style={{ background: '#9a7ec415', border: '1px solid #9a7ec440',
                                         borderRadius: '10px', padding: '10px 12px', marginTop: '6px' }}>
@@ -861,28 +830,11 @@ export default function Compras() {
                                               onChange={e => actualizarItem(item.idProducto, 'cantidadBonif', e.target.value)}
                                               style={{ ...inp, textAlign: 'center' }} />
                                           </div>
-                                          <div style={{ flex: 2 }}>
-                                            <label style={{ ...lbl, marginBottom: '2px', color: sinCpp ? '#d64545' : '#9a7ec4' }}>
-                                              {sinCpp ? 'Costo total a distribuir (S/) *' : 'Costo total (o dejar en blanco = CPP)'}
-                                            </label>
-                                            <input type="number" step="0.01" min="0"
-                                              value={item.costoBonifTotal ?? ''}
-                                              onChange={e => actualizarItem(item.idProducto, 'costoBonifTotal', e.target.value)}
-                                              placeholder={sinCpp ? 'Obligatorio: sin CPP previo' : 'Default: ' + (cppBActual * cantBonif).toFixed(2)}
-                                              style={{ ...inp, borderColor: sinCpp && !item.costoBonifTotal ? '#d64545' : T.border }} />
-                                          </div>
                                         </div>
-                                        { }
-                                        <div style={{ marginTop: '6px', fontSize: '11px', color: '#9a7ec4', fontWeight: 600 }}>
-                                          Se distribuye S/ {(costoUnitBonif * cantBonif).toFixed(2)} al regalo
-                                          ({cantBonif} und × S/ {costoUnitBonif.toFixed(4)}/und).
-                                          Costo del producto pagado se reduce en ese monto.
+                                        <div style={{ marginTop: '6px', fontSize: '11px', color: '#9a7ec4' }}>
+                                          El regalo aumenta su stock y conserva su CPP de {fmt(cppBActual)}.
+                                          No agrega pago ni reduce el costo del producto principal.
                                         </div>
-                                        {sinCpp && !item.costoBonifTotal && (
-                                          <div style={{ marginTop: '4px', fontSize: '11px', color: '#d64545', fontWeight: 600 }}>
-                                            Producto sin CPP — debes ingresar el costo total del regalo.
-                                          </div>
-                                        )}
                                       </div>
                                     );
                                   })()}
@@ -900,11 +852,21 @@ export default function Compras() {
 
             <div style={{ ...cardStyle, padding: '18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: T.textMuted, marginBottom: '6px' }}>
-                <span>Subtotal ({detalle.length} items)</span><span>{fmt(subtotalCompra)}</span>
+                <span>Subtotal neto ({detalle.length} items)</span><span>{fmt(subtotalCompra)}</span>
               </div>
-              {percepcionNum > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: T.textMuted, marginBottom: '6px' }}>
-                  <span>Percepcion</span><span>+{fmt(percepcionNum)}</span>
+              <div style={{ fontSize: '12px', color: T.textMuted, marginBottom: '10px' }}>
+                Descuento por producto primero; percepción del 2% después, si está activada.
+                <div>Percepción según comprobante: {fmt(percepcionNum)}</div>
+                <div>Percepción calculada: {calculo ? fmt(calculo.percepcionCalculada) : '—'}</div>
+                <div style={{ color: Number(calculo?.diferencia) ? '#d64545' : T.textMuted }}>
+                  Diferencia: {calculo ? fmt(calculo.diferencia) : '—'}
+                  {Number(calculo?.diferencia) !== 0 && calculo && ' · No concilia: corrige la percepción antes de registrar.'}
+                </div>
+                <small>Los centavos de percepción por línea se compensan al mostrar el total. El CPP usa el 2% sin ese redondeo.</small>
+              </div>
+              {detalle.length > 0 && !calculo && (
+                <div role="status" style={{ color: mensajeCalculo ? '#d64545' : T.textMuted, fontSize: '12px', marginBottom: '8px' }}>
+                  {mensajeCalculo || 'Calculando importes…'}
                 </div>
               )}
               {descuentoNum > 0 && (
@@ -913,7 +875,7 @@ export default function Compras() {
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '20px', color: T.textPrimary, borderTop: `1px solid ${T.border}`, paddingTop: '12px', marginBottom: '16px' }}>
-                <span>TOTAL</span><span style={{ color: T.gold }}>{fmt(totalCompra)}</span>
+                <span>TOTAL</span><span style={{ color: T.gold }}>{calculo ? fmt(totalCompra) : '—'}</span>
               </div>
 
               <div style={{ marginBottom: '10px' }}>
@@ -937,7 +899,7 @@ export default function Compras() {
                 </div>
               )}
 
-              <button onClick={handleGuardar} disabled={guardando || detalle.length === 0}
+              <button onClick={handleGuardar} disabled={guardando || detalle.length === 0 || !calculo}
                 style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none',
                   background: detalle.length === 0 ? T.bgMuted : `linear-gradient(135deg, ${T.gold}, ${T.goldDark})`,
                   color: detalle.length === 0 ? T.textMuted : '#fff', fontWeight: 700, fontSize: '15px',
