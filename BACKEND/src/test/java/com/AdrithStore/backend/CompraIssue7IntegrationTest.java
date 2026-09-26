@@ -102,6 +102,43 @@ class CompraIssue7IntegrationTest {
         assertThat(compras.findAll().getFirst().getDetalles()).hasSize(2);
         assertThat(compras.findAll().getFirst().getTotal()).isEqualByComparingTo("81.60");
     }
+    @Test void stockNegativoIniciaDesdeRecibidoSinDeuda() {
+        principal.setStock(new BigDecimal("-5")); productos.save(principal);
+        controller.crear(solicitud(false, "0", "0"));
+        assertThat(releer(principal).getStock()).isEqualByComparingTo("10");
+        assertThat(releer(principal).getCpp()).isEqualByComparingTo("8");
+    }
+    @Test void stockNegativoGrandeNoSeArrastraComoDeuda() {
+        principal.setStock(new BigDecimal("-100")); productos.save(principal);
+        controller.crear(solicitud(false, "0", "0"));
+        assertThat(releer(principal).getStock()).isEqualByComparingTo("10");
+        assertThat(releer(principal).getCpp()).isEqualByComparingTo("8");
+    }
+    @Test void regaloDistintoConStockNegativoIniciaDesdeRecibido() {
+        Producto regalo = producto("Regalo", "-7", "3.1234");
+        var r = solicitud(true, "1.60", "0"); var d = r.getDetalles().getFirst();
+        d.setIdProductoBonif(regalo.getIdProducto()); d.setCantidadBonif(new BigDecimal("2"));
+        controller.crear(r);
+        assertThat(releer(regalo).getStock()).isEqualByComparingTo("2");
+        assertThat(releer(regalo).getCpp()).isEqualByComparingTo("3.1234");
+    }
+    @Test void productoPrincipalRepetidoRechazadoSinEscrituras() {
+        var r = solicitud(false, "0", "0");
+        var otra = CalculoCompraTest.solicitud(false, "0", "0").getDetalles().getFirst();
+        otra.setIdProducto(principal.getIdProducto());
+        r.setDetalles(List.of(r.getDetalles().getFirst(), otra));
+        assertThat(controller.crear(r).getStatusCode().value()).isEqualTo(400);
+        assertThat(releer(principal).getStock()).isZero();
+        assertThat(compras.count()).isZero(); assertThat(movimientos.count()).isZero();
+    }
+    @Test void productoBonificadoInexistenteRechazaTodaLaCompra() {
+        var r = solicitud(false, "0", "0");
+        r.getDetalles().getFirst().setIdProductoBonif(999999);
+        r.getDetalles().getFirst().setCantidadBonif(BigDecimal.ONE);
+        assertThat(controller.crear(r).getStatusCode().value()).isEqualTo(400);
+        assertThat(compras.count()).isZero(); assertThat(movimientos.count()).isZero();
+        assertThat(releer(principal).getStock()).isZero();
+    }
     @ParameterizedTest @CsvSource({"true,2.00", "false,1.60"})
     void percepcionIncorrectaNoEscribe(boolean activa, String importe) {
         assertThat(controller.crear(solicitud(activa, importe, "0")).getStatusCode().value()).isEqualTo(400);

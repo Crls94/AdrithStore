@@ -135,14 +135,15 @@ export default function Compras() {
 
   const agregarProductoExistente = (prod) => {
     setBuscProd(''); setProdsFiltrados([]); setMostrarDrop(false); setModoAgregar(null);
-    setDetalle(d => {
-      if (d.find(i => i.idProducto === prod.idProducto)) return d;
-      return [...d, { idProducto: prod.idProducto, nombre: prod.nombre, sku: prod.sku ?? '',
-        unidadMedida: prod.unidadMedida ?? 'UNIDAD',
-        precioVenta: parseFloat(prod.precioVenta ?? 0).toFixed(2),
-        cantidad: 1, costoTotal: '', costoUnitario: '', descuentoPct: '0',
-        unidadesBonif: '0', idProductoBonif: '', cantidadBonif: '0', esNuevo: false }];
-    });
+    if (detalle.some(i => i.idProducto === prod.idProducto)) {
+      setError(`${prod.nombre} ya está en la compra. Edita la línea existente para modificar su cantidad en lugar de agregarlo de nuevo.`);
+      return;
+    }
+    setDetalle(d => [...d, { idProducto: prod.idProducto, nombre: prod.nombre, sku: prod.sku ?? '',
+      unidadMedida: prod.unidadMedida ?? 'UNIDAD',
+      precioVenta: parseFloat(prod.precioVenta ?? 0).toFixed(2),
+      cantidad: 1, costoTotal: '', costoUnitario: '', descuentoPct: '0',
+      unidadesBonif: '0', idProductoBonif: '', cantidadBonif: '0', esNuevo: false }]);
   };
 
   const handleCrearProdNuevo = async () => {

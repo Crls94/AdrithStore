@@ -47,7 +47,9 @@ class CalculoCompraTest {
         var r = solicitud(true, "0.01", "0");
         var a = r.getDetalles().getFirst(); a.setCantidad(BigDecimal.ONE);
         a.setCostoTotal(new BigDecimal("0.25")); a.setDescuentoPct(BigDecimal.ZERO);
-        r.setDetalles(List.of(a, a));
+        var b = new CompraRequest.DetalleItem(); b.setIdProducto(2);
+        b.setCantidad(BigDecimal.ONE); b.setCostoTotal(new BigDecimal("0.25"));
+        r.setDetalles(List.of(a, b));
         var c = CalculoCompra.calcular(r);
         assertThat(c.percepcionCalculada()).isEqualByComparingTo("0.01");
         assertThat(c.lineas().stream().map(CalculoCompra.Linea::percepcionVisible)
@@ -79,5 +81,25 @@ class CalculoCompraTest {
         assertThatIllegalArgumentException().isThrownBy(() -> CalculoCompra.calcular(r));
         r.setDetalles(List.of());
         assertThatIllegalArgumentException().isThrownBy(() -> CalculoCompra.calcular(r));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"2", "3"})
+    void productoPrincipalRepetidoRechazaTodaLaCompra(int veces) {
+        var r = solicitud(false, "0", "0");
+        var base = r.getDetalles().getFirst();
+        var lineas = new java.util.ArrayList<CompraRequest.DetalleItem>();
+        for (int i = 0; i < veces; i++) {
+            var copia = new CompraRequest.DetalleItem();
+            copia.setIdProducto(base.getIdProducto());
+            copia.setCantidad(BigDecimal.ONE);
+            copia.setCostoTotal(new BigDecimal("10"));
+            lineas.add(copia);
+        }
+        r.setDetalles(lineas);
+        assertThatIllegalArgumentException()
+            .isThrownBy(() -> CalculoCompra.calcular(r))
+            .withMessageContaining("repetido")
+            .withMessageContaining(String.valueOf(base.getIdProducto()));
     }
 }

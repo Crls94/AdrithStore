@@ -4,7 +4,9 @@ import com.AdrithStore.backend.dto.CompraRequest;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Cálculo puro compartido por la previsualización y la confirmación de compras. */
 public final class CalculoCompra {
@@ -36,8 +38,12 @@ public final class CalculoCompra {
         List<Linea> lineas = new ArrayList<>();
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal percepcionAcumulada = BigDecimal.ZERO;
+        Set<Integer> productosPrincipales = new HashSet<>();
         for (CompraRequest.DetalleItem item : req.getDetalles()) {
             exigir(item != null && item.getIdProducto() != null, "Producto requerido en cada línea.");
+            if (!productosPrincipales.add(item.getIdProducto()))
+                throw new IllegalArgumentException("El producto principal " + item.getIdProducto()
+                    + " está repetido en la compra. Edita la línea existente en lugar de agregarlo de nuevo.");
             exigir(item.getCantidad() != null && item.getCantidad().signum() > 0,
                 "La cantidad comprada debe ser mayor a cero.");
             BigDecimal cantidad = item.getCantidad();

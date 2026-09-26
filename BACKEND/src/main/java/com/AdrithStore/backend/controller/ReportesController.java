@@ -2,6 +2,7 @@ package com.AdrithStore.backend.controller;
 
 import com.AdrithStore.backend.model.*;
 import com.AdrithStore.backend.repository.*;
+import com.AdrithStore.backend.service.DashboardMetricasService;
 import com.AdrithStore.backend.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -34,7 +35,7 @@ public class ReportesController {
     private final UsuarioRepository               usuarioRepo;
     private final EventoLogRepository             eventoRepo;
     private final CategoriaRepository             categoriaRepo;
-    private final VentaDetalleRepository          ventaDetalleRepo;
+    private final DashboardMetricasService metricas;
 
     
 
@@ -111,38 +112,16 @@ public class ReportesController {
     
     
 
-    // Mapa de calor de ventas: monto (S/) por día, filtrable por producto,
-    // categoría y vendedor, dentro del rango [desde, hasta].
-    @Transactional(readOnly = true)
     @GetMapping("/ventas/heatmap")
     public Map<String, Object> ventasHeatmap(
             @RequestParam(required = false) String desde,
             @RequestParam(required = false) String hasta,
+            @RequestParam(defaultValue = "hoy") String periodo,
+            @RequestParam(defaultValue = "ingresos") String tipo,
             @RequestParam(required = false) Integer idProducto,
             @RequestParam(required = false) Integer idCategoria,
             @RequestParam(required = false) Integer idVendedor) {
-
-        LocalDateTime d = inicioDelDia(desde);
-        LocalDateTime h = finDelDia(hasta);
-
-        List<Object[]> raw = ventaDetalleRepo.heatmapPorDia(d, h, idProducto, idCategoria, idVendedor);
-        List<Map<String, Object>> lista = new ArrayList<>();
-        for (Object[] row : raw) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("fecha", fechaAString(row[0]));
-            item.put("monto", row[1]);
-            lista.add(item);
-        }
-        return listaAMapa(lista, Map.of());
-    }
-
-    // Normaliza la fecha que Hibernate devuelve para FUNCTION('date', ...):
-    // puede llegar como java.sql.Date, LocalDate o String.
-    private String fechaAString(Object valor) {
-        if (valor == null) return null;
-        if (valor instanceof java.sql.Date d)  return d.toLocalDate().toString();
-        if (valor instanceof java.time.LocalDate d) return d.toString();
-        return valor.toString().substring(0, 10);
+        return metricas.heatmap(desde, hasta, periodo, tipo, idProducto, idCategoria, idVendedor);
     }
 
     @Transactional(readOnly = true)

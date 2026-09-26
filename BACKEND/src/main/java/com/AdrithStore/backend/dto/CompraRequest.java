@@ -43,6 +43,10 @@ public class CompraRequest {
 
         private Integer    idProductoBonif;
         private BigDecimal cantidadBonif;
+        // Deprecado: la bonificación de producto distinto aumenta stock y conserva su CPP
+        // (#7/#9). Este campo se ignora por compatibilidad con clientes antiguos y no debe
+        // volver a asignar valor monetario a la bonificación.
+        @Deprecated
         private BigDecimal costoBonifTotal;
     }
 }

@@ -306,6 +306,7 @@ function TabVentas({ desde, hasta, esAdmin, filtros, onActualizarFiltro }) {
           <option value="anulado">Anulado</option>
         </select>
       </div>
+      <p style={{ fontSize:12, color:"#666", marginBottom:10 }}>Totales de comprobantes: pueden incluir principal movilizado y descuentos globales. No equivalen a los ingresos comerciales del dashboard.</p>
       <div className="screen-only">
         <TablaReporte columnas={columnasVisibles} data={data} totales={totales} loading={loading}
           onSort={handleSort} sortBy={sortBy} sortDir={sortDir}

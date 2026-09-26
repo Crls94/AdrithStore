@@ -114,14 +114,14 @@ public class CompraController {
 
             
             
-            Producto prodBonif = regalos.get(indice);
+Producto prodBonif = regalos.get(indice);
             if (prodBonif != null) {
                 BigDecimal cantidadBonif = item.getCantidadBonif();
                 BigDecimal cppBonifAnterior = prodBonif.getCpp();
                 BigDecimal stockBonifActual = prodBonif.getStock() != null ? prodBonif.getStock() : BigDecimal.ZERO;
-                // Se conserva el comportamiento preexistente para stock <= 0 (issue #8).
-                BigDecimal stockBonifNuevo = stockBonifActual.signum() <= 0
-                    ? cantidadBonif : stockBonifActual.add(cantidadBonif);
+                // Issue #8: stock <= 0 se considera agotado; la bonificación inicia desde lo recibido.
+                BigDecimal stockBonifNuevo = nuevoStock(stockBonifActual, cantidadBonif);
+                boolean stockBonifNegativo = stockBonifActual.signum() < 0;
                 CompraDetalle detBonif = new CompraDetalle();
                 detBonif.setCompra(compra);
                 detBonif.setProducto(prodBonif);
@@ -133,6 +133,12 @@ public class CompraController {
                 detalles.add(detBonif);
                 prodBonif.setStock(stockBonifNuevo);
                 productoRepo.save(prodBonif);
+                if (stockBonifNegativo)
+                    logService.log(LogService.STOCK_AJUSTADO, "PRODUCTO", prodBonif.getIdProducto(),
+                        "Bonificación restablece stock | " + prodBonif.getNombre()
+                            + " | stock previo negativo: " + stockBonifActual
+                            + " | recibido: " + cantidadBonif + " | nuevo stock: " + stockBonifNuevo
+                            + " | CPP conservado: " + cppBonifAnterior, null);
                 logService.log(LogService.STOCK_AJUSTADO, "PRODUCTO", prodBonif.getIdProducto(),
                     "Bonificación distinta en compra | " + prodBonif.getNombre()
                         + " +" + cantidadBonif + " | CPP conservado: " + cppBonifAnterior, null);
@@ -152,19 +158,11 @@ public class CompraController {
 
 
             BigDecimal stockActual = producto.getStock() != null ? producto.getStock() : BigDecimal.ZERO;
-            BigDecimal cppNuevo;
-            BigDecimal nuevoStock;
-            if (stockActual.compareTo(BigDecimal.ZERO) <= 0) {
-
-                cppNuevo   = costoUnitarioReal;
-                nuevoStock = cantidadTotal;
-            } else {
-
-                nuevoStock = stockActual.add(cantidadTotal);
-                cppNuevo   = cppAnterior.multiply(stockActual)
-                    .add(costoTotalLote)
-                    .divide(nuevoStock, 4, RoundingMode.HALF_UP);
-            }
+            boolean stockNegativo = stockActual.signum() < 0;
+            // Issue #8: solo existe inventario físico valorizable cuando stockActual > 0.
+            BigDecimal nuevoStock = nuevoStock(stockActual, cantidadTotal);
+            BigDecimal cppNuevo = nuevoCpp(stockActual, cantidadTotal,
+                cppAnterior, costoTotalLote, costoUnitarioReal);
 
             producto.setStock(nuevoStock);
             producto.setCpp(cppNuevo);
@@ -173,6 +171,13 @@ public class CompraController {
                 producto.setPrecioVenta(item.getPrecioVenta());
 
             productoRepo.save(producto);
+
+            if (stockNegativo)
+                logService.log(LogService.STOCK_AJUSTADO, "PRODUCTO", producto.getIdProducto(),
+                    "Reposición de inventario | " + producto.getNombre()
+                        + " | stock previo negativo: " + stockActual
+                        + " | recibido: " + cantidadTotal + " | nuevo stock: " + nuevoStock
+                        + " | CPP histórico " + cppAnterior + " reemplazado por: " + cppNuevo, null);
 
             if (unidadesBonif.compareTo(BigDecimal.ZERO) > 0)
                 logService.log(LogService.STOCK_AJUSTADO, "PRODUCTO", producto.getIdProducto(),
@@ -223,6 +228,23 @@ public class CompraController {
         int escala = producto.esVentaPorKg() ? 3 : 0;
         if (cantidad.stripTrailingZeros().scale() > escala)
             throw new IllegalArgumentException("Cantidad incompatible con la unidad de " + producto.getNombre());
+    }
+
+    /** Regla de reposición (issue #8): solo existe inventario físico cuando stockActual > 0. */
+    private static BigDecimal nuevoStock(BigDecimal stockActual, BigDecimal cantidadLote) {
+        return stockActual != null && stockActual.signum() > 0
+            ? stockActual.add(cantidadLote) : cantidadLote;
+    }
+
+    /** Regla de CPP (issue #8): el CPP anterior solo participa cuando stockActual > 0. */
+    private static BigDecimal nuevoCpp(BigDecimal stockActual, BigDecimal cantidadLote,
+                                       BigDecimal cppAnterior, BigDecimal costoTotalLote,
+                                       BigDecimal costoUnitarioLote) {
+        if (stockActual == null || stockActual.signum() <= 0)
+            return costoUnitarioLote;
+        return cppAnterior.multiply(stockActual)
+            .add(costoTotalLote)
+            .divide(stockActual.add(cantidadLote), 4, RoundingMode.HALF_UP);
     }
 
     private String mapearCuenta(String medioPago) {
