@@ -1,16 +1,85 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, LabelList } from "recharts";
 
 export const money = (n) => `S/ ${Number(n ?? 0).toFixed(2)}`;
 export const TYPES = { ingresos: "Ingresos", productos: "Productos", servicios: "Servicios" };
+export const dashboardGreenSurface = "linear-gradient(118deg, #0D5E4F 0%, #0D5E4F 62%, #005522 100%)";
 const GROUPS = { dia: "Día", semana: "Semana", mes: "Mes", año: "Año" };
-const control = "min-h-10 max-w-full rounded-lg px-2 py-1 text-xs font-semibold bg-white text-[#005522] border border-white/30";
+const dropdownTrigger = "inline-flex h-7 max-w-full items-center justify-between gap-1.5 rounded-md px-2 text-[11px] font-semibold leading-none transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
-export function MetricNotes({ data }) {
-  return <>
-    {data?.costosAusentes > 0 && <p className="text-xs mt-2" role="note">Hay {data.costosAusentes} líneas sin costo histórico registrado. Costos y ganancia reflejan únicamente los costos disponibles.</p>}
-    {Number(data?.descuentosGlobalesHistoricos) > 0 && <p className="text-xs mt-2" role="note">Importes de líneas guardadas. Descuentos globales históricos: {money(data.descuentosGlobalesHistoricos)}, sin redistribuir entre productos y servicios.</p>}
-  </>;
+export function CompactDropdown({ label, value, options, onChange, className = "", fullWidth = false, disabled = false, theme = "dark" }) {
+  const id = useId();
+  const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const optionRefs = useRef([]);
+  const selectedIndex = Math.max(0, options.findIndex(option => option.value === value));
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(selectedIndex);
+  const selected = options[selectedIndex];
+  const light = theme === "light";
+  const triggerTheme = light
+    ? "border border-brand/20 bg-white text-brand hover:bg-surface focus-visible:ring-2 focus-visible:ring-brand"
+    : "bg-[#0A3D3A] text-[#F2F2F2] hover:bg-[#0D5E4F] focus-visible:ring-2 focus-visible:ring-[#FAA222]";
+  const menuTheme = light
+    ? "border border-brand/10 bg-[#FAFAF8] text-ink shadow-brand-sm"
+    : "border border-black/5 bg-[#FAFAF8] text-[#005522] shadow-lg shadow-black/20";
+  const optionFocus = light ? "focus-visible:ring-2 focus-visible:ring-brand" : "focus-visible:ring-2 focus-visible:ring-[#FAA222]";
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOnOutsidePointer = event => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) optionRefs.current[activeIndex]?.focus();
+  }, [open, activeIndex]);
+
+  const openAt = index => {
+    if (disabled || !options.length) return;
+    setActiveIndex(Math.max(0, Math.min(index, options.length - 1)));
+    setOpen(true);
+  };
+  const move = delta => setActiveIndex(index => (index + delta + options.length) % options.length);
+  const choose = option => {
+    onChange(option.value);
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+  const onMenuKeyDown = event => {
+    if (event.key === "ArrowDown") { event.preventDefault(); move(1); }
+    else if (event.key === "ArrowUp") { event.preventDefault(); move(-1); }
+    else if (event.key === "Home") { event.preventDefault(); setActiveIndex(0); }
+    else if (event.key === "End") { event.preventDefault(); setActiveIndex(options.length - 1); }
+    else if (event.key === "Escape") { event.preventDefault(); setOpen(false); triggerRef.current?.focus(); }
+    else if (event.key === "Tab") setOpen(false);
+  };
+
+  return <div ref={rootRef} className={`relative min-w-0 ${className}`} onBlur={event => {
+    if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+  }}>
+    <button ref={triggerRef} type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={id} disabled={disabled}
+      className={`${dropdownTrigger} ${triggerTheme} ${fullWidth ? "w-full" : ""}`} onClick={() => open ? setOpen(false) : openAt(selectedIndex)}
+      onKeyDown={event => {
+        if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+          event.preventDefault();
+          openAt(event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : selectedIndex + (event.key === "ArrowUp" ? -1 : 0));
+        } else if (event.key === "Escape" && open) setOpen(false);
+      }}>
+      <span className="truncate">{selected?.label ?? "—"}</span>
+      <svg aria-hidden="true" className={`h-3 w-3 shrink-0 opacity-75 transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 12 12" fill="none">
+        <path d="m2 4 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+    {open && <div id={id} role="listbox" aria-label={label} className={`absolute left-0 top-full z-50 mt-1 max-h-56 min-w-full max-w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-lg p-1 ${menuTheme}`} onKeyDown={onMenuKeyDown}>
+      {options.map((option, index) => <button key={option.value} ref={node => { optionRefs.current[index] = node; }} type="button" role="option" data-value={option.value} aria-selected={option.value === value} tabIndex={-1}
+        className={`block w-full truncate rounded-md px-2 py-1.5 text-left text-[11px] leading-tight transition-colors focus-visible:outline-none ${optionFocus} ${option.value === value ? light ? "bg-brand font-bold text-white" : "bg-[#0D5E4F] font-bold text-[#F2F2F2]" : light ? "text-ink hover:bg-surface" : "text-[#005522] hover:bg-[#F1F3F2]"}`}
+        onMouseEnter={() => setActiveIndex(index)} onClick={() => choose(option)}>{option.label}</button>)}
+    </div>}
+  </div>;
 }
 
 export default function DashboardTrend({ stats, options, filters, setFilters, users, treasury, admin, loading, error }) {
@@ -34,57 +103,60 @@ export default function DashboardTrend({ stats, options, filters, setFilters, us
   };
   const metrics = [
     ["Ventas", stats ? stats.totalVentas : "—"],
-    ["Costos", stats ? money(stats.totalCostos) : "—"],
+    ["Compras", stats ? money(stats.totalCompras) : "—", undefined, "dashboard-kpi-purchases"],
     ["Ticket Prom.", stats ? money(stats.ticketPromedio) : "—"],
     ["Ganancia", stats ? money(stats.ganancia) : "—"],
-    ["Gastos", stats ? money(stats.totalGastos) : "—", "Global del negocio"],
+    ["Costos", stats ? money(stats.totalCostos) : "—"],
     ...(admin ? [["Saldo Total", treasury ? money(treasury.totalGeneral) : "—", "Actual · todas las cuentas"]] : []),
   ];
 
-  return <section className="rounded-3xl p-4 sm:p-5 lg:p-6 min-w-0" style={{ background: "#005522", color: "#F2F2F2" }} aria-label="Resumen y tendencia" aria-busy={loading}>
+  return <section className="rounded-3xl p-4 sm:p-5 lg:p-6 min-w-0" style={{ background: dashboardGreenSurface, color: "#F2F2F2" }} aria-label="Resumen y tendencia" aria-busy={loading}>
     {error && <p role="alert" className="mb-3 text-sm">{error}</p>}
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(300px,2fr)_minmax(0,3fr)] gap-5 lg:gap-6">
       <div className="min-w-0 lg:border-r lg:border-white/20 lg:pr-6">
-        {admin && <label className="flex justify-center items-center gap-2 text-xs mb-3">Vendedor
-          <select aria-label="Vendedor del dashboard" className={control} value={filters.vendedor} onChange={e => setFilters(f => ({ ...f, vendedor: e.target.value }))}>
-            <option value="">Todos</option>
-            {users.map(u => <option key={u.idUsuario} value={u.idUsuario}>{u.nombres} {u.apellidos}</option>)}
-          </select>
-        </label>}
+        {admin && <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5 text-[11px]">
+          <span>Vendedor</span>
+          <CompactDropdown label="Vendedor del dashboard" value={filters.vendedor}
+            options={[{ value: "", label: "Todos" }, ...users.map(u => ({ value: String(u.idUsuario), label: `${u.nombres} ${u.apellidos}` }))]}
+            onChange={vendedor => setFilters(f => ({ ...f, vendedor }))} className="max-w-[13rem]" />
+        </div>}
         <div className="grid grid-cols-3 text-center gap-x-2 gap-y-4">
           <div className="col-span-3 border-b border-white/20 pb-4">
-            <label className="flex flex-wrap justify-center items-center gap-2 text-xs font-bold uppercase tracking-wide">
+            <div className="flex flex-wrap justify-center items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide">
               {GROUPS[range?.grupo] || "Día"} —
-              <select aria-label="Tipo de ingreso" className={control} value={filters.tipo} onChange={e => setFilters(f => ({ ...f, tipo: e.target.value }))}>
-                {Object.entries(TYPES).map(([key, text]) => <option key={key} value={key}>{text}</option>)}
-              </select>
-            </label>
+              <CompactDropdown label="Tipo de ingreso" value={filters.tipo}
+                options={Object.entries(TYPES).map(([value, text]) => ({ value, label: text }))}
+                onChange={tipo => setFilters(f => ({ ...f, tipo }))} />
+            </div>
             <div className="text-3xl sm:text-4xl font-black tracking-tight mt-2 break-words" data-testid="ingreso-principal">{stats ? money(stats.totalIngresos) : "—"}</div>
             <p className="text-xs mt-2">{range?.etiqueta || "Hoy"} · {selectedType}</p>
           </div>
-          {metrics.map(([name, value, note]) => <div key={name} className="min-w-0">
+          {metrics.map(([name, value, note, testId]) => <div key={name} className="min-w-0">
             <div className="text-[10px] sm:text-xs font-semibold uppercase">{name}</div>
-            <div className="text-sm sm:text-base font-bold mt-1 break-words" style={name === "Saldo Total" ? { color: "#FAA222" } : undefined}>{value}</div>
+            <div data-testid={testId} className="text-sm sm:text-base font-bold mt-1 break-words" style={name === "Saldo Total" ? { color: "#FAA222" } : undefined}>{value}</div>
             {note && <p className="text-[10px] mt-1 leading-tight">{note}</p>}
           </div>)}
         </div>
       </div>
       <div className="min-w-0">
-        <div className="flex flex-wrap items-end gap-2 mb-3">
-          <label className="flex flex-col gap-1 text-xs">Período
-            <select aria-label="Grupo temporal" className={control} value={group} onChange={e => selectGroup(e.target.value)} disabled={!options.length}>
-              {Object.entries(GROUPS).map(([key, text]) => <option key={key} value={key}>{text}</option>)}
-            </select>
+        <div className="flex flex-wrap items-end gap-1.5 mb-2">
+          <div className="flex min-w-0 flex-col gap-0.5 text-[10px] font-medium">
+            <span>Período</span>
+            <div role="group" aria-label="Grupo temporal" className="inline-flex max-w-full flex-wrap gap-0.5 rounded-lg bg-[#061A18]/70 p-0.5">
+              {Object.entries(GROUPS).map(([value, text]) => <button key={value} type="button" data-value={value} aria-pressed={group === value} disabled={!options.length}
+                className={`h-6 rounded-md px-2 text-[10px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FAA222] disabled:opacity-50 ${group === value ? "bg-[#0D5E4F] text-[#F2F2F2]" : "bg-transparent text-[#F2F2F2]/80 hover:bg-[#0D5E4F] hover:text-[#F2F2F2]"}`}
+                onClick={() => selectGroup(value)}>{text}</button>)}
+            </div>
+          </div>
+          <label className="flex min-w-0 flex-[1_1_11rem] flex-col gap-0.5 text-[10px] font-medium">Seleccionar {GROUPS[group].toLowerCase()}
+            <CompactDropdown label="Período concreto" value={filters.periodo} fullWidth disabled={!options.length}
+              options={options.filter(p => p.grupo === group).map(p => ({ value: p.id, label: p.etiqueta }))}
+              onChange={periodo => setFilters(f => ({ ...f, periodo }))} />
           </label>
-          <label className="flex flex-col gap-1 text-xs min-w-0">Seleccionar {GROUPS[group].toLowerCase()}
-            <select aria-label="Período concreto" className={control} value={filters.periodo} onChange={e => setFilters(f => ({ ...f, periodo: e.target.value }))} disabled={!options.length}>
-              {options.filter(p => p.grupo === group).map(p => <option key={p.id} value={p.id}>{p.etiqueta}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs">Serie adicional
-            <select aria-label="Serie adicional" className={control} value={auxiliary} onChange={e => setAuxiliary(e.target.value)}>
-              <option value="">Ninguna</option><option value="totalGastos">Gastos</option><option value="ganancia">Ganancia</option>
-            </select>
+          <label className="flex min-w-0 basis-[8rem] flex-col gap-0.5 text-[10px] font-medium">Serie adicional
+            <CompactDropdown label="Serie adicional" value={auxiliary} fullWidth
+              options={[{ value: "", label: "Ninguna" }, { value: "totalGastos", label: "Gastos" }, { value: "ganancia", label: "Ganancia" }]}
+              onChange={setAuxiliary} />
           </label>
         </div>
         <p className="text-xs mb-2">Tendencia · {range?.etiqueta || "Hoy"}{loading ? " · Actualizando…" : ""}</p>
@@ -106,17 +178,8 @@ export default function DashboardTrend({ stats, options, filters, setFilters, us
             </AreaChart>
           </ResponsiveContainer>
         </div>
-        <details className="text-xs mt-2">
-          <summary className="cursor-pointer min-h-8">Ver todos los valores</summary>
-          <div className="max-h-48 overflow-auto">
-            <table className="w-full text-right"><thead><tr><th className="text-left">Fecha / hora</th><th>{selectedType}</th>{auxiliary && <th>{auxiliary === "ganancia" ? "Ganancia" : "Gastos globales"}</th>}</tr></thead>
-              <tbody>{data.map(d => <tr key={d.fecha}><td className="text-left py-1">{d.fecha.replace("T", " ").slice(0, 16)}</td><td>{money(d.totalIngresos)}</td>{auxiliary && <td>{money(d[auxiliary])}</td>}</tr>)}</tbody>
-            </table>
-          </div>
-        </details>
       </div>
     </div>
     {filters.vendedor && <p className="text-xs mt-3">Gastos es el total global del negocio para este período; no se atribuye al vendedor.</p>}
-    <MetricNotes data={stats} />
   </section>;
 }

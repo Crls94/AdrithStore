@@ -27,7 +27,7 @@ INSERT INTO venta_detalle(id_venta,id_producto,cantidad,precio_historico,costo_h
 INSERT INTO venta_detalle_servicio(id_venta,id_producto,monto,comision,costo,subtotal) VALUES
 (18102,18102,20,0,7,20),(18103,18103,100,10,2,110),(18104,18102,5,0,1,5);
 INSERT INTO transaccion_financiera(id_transaccion,fecha,tipo_mov,monto,signo) VALUES (18101,current_date+time '14:00','GASTO',9,-1),(18102,current_date-interval '1 day'+time '14:00','GASTO',4,-1);
-INSERT INTO compra(id_compra,fecha,estado,total) VALUES (18101,current_date+time '08:00','confirmado',50);
+INSERT INTO compra(id_compra,fecha,estado,total) VALUES (18101,current_date+time '08:00','confirmado',50),(18102,current_date-interval '1 day'+time '08:00','confirmado',25);
 INSERT INTO cuenta_financiera(id_cuenta,nombre,saldo_actual,activa) VALUES (18101,'Transferencia',123.45,true);
 COMMIT;`;
 const cleanup = `BEGIN;
@@ -35,7 +35,7 @@ DELETE FROM venta_detalle WHERE id_venta BETWEEN 18101 AND 18105;
 DELETE FROM venta_detalle_servicio WHERE id_venta BETWEEN 18101 AND 18105;
 DELETE FROM venta WHERE id_venta BETWEEN 18101 AND 18105;
 DELETE FROM transaccion_financiera WHERE id_transaccion IN (18101,18102);
-DELETE FROM compra WHERE id_compra=18101;
+DELETE FROM compra WHERE id_compra IN (18101,18102);
 DELETE FROM cuenta_financiera WHERE id_cuenta=18101;
 DELETE FROM producto WHERE id_producto IN (18101,18102,18103);
 DELETE FROM categorias WHERE id_categoria IN (18101,18102);
@@ -62,33 +62,61 @@ COMMIT;`;
     await page.locator('input[type=password]').press('Enter');
     await page.waitForURL('**/dashboard');
     const amount = page.getByTestId('ingreso-principal');
+    const mainPurchases = page.getByTestId('dashboard-kpi-purchases');
+    const mainCard = page.getByRole('region', { name: 'Resumen y tendencia' });
+    const periodMetrics = page.getByRole('region', { name: 'Métricas del período' });
+    const lowerPurchases = periodMetrics.getByText('Compras', { exact: true }).locator('..').locator('p').nth(1);
+    const assertPurchasesMatch = async expected => {
+      await page.waitForFunction(value => document.querySelector('[data-testid="dashboard-kpi-purchases"]')?.textContent === value, expected);
+      assert.equal(await lowerPurchases.textContent(), expected);
+    };
     const waitAmount = expected => page.waitForFunction(text => document.querySelector('[data-testid="ingreso-principal"]')?.textContent === text, expected);
     const waitHeatmap = expected => page.getByTestId('resumen-heatmap').getByText(expected, { exact: true }).first().waitFor();
+    const selectDashboardValue = async (label, value) => {
+      await page.getByRole('button', { name: label, exact: true }).click();
+      await page.getByRole('listbox', { name: label }).locator(`[data-value="${value}"]`).click();
+    };
+    const selectPeriodGroup = async value => page.getByRole('group', { name: 'Grupo temporal' }).locator(`[data-value="${value}"]`).click();
+    const dashboardValue = async label => (await page.getByRole('button', { name: label, exact: true }).textContent()).trim();
+    const countDashboardOptions = async label => {
+      await page.getByRole('button', { name: label, exact: true }).click();
+      const menu = page.getByRole('listbox', { name: label });
+      const count = await menu.getByRole('option').count();
+      await menu.getByRole('option').first().press('Escape');
+      return count;
+    };
     await waitAmount('S/ 110.00'); await waitHeatmap('S/ 110.00');
+    await assertPurchasesMatch('S/ 50.00');
     assert.equal(await page.getByRole('heading', { name: 'Mapa de calor de ventas' }).count(), 1);
-    assert.equal(await page.getByLabel('Serie adicional', { exact: true }).inputValue(), '');
+    assert.deepEqual(await mainCard.locator('.grid.grid-cols-3.text-center > div:not(.col-span-3) > div:first-child').allTextContents(),
+      ['VENTAS', 'COMPRAS', 'TICKET PROM.', 'GANANCIA', 'COSTOS', 'SALDO TOTAL']);
+    assert.equal(await mainCard.getByText('Gastos', { exact: true }).count(), 0);
+    assert.equal(await periodMetrics.getByText('Gastos', { exact: true }).count(), 1);
+    assert.equal(await dashboardValue('Serie adicional'), 'Ninguna');
     await page.screenshot({ path: path.join(out, 'dashboard-desktop.png'), fullPage: true });
-    await page.getByLabel('Serie adicional', { exact: true }).selectOption('ganancia');
+    await selectDashboardValue('Serie adicional', 'ganancia');
     assert(await page.locator('.recharts-area').count() === 2);
-    await page.getByLabel('Serie adicional', { exact: true }).selectOption('totalGastos');
+    await selectDashboardValue('Serie adicional', 'totalGastos');
     assert(await page.locator('.recharts-area').count() === 2);
     assert.equal(await amount.textContent(), 'S/ 110.00');
-    await page.getByLabel('Vendedor del dashboard', { exact: true }).selectOption('1');
+    await selectDashboardValue('Vendedor del dashboard', '1');
     await waitAmount('S/ 100.00'); await waitHeatmap('S/ 100.00');
+    await assertPurchasesMatch('S/ 50.00');
     assert(await page.getByText('Gastos es el total global del negocio para este período; no se atribuye al vendedor.').isVisible());
-    await page.getByLabel('Tipo de ingreso', { exact: true }).selectOption('productos');
+    await selectDashboardValue('Tipo de ingreso', 'productos');
     await waitAmount('S/ 80.00'); await waitHeatmap('S/ 80.00');
-    await page.getByLabel('Tipo de ingreso', { exact: true }).selectOption('servicios');
+    await selectDashboardValue('Tipo de ingreso', 'servicios');
     await waitAmount('S/ 20.00'); await waitHeatmap('S/ 20.00');
-    await page.getByLabel('Tipo de ingreso', { exact: true }).selectOption('ingresos');
-    await page.getByLabel('Vendedor del dashboard', { exact: true }).selectOption('');
+    await selectDashboardValue('Tipo de ingreso', 'ingresos');
+    await selectDashboardValue('Vendedor del dashboard', '');
     await waitAmount('S/ 110.00');
     for (const [group, count] of [['semana', 5], ['mes', 7], ['año', 6], ['dia', 7]]) {
-      await page.getByLabel('Grupo temporal', { exact: true }).selectOption(group);
-      assert.equal(await page.getByLabel('Período concreto', { exact: true }).locator('option').count(), count);
+      await selectPeriodGroup(group);
+      assert.equal(await countDashboardOptions('Período concreto'), count);
       await waitAmount(group === 'dia' ? 'S/ 110.00' : 'S/ 145.00');
+      await assertPurchasesMatch(group === 'dia' ? 'S/ 50.00' : 'S/ 75.00');
     }
-    await page.getByLabel('Categoría del mapa', { exact: true }).selectOption('18102');
+    await selectDashboardValue('Categoría del mapa', '18102');
     await waitHeatmap('S/ 30.00');
     assert.equal(await amount.textContent(), 'S/ 110.00');
     await page.getByRole('button', { name: 'Usar filtros del dashboard' }).click();
@@ -98,20 +126,20 @@ COMMIT;`;
     await page.route('**/api/dashboard/stats?**', async route => {
       await new Promise(resolve => setTimeout(resolve, 500)); await route.continue();
     });
-    await page.getByLabel('Tipo de ingreso', { exact: true }).selectOption('productos');
+    await selectDashboardValue('Tipo de ingreso', 'productos');
     assert.equal(await amount.textContent(), 'S/ 110.00');
     await waitAmount('S/ 80.00');
     await page.unroute('**/api/dashboard/stats?**');
     await page.reload(); await waitAmount('S/ 110.00');
-    assert.equal(await page.getByLabel('Tipo de ingreso', { exact: true }).inputValue(), 'ingresos');
-    assert.equal(await page.getByLabel('Vendedor del dashboard', { exact: true }).inputValue(), '');
-    assert.equal(await page.getByLabel('Serie adicional', { exact: true }).inputValue(), '');
+    assert.equal(await dashboardValue('Tipo de ingreso'), 'Ingresos');
+    assert.equal(await dashboardValue('Vendedor del dashboard'), 'Todos');
+    assert.equal(await dashboardValue('Serie adicional'), 'Ninguna');
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       await page.waitForTimeout(300);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
       assert.equal(overflow, false, `Horizontal overflow at ${width}px`);
-      await page.getByLabel('Serie adicional', { exact: true }).selectOption('ganancia');
+      await selectDashboardValue('Serie adicional', 'ganancia');
       await page.screenshot({ path: path.join(out, `dashboard-mobile-${width}.png`), fullPage: true });
     }
     assert.deepEqual(errors, []);

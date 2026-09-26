@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import api from "../../api/axiosConfig";
-import DashboardTrend, { money } from "./DashboardTrend";
+import DashboardTrend, { dashboardGreenSurface, money } from "./DashboardTrend";
 import HeatmapCard from "./HeatmapCard";
 
-const card = { background: "#005522", color: "#F2F2F2" };
+const card = { background: dashboardGreenSurface, color: "#F2F2F2" };
 const fixedAccounts = ["Caja Fisica", "Plin", "Yape", "Tarjeta", "Transferencia", "Otro"];
 const shortcuts = [["Nueva Venta", "/ventas", "nueva-venta"], ["Reg. Ventas", "/registro-ventas", "registro-ventas"], ["Productos", "/productos", "productos"], ["Categorías", "/categorias", "categorias"], ["Compras", "/compras", "compras"], ["Proveedores", "/proveedores", "proveedores"], ["Clientes", "/clientes", "clientes"]];
 
