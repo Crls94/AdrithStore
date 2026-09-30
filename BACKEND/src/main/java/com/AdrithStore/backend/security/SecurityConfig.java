@@ -95,6 +95,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/setup/configurar").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET,  "/api/setup/estado").hasRole("ADMIN")
                 .requestMatchers("/api/eventos/**").hasRole("ADMIN")
+                .requestMatchers("/api/infraestructura/**").hasRole("ADMIN")
+                .requestMatchers("/actuator", "/actuator/**").hasRole("ADMIN")
 
                 // Debe ir ANTES que /api/reportes/** (mas especifico primero: Spring
                 // Security evalua los matchers en orden y usa el primero que calce).

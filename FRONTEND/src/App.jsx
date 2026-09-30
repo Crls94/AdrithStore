@@ -22,6 +22,7 @@ import MiPerfil       from "./pages/MiPerfil";
 import EventoLog      from "./pages/EventoLog";
 import Usuarios       from "./pages/Usuarios";
 import AdminSistema   from "./pages/AdminSistema";
+import Infraestructura from "./pages/Infraestructura";
 import Tesoreria      from "./pages/Tesoreria";
 import Reportes       from "./pages/Reportes";
 import RecuperarPassword from "./auth/RecuperarPassword";
@@ -103,6 +104,7 @@ function AppRoutes() {
         <Route path="/perfil"          element={<MiPerfil />} />
         <Route path="/usuarios"        element={<PrivateRoute soloAdmin><Usuarios /></PrivateRoute>} />
         <Route path="/admin-sistema"   element={<PrivateRoute soloAdmin><AdminSistema /></PrivateRoute>} />
+        <Route path="/infraestructura" element={<PrivateRoute soloAdmin><Infraestructura /></PrivateRoute>} />
         <Route path="/eventos"         element={<PrivateRoute soloAdmin><EventoLog /></PrivateRoute>} />
         <Route path="/tesoreria"        element={<PrivateRoute soloAdmin><Tesoreria /></PrivateRoute>} />
         <Route path="/reportes"        element={<Reportes />} />

@@ -118,6 +118,7 @@ export default function Layout() {
   const fechaStr = ahora.toLocaleDateString("es-PE",{weekday:"long",day:"numeric",month:"long"});
 
   const menuItems = [
+    {label:"Infraestructura / Consumo", icon:"📊", ruta:"/infraestructura", admin:true},
     {label:"Mi Perfil",  icon:"👤", ruta:"/perfil"},
     {label:"Tesorería",  icon:"💰", ruta:"/tesoreria", admin:true},
     {label:"Usuarios",   icon:"👥", ruta:"/usuarios",  admin:true},
