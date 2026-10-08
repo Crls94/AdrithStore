@@ -1,6 +1,0 @@
-target
-uploads
-.git
-.env*
-*.log
-.vscode

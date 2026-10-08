@@ -1,4 +1,4 @@
-# AdrithStore
+# AdrithStore — Proyecto académico
 
 **Sistema de gestión comercial e inventario para pequeños y medianos comercios.**
 
@@ -31,7 +31,7 @@ Ver [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md).
 
 ## Estado del proyecto
 
-AdrithStore continúa en evolución. El backlog de GitHub documenta correcciones y decisiones pendientes sobre atomicidad, concurrencia, seguridad, servicios, dashboard, revalorización, inventario inicial y transformación de productos.
+Este repositorio conserva la versión académica de AdrithStore para aprendizaje y portafolio. La evolución profesional continúa por separado bajo el nombre Adrith. Esta versión no debe considerarse una distribución lista para producción.
 
 Las reglas aprobadas y las que aún están pendientes se consolidan en [docs/REGLAS_NEGOCIO.md](docs/REGLAS_NEGOCIO.md).
 
