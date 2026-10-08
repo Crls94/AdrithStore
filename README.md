@@ -37,6 +37,7 @@ Las reglas aprobadas y las que aún están pendientes se consolidan en [docs/REG
 
 ## Documentación
 
+- [Entrega académica y ejecución local](docs/ENTREGA_ACADEMICA.md)
 - [Producto y alcance](docs/PRODUCTO.md)
 - [Arquitectura técnica](docs/ARQUITECTURA.md)
 - [Reglas de negocio](docs/REGLAS_NEGOCIO.md)
