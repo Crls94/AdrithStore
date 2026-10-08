@@ -1,0 +1,10 @@
+{
+  "hosting": {
+    "public": "FRONTEND/dist",
+    "ignore": ["firebase*.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "/api/**", "run": { "serviceId": "adrith-backend-test", "region": "us-central1", "pinTag": true } },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  }
+}
