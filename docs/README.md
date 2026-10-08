@@ -4,6 +4,7 @@ Este directorio concentra documentación que antes estaba dispersa.
 
 | Documento | Propósito | Vigencia |
 |---|---|---|
+| [ENTREGA_ACADEMICA.md](ENTREGA_ACADEMICA.md) | Alcance académico, ejecución local, evidencia y limitaciones. | Entrega académica |
 | `PRODUCTO.md` | Definición pública, alcance, módulos y evolución prevista. | Activo |
 | `ARQUITECTURA.md` | Visión técnica y responsabilidades por capa. | Activo |
 | `REGLAS_NEGOCIO.md` | Decisiones funcionales consolidadas. | Activo / vivo |
